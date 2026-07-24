@@ -4,6 +4,7 @@ import { ScheduleModule } from '@nestjs/schedule';
 import configuration from './config/configuration';
 import { PrismaModule } from './prisma/prisma.module';
 import { IngestionModule } from './ingestion/ingestion.module';
+import { ExtractionModule } from './extraction/extraction.module';
 import { AppController } from './app.controller';
 
 @Module({
@@ -17,6 +18,7 @@ import { AppController } from './app.controller';
     ScheduleModule.forRoot(),
     PrismaModule,
     IngestionModule,
+    ExtractionModule,
   ],
   controllers: [AppController],
 })

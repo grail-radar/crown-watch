@@ -15,7 +15,8 @@
     "db:generate": "pnpm --filter @crown-watch/api prisma:generate",
     "db:migrate": "pnpm --filter @crown-watch/api prisma:migrate",
     "db:seed": "pnpm --filter @crown-watch/api prisma:seed",
-    "ingest:rss": "pnpm --filter @crown-watch/api ingest:rss"
+    "ingest:rss": "pnpm --filter @crown-watch/api ingest:rss",
+    "extract": "pnpm --filter @crown-watch/api extract"
   },
   "devDependencies": {
     "prettier": "^3.3.3",

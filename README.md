@@ -70,6 +70,24 @@ downstream stages built later.
 > The production polling/dispatch path is intended to move to Redis + BullMQ
 > (CONTEXT.md §3); the cron scheduler here is the lightweight interim.
 
+## LLM extraction (raw events → drops)
+
+The extraction stage reads unprocessed `raw_ingestion_events` and calls the
+Anthropic API (`claude-opus-4-8`) with structured tool-use to pull short factual
+fields (brand, model, price, date, confidence). It:
+
+- upserts a **brand** for each discovered microbrand (new-entrant discovery), and
+- lands a candidate **drop** in the moderation queue (`moderation_status = pending`)
+  only when the article is a real drop event (Kickstarter / waitlist / restock / pre-order).
+
+Nothing is published — every drop waits for human moderation (CONTEXT.md §5).
+Copyright-safe: only short factual fields are stored, never source prose.
+
+- Set `ANTHROPIC_API_KEY` to enable it; without a key it no-ops cleanly.
+- Run it: `pnpm extract`, or `POST /extraction/run` on the running API.
+- The persistence path is covered (no API key needed) by
+  `pnpm --filter @crown-watch/api extract:verify`.
+
 ## Useful scripts
 
 | Command | What it does |
@@ -80,6 +98,7 @@ downstream stages built later.
 | `pnpm db:migrate` | `prisma migrate dev` (api) |
 | `pnpm db:seed` | Seed RSS sources (api) |
 | `pnpm ingest:rss` | Run one Tier 1 RSS poll (api) |
+| `pnpm extract` | Run the LLM extraction stage (api) |
 
 ## Notes
 

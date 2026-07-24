@@ -15,12 +15,15 @@
     "prisma:deploy": "prisma migrate deploy",
     "prisma:seed": "prisma db seed",
     "prisma:studio": "prisma studio",
-    "ingest:rss": "ts-node --transpile-only src/scripts/poll-rss.ts"
+    "ingest:rss": "ts-node --transpile-only src/scripts/poll-rss.ts",
+    "extract": "ts-node --transpile-only src/scripts/extract.ts",
+    "extract:verify": "ts-node --transpile-only src/scripts/extract-verify.ts"
   },
   "prisma": {
     "seed": "ts-node --transpile-only prisma/seed.ts"
   },
   "dependencies": {
+    "@anthropic-ai/sdk": "^0.115.0",
     "@nestjs/common": "^11.1.28",
     "@nestjs/config": "^4.0.4",
     "@nestjs/core": "^11.1.28",

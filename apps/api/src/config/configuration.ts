@@ -10,6 +10,11 @@ export interface AppConfig {
     userAgent: string;
     requestTimeoutMs: number;
   };
+  anthropic: {
+    apiKey: string | undefined;
+    model: string;
+    maxItemsPerRun: number;
+  };
 }
 
 export default (): AppConfig => ({
@@ -25,5 +30,10 @@ export default (): AppConfig => ({
       process.env.RSS_USER_AGENT ??
       'CrownWatchBot/0.1 (+https://crown-watch.example; Tier1 RSS ingestion)',
     requestTimeoutMs: parseInt(process.env.RSS_TIMEOUT_MS ?? '20000', 10),
+  },
+  anthropic: {
+    apiKey: process.env.ANTHROPIC_API_KEY || undefined,
+    model: process.env.ANTHROPIC_MODEL ?? 'claude-opus-4-8',
+    maxItemsPerRun: parseInt(process.env.EXTRACTION_MAX_ITEMS ?? '25', 10),
   },
 });
