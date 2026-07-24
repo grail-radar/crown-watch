@@ -5,6 +5,7 @@ import configuration from './config/configuration';
 import { PrismaModule } from './prisma/prisma.module';
 import { IngestionModule } from './ingestion/ingestion.module';
 import { ExtractionModule } from './extraction/extraction.module';
+import { CatalogModule } from './catalog/catalog.module';
 import { AppController } from './app.controller';
 
 @Module({
@@ -19,6 +20,7 @@ import { AppController } from './app.controller';
     PrismaModule,
     IngestionModule,
     ExtractionModule,
+    CatalogModule,
   ],
   controllers: [AppController],
 })
