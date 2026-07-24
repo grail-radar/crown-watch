@@ -1,0 +1,27 @@
+{
+  "name": "@crown-watch/web",
+  "version": "0.0.0",
+  "private": true,
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "lint": "echo \"(web lint not configured yet)\"",
+    "typecheck": "tsc --noEmit",
+    "clean": "rimraf .next"
+  },
+  "dependencies": {
+    "next": "^16.2.10",
+    "react": "^19.2.7",
+    "react-dom": "^19.2.7"
+  },
+  "devDependencies": {
+    "@tailwindcss/postcss": "^4.3.3",
+    "@types/node": "^22.10.0",
+    "@types/react": "^19.2.0",
+    "@types/react-dom": "^19.2.0",
+    "postcss": "^8.5.21",
+    "tailwindcss": "^4.3.3",
+    "typescript": "^5.6.3"
+  }
+}

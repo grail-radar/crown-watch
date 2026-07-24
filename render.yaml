@@ -1,0 +1,23 @@
+# Render Blueprint for the Crown Watch API (free tier, Docker).
+# render.com → New → Blueprint → pick this repo. Set DATABASE_URL (Neon) when prompted.
+services:
+  - type: web
+    name: crown-watch-api
+    runtime: docker
+    plan: free
+    dockerfilePath: apps/api/Dockerfile
+    dockerContext: .
+    healthCheckPath: /health
+    autoDeploy: true
+    envVars:
+      - key: NODE_ENV
+        value: production
+      # Neon connection string — set in the dashboard (not committed).
+      - key: DATABASE_URL
+        sync: false
+      # Your Vercel URL for CORS, e.g. https://crown-watch.vercel.app. Blank = allow all.
+      - key: WEB_ORIGIN
+        sync: false
+      # Ingestion runs via the GitHub Actions cron hitting /ingestion/rss/poll.
+      - key: RSS_POLL_ON_BOOT
+        value: "false"

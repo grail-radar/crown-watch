@@ -1,0 +1,37 @@
+# Local development infrastructure for Crown Watch.
+# Postgres is mapped to host :5434 and Redis to :6380 on purpose, to avoid
+# colliding with any Postgres/Redis you may already run on the default ports.
+# The API's DATABASE_URL / REDIS_URL (apps/api/.env) point at these host ports.
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: crown-watch-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: crownwatch
+      POSTGRES_PASSWORD: crownwatch
+      POSTGRES_DB: crownwatch
+    ports:
+      - "5434:5432"
+    volumes:
+      - crown-watch-pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U crownwatch -d crownwatch"]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+
+  # Reserved for BullMQ polling/notification queues (CONTEXT.md §3).
+  # Not yet used by the Tier 1 RSS ingestion path, but wired for local dev.
+  redis:
+    image: redis:7-alpine
+    container_name: crown-watch-redis
+    restart: unless-stopped
+    ports:
+      - "6380:6379"
+    volumes:
+      - crown-watch-redisdata:/data
+
+volumes:
+  crown-watch-pgdata:
+  crown-watch-redisdata:

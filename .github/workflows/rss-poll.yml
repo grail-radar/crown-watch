@@ -1,0 +1,22 @@
+name: RSS poll
+
+# Free API hosts sleep when idle, so the API's in-process cron can't be relied on.
+# This workflow pokes the ingestion endpoint on a schedule (and wakes the service).
+on:
+  schedule:
+    - cron: "*/20 * * * *" # every 20 min (GitHub may delay/skip on load)
+  workflow_dispatch: {}
+
+jobs:
+  poll:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Trigger Tier 1 RSS poll
+        env:
+          API_BASE_URL: ${{ secrets.API_BASE_URL }}
+        run: |
+          if [ -z "$API_BASE_URL" ]; then
+            echo "Set the API_BASE_URL repo secret to your Render URL (no trailing slash)."
+            exit 1
+          fi
+          curl -fsS --max-time 180 -X POST "$API_BASE_URL/ingestion/rss/poll"

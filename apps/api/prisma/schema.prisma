@@ -1,0 +1,265 @@
+// Crown Watch data model — see CONTEXT.md §5.
+// Table/column names are snake_case (mapped) to match the brief; Prisma model
+// and field names stay camelCase for idiomatic client usage.
+
+generator client {
+  provider        = "prisma-client-js"
+  previewFeatures = ["views"]
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ── Enums ────────────────────────────────────────────────────────────────
+
+enum SourceType {
+  rss
+  newsletter
+  kickstarter
+  site_watch
+  manual
+}
+
+enum SourceHealth {
+  unknown
+  healthy
+  degraded
+  error
+}
+
+enum BrandStatus {
+  watchlist
+  verified
+}
+
+enum DropType {
+  kickstarter_launch
+  waitlist_open
+  restock
+  pre_order
+}
+
+enum ModerationStatus {
+  pending
+  approved
+  rejected
+}
+
+enum PlanTier {
+  free
+  paid
+}
+
+enum SubscriptionStatus {
+  incomplete
+  trialing
+  active
+  past_due
+  canceled
+}
+
+enum NotificationChannelType {
+  email
+  telegram
+  discord
+}
+
+// ── Ingestion ────────────────────────────────────────────────────────────
+
+model Source {
+  id           String       @id @default(cuid())
+  type         SourceType
+  name         String?
+  brandId      String?      @map("brand_id")
+  endpoint     String
+  lastPolledAt DateTime?    @map("last_polled_at")
+  healthStatus SourceHealth @default(unknown) @map("health_status")
+  createdAt    DateTime     @default(now()) @map("created_at")
+  updatedAt    DateTime     @updatedAt @map("updated_at")
+
+  brand  Brand?              @relation(fields: [brandId], references: [id], onDelete: SetNull)
+  events RawIngestionEvent[]
+
+  @@unique([type, endpoint])
+  @@index([type])
+  @@index([brandId])
+  @@map("sources")
+}
+
+model RawIngestionEvent {
+  id          String   @id @default(cuid())
+  sourceId    String   @map("source_id")
+  fetchedAt   DateTime @default(now()) @map("fetched_at")
+  // Raw fetched content is never discarded — needed to reprocess as extraction
+  // prompts improve (CONTEXT.md §5).
+  rawPayload  Json     @map("raw_payload")
+  contentHash String   @map("content_hash")
+  processed   Boolean  @default(false)
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  source Source @relation(fields: [sourceId], references: [id], onDelete: Cascade)
+  drops  Drop[]
+
+  @@unique([sourceId, contentHash])
+  @@index([processed])
+  @@index([sourceId])
+  @@map("raw_ingestion_events")
+}
+
+// ── Catalog ──────────────────────────────────────────────────────────────
+
+model Brand {
+  id               String      @id @default(cuid())
+  name             String
+  slug             String      @unique
+  website          String?
+  instagramHandle  String?     @map("instagram_handle")
+  country          String?
+  foundedYearEst   Int?        @map("founded_year_est")
+  status           BrandStatus @default(watchlist)
+  // Phase 2 — brand reliability / delivery track-record (CONTEXT.md §2, §5).
+  reliabilityScore Float?      @map("reliability_score")
+  createdAt        DateTime    @default(now()) @map("created_at")
+  updatedAt        DateTime    @updatedAt @map("updated_at")
+
+  sources    Source[]
+  drops      Drop[]
+  watchlists Watchlist[]
+
+  @@index([status])
+  @@map("brands")
+}
+
+model Drop {
+  id               String           @id @default(cuid())
+  brandId          String           @map("brand_id")
+  title            String
+  type             DropType
+  priceLow         Decimal?         @map("price_low") @db.Decimal(12, 2)
+  priceHigh        Decimal?         @map("price_high") @db.Decimal(12, 2)
+  currency         String?          @db.VarChar(3)
+  eventDate        DateTime?        @map("event_date")
+  sourceEventId    String?          @map("source_event_id")
+  // From LLM extraction (CONTEXT.md §5).
+  confidenceScore  Float?           @map("confidence_score")
+  moderationStatus ModerationStatus @default(pending) @map("moderation_status")
+  reviewerId       String?          @map("reviewer_id")
+  reviewedAt       DateTime?        @map("reviewed_at")
+  publishedAt      DateTime?        @map("published_at")
+  createdAt        DateTime         @default(now()) @map("created_at")
+  updatedAt        DateTime         @updatedAt @map("updated_at")
+
+  brand         Brand              @relation(fields: [brandId], references: [id], onDelete: Cascade)
+  sourceEvent   RawIngestionEvent? @relation(fields: [sourceEventId], references: [id], onDelete: SetNull)
+  reviewer      User?              @relation("DropReviewer", fields: [reviewerId], references: [id], onDelete: SetNull)
+  notifications NotificationLog[]
+
+  @@index([brandId])
+  @@index([moderationStatus])
+  @@index([publishedAt])
+  @@map("drops")
+}
+
+// ── Users, alerts, billing ───────────────────────────────────────────────
+
+model User {
+  id           String   @id @default(cuid())
+  email        String   @unique
+  passwordHash String?  @map("password_hash")
+  displayName  String?  @map("display_name")
+  planTier     PlanTier @default(free) @map("plan_tier")
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @updatedAt @map("updated_at")
+
+  watchlists           Watchlist[]
+  notificationChannels NotificationChannel[]
+  notifications        NotificationLog[]
+  subscription         Subscription?
+  reviewedDrops        Drop[]                @relation("DropReviewer")
+
+  @@map("users")
+}
+
+model Watchlist {
+  id        String   @id @default(cuid())
+  userId    String   @map("user_id")
+  brandId   String?  @map("brand_id")
+  keyword   String?
+  createdAt DateTime @default(now()) @map("created_at")
+
+  user  User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  brand Brand? @relation(fields: [brandId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([brandId])
+  @@map("watchlists")
+}
+
+model NotificationChannel {
+  id         String                  @id @default(cuid())
+  userId     String                  @map("user_id")
+  type       NotificationChannelType
+  identifier String
+  verified   Boolean                 @default(false)
+  createdAt  DateTime                @default(now()) @map("created_at")
+  updatedAt  DateTime                @updatedAt @map("updated_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, type, identifier])
+  @@index([userId])
+  @@map("notification_channels")
+}
+
+model NotificationLog {
+  id      String                  @id @default(cuid())
+  userId  String                  @map("user_id")
+  dropId  String                  @map("drop_id")
+  channel NotificationChannelType
+  sentAt  DateTime                @default(now()) @map("sent_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  drop Drop @relation(fields: [dropId], references: [id], onDelete: Cascade)
+
+  // Dedup guard — one notification per (user, drop, channel) (CONTEXT.md §5).
+  @@unique([userId, dropId, channel])
+  @@index([dropId])
+  @@map("notifications_log")
+}
+
+model Subscription {
+  id                   String             @id @default(cuid())
+  userId               String             @unique @map("user_id")
+  stripeCustomerId     String?            @unique @map("stripe_customer_id")
+  stripeSubscriptionId String?            @unique @map("stripe_subscription_id")
+  plan                 PlanTier           @default(free)
+  status               SubscriptionStatus @default(incomplete)
+  createdAt            DateTime           @default(now()) @map("created_at")
+  updatedAt            DateTime           @updatedAt @map("updated_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("subscriptions")
+}
+
+// ── Views ────────────────────────────────────────────────────────────────
+// moderation_queue — pending drops awaiting human review (CONTEXT.md §5).
+// The backing SQL view is created in a dedicated migration; this block gives
+// the Prisma Client a typed, read-only model over it.
+
+view ModerationQueue {
+  id               String           @unique
+  brandId          String           @map("brand_id")
+  title            String
+  type             DropType
+  confidenceScore  Float?           @map("confidence_score")
+  moderationStatus ModerationStatus @map("moderation_status")
+  reviewerId       String?          @map("reviewer_id")
+  reviewedAt       DateTime?        @map("reviewed_at")
+  publishedAt      DateTime?        @map("published_at")
+  createdAt        DateTime         @map("created_at")
+
+  @@map("moderation_queue")
+}
