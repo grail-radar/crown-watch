@@ -53,13 +53,14 @@ const EXTRACTION_SCHEMA = {
       description: 'The watch model / product name (short, factual), or null.',
     },
     drop_type: {
-      type: ['string', 'null'],
-      enum: [
-        'kickstarter_launch',
-        'waitlist_open',
-        'restock',
-        'pre_order',
-        null,
+      // Nullable enum must be expressed via anyOf for Anthropic strict schema
+      // validation — a union `type: ['string','null']` alongside `enum` is rejected.
+      anyOf: [
+        {
+          type: 'string',
+          enum: ['kickstarter_launch', 'waitlist_open', 'restock', 'pre_order'],
+        },
+        { type: 'null' },
       ],
       description: 'The drop event type, or null if not a drop event.',
     },
