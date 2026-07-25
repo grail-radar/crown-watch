@@ -19,7 +19,11 @@ jobs:
             echo "Set the API_BASE_URL repo secret to your Render URL (no trailing slash)."
             exit 1
           fi
-          curl -fsS --max-time 180 -X POST "$API_BASE_URL/ingestion/rss/poll"
+          # Wake the free-tier instance, then poll with retries (the service can
+          # briefly 5xx during cold starts or mid-deploy restarts).
+          curl -fsS --max-time 120 --retry 3 --retry-delay 10 --retry-all-errors "$API_BASE_URL/health" || true
+          curl -fsS --max-time 180 --retry 4 --retry-delay 15 --retry-all-errors \
+            -X POST "$API_BASE_URL/ingestion/rss/poll"
 
       # Turn new raw articles into brands + pending drops. Non-fatal: the poll
       # stays green even if extraction hiccups. Costs Anthropic credit per NEW
@@ -30,5 +34,6 @@ jobs:
         env:
           API_BASE_URL: ${{ secrets.API_BASE_URL }}
         run: |
-          curl -fsS --max-time 480 -X POST "$API_BASE_URL/extraction/run?limit=30" \
+          curl -fsS --max-time 480 --retry 2 --retry-delay 20 --retry-all-errors \
+            -X POST "$API_BASE_URL/extraction/run?limit=30" \
             || echo "extraction failed or skipped (non-fatal)"
