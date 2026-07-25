@@ -7,7 +7,12 @@ export class AppController {
 
   @Get()
   root() {
-    return { name: 'crown-watch-api', status: 'ok' };
+    return {
+      name: 'crown-watch-api',
+      status: 'ok',
+      // Render injects RENDER_GIT_COMMIT — lets ops confirm which build is live.
+      commit: process.env.RENDER_GIT_COMMIT?.slice(0, 7) ?? 'dev',
+    };
   }
 
   @Get('health')
