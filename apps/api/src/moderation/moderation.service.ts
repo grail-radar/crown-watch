@@ -29,6 +29,8 @@ export class ModerationService {
           priceHigh: true,
           currency: true,
           eventDate: true,
+          imageUrl: true,
+          sourceUrl: true,
           confidenceScore: true,
           createdAt: true,
           brand: { select: { name: true, slug: true } },

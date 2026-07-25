@@ -1,67 +1,106 @@
+import type { Metadata } from 'next';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
+import { DropCard } from '@/components/cards';
 import { getBrand } from '@/lib/api';
+import { monogram } from '@/lib/format';
 
 export const dynamic = 'force-dynamic';
 
-export default async function BrandPage({
-  params,
-}: {
+interface Props {
   params: Promise<{ slug: string }>;
-}) {
+}
+
+export async function generateMetadata({ params }: Props): Promise<Metadata> {
+  const { slug } = await params;
+  const brand = await getBrand(slug);
+  if (!brand) return { title: 'Brand not found — Crown Watch' };
+  return {
+    title: `${brand.name} — drops & releases | Crown Watch`,
+    description: `New releases, pre-orders, waitlists and restocks from ${brand.name}, tracked by Crown Watch.`,
+  };
+}
+
+export default async function BrandPage({ params }: Props) {
   const { slug } = await params;
   const brand = await getBrand(slug);
   if (!brand) notFound();
 
   return (
-    <main className="mx-auto max-w-3xl px-6 py-16">
-      <Link href="/" className="text-sm text-neutral-500 hover:underline">
-        ← All brands
-      </Link>
-
-      <h1 className="mt-4 text-3xl font-semibold tracking-tight">
-        {brand.name}
-      </h1>
-      <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1 text-sm text-neutral-500">
-        {brand.country && <span>{brand.country}</span>}
-        {brand.foundedYearEst && <span>est. {brand.foundedYearEst}</span>}
-        <span className="capitalize">{brand.status}</span>
-        {brand.website && (
-          <a
-            href={brand.website}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="text-neutral-700 underline dark:text-neutral-300"
-          >
-            Website
-          </a>
-        )}
+    <main className="mx-auto w-full max-w-6xl px-6 pb-24">
+      <div className="pt-10">
+        <Link
+          href="/#brands"
+          className="text-sm text-faint transition hover:text-ink"
+        >
+          ← All brands
+        </Link>
       </div>
 
-      <h2 className="mb-3 mt-10 text-lg font-semibold">Drops</h2>
-      {brand.drops.length === 0 ? (
-        <p className="text-neutral-500">No published drops yet.</p>
-      ) : (
-        <ul className="space-y-3">
-          {brand.drops.map((d) => (
-            <li
-              key={d.id}
-              className="rounded-lg border border-neutral-200 p-4 dark:border-neutral-800"
-            >
-              <div className="font-medium">{d.title}</div>
-              <div className="mt-1 text-sm text-neutral-500">
-                {d.type.replace(/_/g, ' ')}
-                {d.priceLow &&
-                  ` · ${d.priceLow}${
-                    d.priceHigh && d.priceHigh !== d.priceLow
-                      ? `–${d.priceHigh}`
-                      : ''
-                  } ${d.currency ?? ''}`}
-              </div>
-            </li>
-          ))}
-        </ul>
-      )}
+      {/* Brand hero */}
+      <section className="flex flex-wrap items-center gap-6 py-10">
+        <span className="flex h-20 w-20 items-center justify-center rounded-full bg-gradient-to-br from-panel-2 to-night font-display text-2xl text-gold ring-1 ring-line">
+          {monogram(brand.name)}
+        </span>
+        <div className="min-w-0">
+          <h1 className="font-display text-4xl font-medium tracking-tight">
+            {brand.name}
+          </h1>
+          <div className="mt-3 flex flex-wrap items-center gap-2 text-xs text-faint">
+            {brand.status === 'verified' ? (
+              <span className="rounded-full bg-emerald-400/10 px-2.5 py-1 font-medium text-emerald-300 ring-1 ring-emerald-400/25">
+                Verified
+              </span>
+            ) : (
+              <span className="rounded-full border border-line px-2.5 py-1">
+                Independent
+              </span>
+            )}
+            {brand.country && (
+              <span className="rounded-full border border-line px-2.5 py-1">
+                {brand.country}
+              </span>
+            )}
+            {brand.foundedYearEst && (
+              <span className="rounded-full border border-line px-2.5 py-1">
+                est. {brand.foundedYearEst}
+              </span>
+            )}
+            {brand.website && (
+              <a
+                href={brand.website}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="rounded-full border border-gold/40 px-2.5 py-1 text-gold transition hover:border-gold hover:text-gold-bright"
+              >
+                Website ↗
+              </a>
+            )}
+          </div>
+        </div>
+      </section>
+
+      {/* Drops */}
+      <section className="border-t border-line/70 pt-10">
+        <h2 className="mb-6 font-display text-2xl tracking-tight">Drops</h2>
+        {brand.drops.length === 0 ? (
+          <p className="rounded-2xl border border-dashed border-line p-10 text-center text-faint">
+            No published drops from {brand.name} yet — they&apos;re on the
+            radar, and new releases will appear here once verified.
+          </p>
+        ) : (
+          <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3">
+            {brand.drops.map((d) => (
+              <DropCard
+                key={d.id}
+                drop={d}
+                brand={{ name: brand.name, slug: brand.slug }}
+                showBrand={false}
+              />
+            ))}
+          </div>
+        )}
+      </section>
     </main>
   );
 }

@@ -141,6 +141,10 @@ model Drop {
   priceHigh        Decimal?         @map("price_high") @db.Decimal(12, 2)
   currency         String?          @db.VarChar(3)
   eventDate        DateTime?        @map("event_date")
+  // Article media, extracted from the raw feed payload: thumbnail + link back
+  // to the original coverage (attribution — we never copy article prose).
+  imageUrl         String?          @map("image_url")
+  sourceUrl        String?          @map("source_url")
   sourceEventId    String?          @map("source_event_id")
   // From LLM extraction (CONTEXT.md §5).
   confidenceScore  Float?           @map("confidence_score")

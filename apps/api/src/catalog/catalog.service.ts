@@ -1,6 +1,33 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
-import { ModerationStatus } from '@prisma/client';
+import { ModerationStatus, Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
+
+const PUBLISHED: Prisma.DropWhereInput = {
+  moderationStatus: ModerationStatus.approved,
+  publishedAt: { not: null },
+};
+
+/** Fields the public feed exposes for a drop. */
+const DROP_SELECT = {
+  id: true,
+  title: true,
+  type: true,
+  priceLow: true,
+  priceHigh: true,
+  currency: true,
+  eventDate: true,
+  imageUrl: true,
+  sourceUrl: true,
+  publishedAt: true,
+  sourceEvent: { select: { source: { select: { name: true } } } },
+} satisfies Prisma.DropSelect;
+
+type DropRow = Prisma.DropGetPayload<{ select: typeof DROP_SELECT }>;
+
+function flattenDrop(row: DropRow) {
+  const { sourceEvent, ...drop } = row;
+  return { ...drop, sourceName: sourceEvent?.source?.name ?? null };
+}
 
 /**
  * Public, read-only catalog for the website: the brand directory and the
@@ -27,7 +54,8 @@ export class CatalogService {
           website: true,
           status: true,
           createdAt: true,
-          _count: { select: { drops: true } },
+          // Published drops only — pending/rejected must not leak into the UI.
+          _count: { select: { drops: { where: PUBLISHED } } },
         },
       }),
     ]);
@@ -48,49 +76,33 @@ export class CatalogService {
         status: true,
         createdAt: true,
         drops: {
-          where: {
-            moderationStatus: ModerationStatus.approved,
-            publishedAt: { not: null },
-          },
+          where: PUBLISHED,
           orderBy: { publishedAt: 'desc' },
-          select: {
-            id: true,
-            title: true,
-            type: true,
-            priceLow: true,
-            priceHigh: true,
-            currency: true,
-            eventDate: true,
-            publishedAt: true,
-          },
+          select: DROP_SELECT,
         },
       },
     });
     if (!brand) throw new NotFoundException(`Brand not found: ${slug}`);
-    return brand;
+    return { ...brand, drops: brand.drops.map(flattenDrop) };
   }
 
   async listPublishedDrops(take = 50) {
     const safeTake = Math.min(Math.max(take, 1), 200);
     const drops = await this.prisma.drop.findMany({
-      where: {
-        moderationStatus: ModerationStatus.approved,
-        publishedAt: { not: null },
-      },
+      where: PUBLISHED,
       orderBy: { publishedAt: 'desc' },
       take: safeTake,
       select: {
-        id: true,
-        title: true,
-        type: true,
-        priceLow: true,
-        priceHigh: true,
-        currency: true,
-        eventDate: true,
-        publishedAt: true,
+        ...DROP_SELECT,
         brand: { select: { name: true, slug: true } },
       },
     });
-    return { count: drops.length, drops };
+    return {
+      count: drops.length,
+      drops: drops.map((row) => {
+        const { brand, ...rest } = row;
+        return { ...flattenDrop(rest), brand };
+      }),
+    };
   }
 }

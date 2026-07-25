@@ -16,6 +16,7 @@ export interface BrandSummary {
   website: string | null;
   status: string;
   createdAt: string;
+  /** Count of PUBLISHED drops only. */
   _count: { drops: number };
 }
 
@@ -33,7 +34,19 @@ export interface DropSummary {
   priceHigh: string | null;
   currency: string | null;
   eventDate: string | null;
+  imageUrl: string | null;
+  sourceUrl: string | null;
   publishedAt: string | null;
+  sourceName: string | null;
+}
+
+export interface FeedDrop extends DropSummary {
+  brand: { name: string; slug: string };
+}
+
+export interface DropFeed {
+  count: number;
+  drops: FeedDrop[];
 }
 
 export interface BrandDetail {
@@ -59,6 +72,19 @@ export async function getBrands(take = 100): Promise<BrandList> {
     return (await res.json()) as BrandList;
   } catch {
     return { total: 0, count: 0, brands: [] };
+  }
+}
+
+/** Latest published drops. Degrades to empty if the API is unreachable. */
+export async function getDrops(take = 24): Promise<DropFeed> {
+  try {
+    const res = await fetch(`${API_URL}/drops?take=${take}`, {
+      cache: 'no-store',
+    });
+    if (!res.ok) return { count: 0, drops: [] };
+    return (await res.json()) as DropFeed;
+  } catch {
+    return { count: 0, drops: [] };
   }
 }
 

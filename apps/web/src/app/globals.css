@@ -1,9 +1,32 @@
 @import "tailwindcss";
 
+/* Fonts are injected by next/font in layout.tsx via CSS variables. */
+@theme inline {
+  --font-sans: var(--font-instrument), ui-sans-serif, system-ui, sans-serif;
+  --font-display: var(--font-fraunces), Georgia, "Times New Roman", serif;
+}
+
+/* Dark-first editorial palette: layered surfaces (never true black), warm ink,
+   champagne-gold accent. */
+@theme {
+  --color-night: #101014;
+  --color-panel: #17171c;
+  --color-panel-2: #1e1e24;
+  --color-line: #26262e;
+  --color-ink: #ece9e2;
+  --color-faint: #918e86;
+  --color-gold: #c9a96a;
+  --color-gold-bright: #e0c690;
+}
+
 :root {
-  color-scheme: light dark;
+  color-scheme: dark;
 }
 
 body {
-  @apply bg-white text-neutral-900 antialiased dark:bg-neutral-950 dark:text-neutral-100;
+  @apply bg-night font-sans text-ink antialiased;
+}
+
+::selection {
+  background: color-mix(in srgb, var(--color-gold) 30%, transparent);
 }

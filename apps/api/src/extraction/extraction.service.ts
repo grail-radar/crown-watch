@@ -9,6 +9,7 @@ import {
 import { PrismaService } from '../prisma/prisma.service';
 import { AnthropicService } from './anthropic.service';
 import { ExtractionResult } from './extraction.types';
+import { extractMediaFromPayload } from './media';
 import { slugify } from './slug';
 
 export interface PersistOutcome {
@@ -148,6 +149,9 @@ export class ExtractionService {
           select: { id: true },
         });
         if (!existing) {
+          const media = extractMediaFromPayload(
+            rawEvent.rawPayload as Record<string, unknown> | null,
+          );
           await tx.drop.create({
             data: {
               brandId: brand.id,
@@ -157,6 +161,8 @@ export class ExtractionService {
               priceHigh: this.toDecimal(result.price_high),
               currency: this.toCurrency(result.currency),
               eventDate: this.toDate(result.event_date),
+              imageUrl: media.imageUrl,
+              sourceUrl: media.sourceUrl,
               sourceEventId: rawEvent.id,
               confidenceScore: this.clampConfidence(result.confidence),
               moderationStatus: ModerationStatus.pending,
