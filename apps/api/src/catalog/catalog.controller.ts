@@ -21,6 +21,11 @@ export class CatalogController {
     return this.catalog.listPublishedDrops(this.int(take, 50));
   }
 
+  @Get('drops/:id')
+  drop(@Param('id') id: string) {
+    return this.catalog.getPublishedDrop(id);
+  }
+
   private int(value: string | undefined, fallback: number): number {
     const n = value ? parseInt(value, 10) : NaN;
     return Number.isNaN(n) ? fallback : n;

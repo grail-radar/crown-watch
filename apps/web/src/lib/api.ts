@@ -88,6 +88,19 @@ export async function getDrops(take = 24): Promise<DropFeed> {
   }
 }
 
+/** Fetch a single published drop, or null if not found/unreachable. */
+export async function getDrop(id: string): Promise<FeedDrop | null> {
+  try {
+    const res = await fetch(`${API_URL}/drops/${encodeURIComponent(id)}`, {
+      cache: 'no-store',
+    });
+    if (!res.ok) return null;
+    return (await res.json()) as FeedDrop;
+  } catch {
+    return null;
+  }
+}
+
 /** Fetch a single brand + its published drops, or null if not found/unreachable. */
 export async function getBrand(slug: string): Promise<BrandDetail | null> {
   try {

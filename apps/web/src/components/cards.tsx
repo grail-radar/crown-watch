@@ -45,18 +45,9 @@ export function DropCard({
 
   return (
     <article className="group overflow-hidden rounded-2xl border border-line/80 bg-panel transition duration-300 hover:-translate-y-0.5 hover:border-gold/40">
-      {drop.sourceUrl ? (
-        <a
-          href={drop.sourceUrl}
-          target="_blank"
-          rel="noopener noreferrer"
-          aria-label={`${drop.title} — original coverage`}
-        >
-          {media}
-        </a>
-      ) : (
-        media
-      )}
+      <Link href={`/drops/${drop.id}`} aria-label={`${brand.name} — ${drop.title}`}>
+        {media}
+      </Link>
 
       <div className="p-4">
         {showBrand && (
@@ -68,18 +59,12 @@ export function DropCard({
           </Link>
         )}
 
-        {drop.sourceUrl ? (
-          <a
-            href={drop.sourceUrl}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="mt-1 block font-medium leading-snug text-ink decoration-gold/50 underline-offset-4 transition hover:underline"
-          >
-            {drop.title}
-          </a>
-        ) : (
-          <p className="mt-1 font-medium leading-snug">{drop.title}</p>
-        )}
+        <Link
+          href={`/drops/${drop.id}`}
+          className="mt-1 block font-medium leading-snug text-ink decoration-gold/50 underline-offset-4 transition hover:underline"
+        >
+          {drop.title}
+        </Link>
 
         <div className="mt-3 flex items-center justify-between text-xs text-faint">
           <span>{price ?? dropTypeLabel(drop.type)}</span>

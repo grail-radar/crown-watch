@@ -86,6 +86,20 @@ export class CatalogService {
     return { ...brand, drops: brand.drops.map(flattenDrop) };
   }
 
+  /** One published drop by id (404 for pending/rejected/unknown). */
+  async getPublishedDrop(id: string) {
+    const drop = await this.prisma.drop.findFirst({
+      where: { id, ...PUBLISHED },
+      select: {
+        ...DROP_SELECT,
+        brand: { select: { name: true, slug: true } },
+      },
+    });
+    if (!drop) throw new NotFoundException(`Drop not found: ${id}`);
+    const { brand, ...rest } = drop;
+    return { ...flattenDrop(rest), brand };
+  }
+
   async listPublishedDrops(take = 50) {
     const safeTake = Math.min(Math.max(take, 1), 200);
     const drops = await this.prisma.drop.findMany({

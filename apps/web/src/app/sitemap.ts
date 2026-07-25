@@ -1,9 +1,12 @@
 import type { MetadataRoute } from 'next';
-import { getBrands } from '@/lib/api';
+import { getBrands, getDrops } from '@/lib/api';
 import { SITE_URL } from '@/lib/site';
 
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
-  const { brands } = await getBrands(200);
+  const [{ brands }, { drops }] = await Promise.all([
+    getBrands(200),
+    getDrops(200),
+  ]);
   return [
     {
       url: SITE_URL,
@@ -16,6 +19,12 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
       lastModified: new Date(b.createdAt),
       changeFrequency: 'daily' as const,
       priority: 0.8,
+    })),
+    ...drops.map((d) => ({
+      url: `${SITE_URL}/drops/${d.id}`,
+      lastModified: d.publishedAt ? new Date(d.publishedAt) : new Date(),
+      changeFrequency: 'weekly' as const,
+      priority: 0.6,
     })),
   ];
 }

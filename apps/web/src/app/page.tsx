@@ -1,5 +1,6 @@
 import Link from 'next/link';
-import { BrandCard, DropCard } from '@/components/cards';
+import { BrandDirectory } from '@/components/brand-directory';
+import { DropCard } from '@/components/cards';
 import { SubscribeForm } from '@/components/subscribe-form';
 import { getBrands, getDrops } from '@/lib/api';
 import { dropTypeLabel } from '@/lib/format';
@@ -137,18 +138,7 @@ export default async function HomePage({
           )}
         </div>
 
-        {brands.length === 0 ? (
-          <p className="rounded-2xl border border-dashed border-line p-10 text-center text-faint">
-            No brands to show yet — the ingestion pipeline may still be warming
-            up (the API sleeps when idle). Refresh in a moment.
-          </p>
-        ) : (
-          <div className="grid grid-cols-1 gap-3.5 sm:grid-cols-2 lg:grid-cols-3">
-            {brands.map((b) => (
-              <BrandCard key={b.id} brand={b} />
-            ))}
-          </div>
-        )}
+        <BrandDirectory brands={brands} />
       </section>
 
       {/* Weekly digest signup */}
