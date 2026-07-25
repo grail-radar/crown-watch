@@ -2,9 +2,10 @@ import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
 import { APP_FILTER, APP_GUARD } from '@nestjs/core';
 import { ScheduleModule } from '@nestjs/schedule';
-import { ThrottlerGuard, ThrottlerModule } from '@nestjs/throttler';
+import { ThrottlerModule } from '@nestjs/throttler';
 import { SentryGlobalFilter, SentryModule } from '@sentry/nestjs/setup';
 import configuration from './config/configuration';
+import { ProxyThrottlerGuard } from './common/proxy-throttler.guard';
 import { PrismaModule } from './prisma/prisma.module';
 import { IngestionModule } from './ingestion/ingestion.module';
 import { ExtractionModule } from './extraction/extraction.module';
@@ -24,9 +25,11 @@ import { AppController } from './app.controller';
       envFilePath: ['.env', '../../.env'],
     }),
     ScheduleModule.forRoot(),
-    // Global rate limit: 120 req/min per IP. Stricter per-route limits are set
-    // with @Throttle on the public write endpoints.
-    ThrottlerModule.forRoot([{ ttl: 60_000, limit: 120 }]),
+    // Global rate limit: 120 req/min per client IP. Stricter per-route limits
+    // are set with @Throttle on the public write endpoints.
+    ThrottlerModule.forRoot({
+      throttlers: [{ name: 'default', ttl: 60_000, limit: 120 }],
+    }),
     PrismaModule,
     IngestionModule,
     ExtractionModule,
@@ -37,7 +40,7 @@ import { AppController } from './app.controller';
   ],
   controllers: [AppController],
   providers: [
-    { provide: APP_GUARD, useClass: ThrottlerGuard },
+    { provide: APP_GUARD, useClass: ProxyThrottlerGuard },
     { provide: APP_FILTER, useClass: SentryGlobalFilter },
   ],
 })
