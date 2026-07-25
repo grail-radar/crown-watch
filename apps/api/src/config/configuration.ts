@@ -2,6 +2,7 @@ export interface AppConfig {
   nodeEnv: string;
   port: number;
   webOrigin: string | undefined;
+  adminToken: string | undefined;
   database: { url: string | undefined };
   redis: { url: string | undefined };
   rss: {
@@ -21,6 +22,7 @@ export default (): AppConfig => ({
   nodeEnv: process.env.NODE_ENV ?? 'development',
   port: parseInt(process.env.PORT ?? '3333', 10),
   webOrigin: process.env.WEB_ORIGIN,
+  adminToken: process.env.ADMIN_TOKEN || undefined,
   database: { url: process.env.DATABASE_URL },
   redis: { url: process.env.REDIS_URL },
   rss: {

@@ -29,7 +29,7 @@ Rules:
 - Extract short factual fields (brand, model, price, date) in your own structure. NEVER copy the article's sentences, marketing copy, or descriptive prose.
 - Set is_watch_related=false when the item is not about a specific watch brand or product (e.g. general industry news, roundups, opinion pieces).
 - Set is_independent_microbrand=true ONLY for independent / microbrand watchmakers — small, often crowdfunded or boutique makers (e.g. Baltic, Lorier, Christopher Ward, Monta, RZE, Lebois & Co, Biatec, Toledano & Chan). Set it FALSE for established mainstream or luxury houses (e.g. Rolex, Omega, Seiko, Grand Seiko, Orient, Casio / G-Shock, Tudor, Hamilton, Longines, TAG Heuer / Heuer, Jaeger-LeCoultre, Vacheron Constantin, Patek Philippe, Cartier, Bulova, Rado, Ulysse Nardin, Perrelet). If you are unsure whether a brand is genuinely independent/micro, set it false.
-- Set is_drop_event=true and a drop_type ONLY when the article clearly describes a purchasable event: a Kickstarter/Indiegogo launch, a waitlist opening, a restock, or a pre-order. A general "new watch announced" article is watch-related but usually NOT a drop event — leave drop_type null in that case.
+- Set is_drop_event=true whenever the article announces a NEW watch release, launch, or availability from the brand. Pick the most specific drop_type: kickstarter_launch (Kickstarter/Indiegogo campaign), waitlist_open (waitlist / interest-list opening), restock (a sold-out model back in stock), or pre_order — and use pre_order as the default for a general new-model launch or "Introducing…" announcement. Only set is_drop_event=false and drop_type=null for pure reviews, retrospectives/history, hands-on of existing models, industry news, or roundups that are not about a specific new release.
 - confidence is your 0..1 confidence in the extracted brand and event.`;
 
 // JSON Schema for strict, structured tool output (CONTEXT.md §5).
@@ -49,7 +49,7 @@ const EXTRACTION_SCHEMA = {
     is_drop_event: {
       type: 'boolean',
       description:
-        'Is this a Kickstarter/Indiegogo launch, waitlist opening, restock, or pre-order?',
+        'Does the article announce a new watch release/launch/availability (Kickstarter, waitlist, restock, pre-order, or a general new-model launch)? False for pure reviews, history, or roundups.',
     },
     brand_name: {
       type: ['string', 'null'],
