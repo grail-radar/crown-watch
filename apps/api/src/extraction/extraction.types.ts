@@ -3,6 +3,7 @@ import type Anthropic from '@anthropic-ai/sdk';
 /** Structured result the model returns via the extraction tool. */
 export interface ExtractionResult {
   is_watch_related: boolean;
+  is_independent_microbrand: boolean;
   is_drop_event: boolean;
   brand_name: string | null;
   model_title: string | null;
@@ -27,6 +28,7 @@ Rules:
 - Output ONLY through the ${EXTRACTION_TOOL_NAME} tool.
 - Extract short factual fields (brand, model, price, date) in your own structure. NEVER copy the article's sentences, marketing copy, or descriptive prose.
 - Set is_watch_related=false when the item is not about a specific watch brand or product (e.g. general industry news, roundups, opinion pieces).
+- Set is_independent_microbrand=true ONLY for independent / microbrand watchmakers — small, often crowdfunded or boutique makers (e.g. Baltic, Lorier, Christopher Ward, Monta, RZE, Lebois & Co, Biatec, Toledano & Chan). Set it FALSE for established mainstream or luxury houses (e.g. Rolex, Omega, Seiko, Grand Seiko, Orient, Casio / G-Shock, Tudor, Hamilton, Longines, TAG Heuer / Heuer, Jaeger-LeCoultre, Vacheron Constantin, Patek Philippe, Cartier, Bulova, Rado, Ulysse Nardin, Perrelet). If you are unsure whether a brand is genuinely independent/micro, set it false.
 - Set is_drop_event=true and a drop_type ONLY when the article clearly describes a purchasable event: a Kickstarter/Indiegogo launch, a waitlist opening, a restock, or a pre-order. A general "new watch announced" article is watch-related but usually NOT a drop event — leave drop_type null in that case.
 - confidence is your 0..1 confidence in the extracted brand and event.`;
 
@@ -38,6 +40,11 @@ const EXTRACTION_SCHEMA = {
     is_watch_related: {
       type: 'boolean',
       description: 'Is this about a specific watch brand or product?',
+    },
+    is_independent_microbrand: {
+      type: 'boolean',
+      description:
+        'True ONLY for independent/microbrand watchmakers; false for established mainstream or luxury houses (Rolex, Omega, Seiko, Casio, Tudor, Hamilton, JLC, Vacheron, Bulova, Rado, etc.).',
     },
     is_drop_event: {
       type: 'boolean',
@@ -81,6 +88,7 @@ const EXTRACTION_SCHEMA = {
   },
   required: [
     'is_watch_related',
+    'is_independent_microbrand',
     'is_drop_event',
     'brand_name',
     'model_title',

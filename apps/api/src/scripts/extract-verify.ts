@@ -44,6 +44,7 @@ async function main(): Promise<void> {
 
     const canned: ExtractionResult = {
       is_watch_related: true,
+      is_independent_microbrand: true,
       is_drop_event: true,
       brand_name: `Verify Watch Co ${tag}`,
       model_title: 'The Verifier',

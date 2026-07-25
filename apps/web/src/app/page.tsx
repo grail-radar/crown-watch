@@ -52,10 +52,14 @@ export default async function HomePage() {
                     )}
                   </div>
                   <div className="mt-1 text-sm text-neutral-500">
-                    {b.country || 'Microbrand'}
-                    {b._count.drops > 0
-                      ? ` · ${b._count.drops} drop${b._count.drops === 1 ? '' : 's'}`
-                      : ''}
+                    {[
+                      b.country,
+                      b._count.drops > 0
+                        ? `${b._count.drops} drop${b._count.drops === 1 ? '' : 's'}`
+                        : null,
+                    ]
+                      .filter(Boolean)
+                      .join(' · ') || 'Independent'}
                   </div>
                 </Link>
               </li>

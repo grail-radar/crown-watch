@@ -116,8 +116,13 @@ export class ExtractionService {
     rawEvent: RawIngestionEvent,
     result: ExtractionResult,
   ): Promise<PersistOutcome> {
-    // Not a watch product, or no brand — record nothing, just mark processed.
-    if (!result.is_watch_related || !result.brand_name) {
+    // Only independent microbrands enter the directory — majors (Rolex, Seiko,
+    // JLC…) and non-watch items are dropped (just marked processed).
+    if (
+      !result.is_watch_related ||
+      !result.is_independent_microbrand ||
+      !result.brand_name
+    ) {
       await this.prisma.rawIngestionEvent.update({
         where: { id: rawEvent.id },
         data: { processed: true },
