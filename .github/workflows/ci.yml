@@ -33,6 +33,10 @@ jobs:
         run: pnpm --filter @crown-watch/api exec prisma generate
 
       - name: Validate Prisma schema
+        # Schema-only check — never connects, but the datasource url must
+        # resolve, so give it a throwaway value.
+        env:
+          DATABASE_URL: postgresql://ci:ci@localhost:5432/ci?schema=public
         run: pnpm --filter @crown-watch/api exec prisma validate
 
       # Build first: web typecheck needs Next's generated route types (.next/types)
