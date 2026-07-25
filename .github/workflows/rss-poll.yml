@@ -20,3 +20,15 @@ jobs:
             exit 1
           fi
           curl -fsS --max-time 180 -X POST "$API_BASE_URL/ingestion/rss/poll"
+
+      # Turn new raw articles into brands + pending drops. Non-fatal: the poll
+      # stays green even if extraction hiccups. Costs Anthropic credit per NEW
+      # article (~$0.005 each on claude-opus-4-8; ~5x less on claude-haiku-4-5
+      # via the ANTHROPIC_MODEL env var on the API). Re-runs are free no-ops
+      # when there is nothing new.
+      - name: Run LLM extraction over new items
+        env:
+          API_BASE_URL: ${{ secrets.API_BASE_URL }}
+        run: |
+          curl -fsS --max-time 480 -X POST "$API_BASE_URL/extraction/run?limit=30" \
+            || echo "extraction failed or skipped (non-fatal)"

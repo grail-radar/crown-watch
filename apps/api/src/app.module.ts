@@ -7,6 +7,7 @@ import { IngestionModule } from './ingestion/ingestion.module';
 import { ExtractionModule } from './extraction/extraction.module';
 import { CatalogModule } from './catalog/catalog.module';
 import { ModerationModule } from './moderation/moderation.module';
+import { DigestModule } from './digest/digest.module';
 import { AppController } from './app.controller';
 
 @Module({
@@ -23,6 +24,7 @@ import { AppController } from './app.controller';
     ExtractionModule,
     CatalogModule,
     ModerationModule,
+    DigestModule,
   ],
   controllers: [AppController],
 })

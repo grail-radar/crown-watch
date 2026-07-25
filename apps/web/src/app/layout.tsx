@@ -41,6 +41,12 @@ export default function RootLayout({
               <Link href="/#brands" className="transition hover:text-ink">
                 Brands
               </Link>
+              <Link
+                href="/#digest"
+                className="rounded-full border border-gold/40 px-3.5 py-1.5 text-gold transition hover:border-gold hover:text-gold-bright"
+              >
+                Get the digest
+              </Link>
             </nav>
           </div>
         </header>

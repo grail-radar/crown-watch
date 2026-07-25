@@ -233,6 +233,15 @@ model NotificationLog {
   @@map("notifications_log")
 }
 
+// Weekly-digest email capture (CONTEXT.md §7.4) — lightweight, no account.
+model DigestSubscriber {
+  id        String   @id @default(cuid())
+  email     String   @unique
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@map("digest_subscribers")
+}
+
 model Subscription {
   id                   String             @id @default(cuid())
   userId               String             @unique @map("user_id")

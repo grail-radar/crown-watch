@@ -4,16 +4,14 @@ const prisma = new PrismaClient();
 
 /**
  * Tier 1 (CONTEXT.md §4) — watch publication RSS feeds.
- *
- * Seeding the 3 test publications for the initial end-to-end ingestion.
- * Remaining Tier 1 sources to add once the pipeline is proven:
- *   - Fratello    https://www.fratellowatches.com/feed/
- *   - Hodinkee    https://www.hodinkee.com/rss
+ * Endpoints verified live; note Hodinkee is /articles.rss (plain /rss is 404).
  */
 const RSS_SOURCES: Array<{ name: string; endpoint: string }> = [
   { name: 'Worn & Wound', endpoint: 'https://wornandwound.com/feed/' },
   { name: 'aBlogtoWatch', endpoint: 'https://www.ablogtowatch.com/feed/' },
   { name: 'Monochrome Watches', endpoint: 'https://monochrome-watches.com/feed/' },
+  { name: 'Fratello', endpoint: 'https://www.fratellowatches.com/feed/' },
+  { name: 'Hodinkee', endpoint: 'https://www.hodinkee.com/articles.rss' },
 ];
 
 async function main(): Promise<void> {

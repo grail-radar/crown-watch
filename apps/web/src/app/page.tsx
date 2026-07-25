@@ -1,4 +1,5 @@
 import { BrandCard, DropCard } from '@/components/cards';
+import { SubscribeForm } from '@/components/subscribe-form';
 import { getBrands, getDrops } from '@/lib/api';
 
 // Render on each request (the API is the source of truth; free-tier friendly).
@@ -87,6 +88,20 @@ export default async function HomePage() {
             ))}
           </div>
         )}
+      </section>
+
+      {/* Weekly digest signup */}
+      <section id="digest" className="mt-16 scroll-mt-8">
+        <div className="rounded-3xl border border-gold/25 bg-panel p-8 sm:p-10">
+          <h2 className="font-display text-2xl tracking-tight">
+            Never miss a drop
+          </h2>
+          <p className="mt-2 max-w-xl text-faint">
+            One weekly email with every new microbrand release, waitlist opening
+            and restock on the radar. Free, no spam, unsubscribe anytime.
+          </p>
+          <SubscribeForm />
+        </div>
       </section>
     </main>
   );
