@@ -4,6 +4,7 @@ import { notFound } from 'next/navigation';
 import { DropCard } from '@/components/cards';
 import { getBrand } from '@/lib/api';
 import { monogram } from '@/lib/format';
+import { SITE_URL } from '@/lib/site';
 
 export const dynamic = 'force-dynamic';
 
@@ -14,10 +15,19 @@ interface Props {
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { slug } = await params;
   const brand = await getBrand(slug);
-  if (!brand) return { title: 'Brand not found — Crown Watch' };
+  if (!brand) return { title: 'Brand not found' };
+  const description = `New releases, pre-orders, waitlists and restocks from ${brand.name}, tracked by Crown Watch.`;
   return {
-    title: `${brand.name} — drops & releases | Crown Watch`,
-    description: `New releases, pre-orders, waitlists and restocks from ${brand.name}, tracked by Crown Watch.`,
+    title: `${brand.name} — drops & releases`,
+    description,
+    alternates: { canonical: `/brands/${brand.slug}` },
+    openGraph: {
+      type: 'website',
+      url: `/brands/${brand.slug}`,
+      title: `${brand.name} — drops & releases`,
+      description,
+    },
+    twitter: { card: 'summary_large_image' },
   };
 }
 
@@ -26,8 +36,20 @@ export default async function BrandPage({ params }: Props) {
   const brand = await getBrand(slug);
   if (!brand) notFound();
 
+  const jsonLd = {
+    '@context': 'https://schema.org',
+    '@type': 'Brand',
+    name: brand.name,
+    url: `${SITE_URL}/brands/${brand.slug}`,
+    ...(brand.website ? { sameAs: [brand.website] } : {}),
+  };
+
   return (
     <main className="mx-auto w-full max-w-6xl px-6 pb-24">
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
+      />
       <div className="pt-10">
         <Link
           href="/#brands"

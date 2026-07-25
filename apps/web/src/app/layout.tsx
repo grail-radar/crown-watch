@@ -1,6 +1,7 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
 import { Fraunces, Instrument_Sans } from 'next/font/google';
+import { SITE_DESCRIPTION, SITE_NAME, SITE_TAGLINE, SITE_URL } from '@/lib/site';
 import './globals.css';
 
 const fraunces = Fraunces({
@@ -16,9 +17,25 @@ const instrument = Instrument_Sans({
 });
 
 export const metadata: Metadata = {
-  title: 'Crown Watch — Microbrand watch drop & waitlist radar',
-  description:
-    'New launches, Kickstarter campaigns, waitlist openings, and restocks from independent microbrand watchmakers — all in one feed.',
+  metadataBase: new URL(SITE_URL),
+  title: {
+    default: `${SITE_NAME} — ${SITE_TAGLINE}`,
+    template: `%s | ${SITE_NAME}`,
+  },
+  description: SITE_DESCRIPTION,
+  alternates: { canonical: '/' },
+  openGraph: {
+    type: 'website',
+    siteName: SITE_NAME,
+    url: '/',
+    title: `${SITE_NAME} — ${SITE_TAGLINE}`,
+    description: SITE_DESCRIPTION,
+  },
+  twitter: {
+    card: 'summary_large_image',
+    title: `${SITE_NAME} — ${SITE_TAGLINE}`,
+    description: SITE_DESCRIPTION,
+  },
 };
 
 export default function RootLayout({

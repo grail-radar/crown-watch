@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <rect width="64" height="64" rx="14" fill="#101014"/>
+  <!-- bezel -->
+  <circle cx="31" cy="32" r="18" fill="none" stroke="#C9A96A" stroke-width="3.5"/>
+  <!-- crown at 3 o'clock -->
+  <rect x="51" y="28.5" width="6" height="7" rx="2" fill="#C9A96A"/>
+  <!-- hands -->
+  <line x1="31" y1="32" x2="31" y2="21" stroke="#ECE9E2" stroke-width="3" stroke-linecap="round"/>
+  <line x1="31" y1="32" x2="39" y2="36" stroke="#ECE9E2" stroke-width="3" stroke-linecap="round"/>
+  <circle cx="31" cy="32" r="2.2" fill="#C9A96A"/>
+</svg>

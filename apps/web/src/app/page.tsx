@@ -3,6 +3,7 @@ import { BrandCard, DropCard } from '@/components/cards';
 import { SubscribeForm } from '@/components/subscribe-form';
 import { getBrands, getDrops } from '@/lib/api';
 import { dropTypeLabel } from '@/lib/format';
+import { SITE_DESCRIPTION, SITE_NAME, SITE_URL } from '@/lib/site';
 
 // Render on each request (the API is the source of truth; free-tier friendly).
 export const dynamic = 'force-dynamic';
@@ -30,8 +31,20 @@ export default async function HomePage({
     ? feed.drops.filter((d) => d.type === activeType)
     : feed.drops;
 
+  const jsonLd = {
+    '@context': 'https://schema.org',
+    '@type': 'WebSite',
+    name: SITE_NAME,
+    url: SITE_URL,
+    description: SITE_DESCRIPTION,
+  };
+
   return (
     <main className="mx-auto w-full max-w-6xl px-6 pb-24">
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
+      />
       {/* Hero */}
       <section className="py-16 sm:py-20">
         <p className="text-xs font-medium uppercase tracking-[0.3em] text-faint">
