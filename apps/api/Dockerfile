@@ -27,5 +27,8 @@ ENV NODE_ENV=production
 COPY --from=build /repo /repo
 WORKDIR /repo/apps/api
 EXPOSE 3333
-# Apply pending migrations, then boot. Render/Fly inject $PORT at runtime.
-CMD ["sh", "-c", "pnpm exec prisma migrate deploy && node dist/main.js"]
+# Apply pending migrations (retrying — free-tier DBs can be slow to wake or
+# briefly hold locks), then boot. Render/Fly inject $PORT at runtime.
+# NOTE: migrations need a DIRECT database connection; a pooled (PgBouncer)
+# DATABASE_URL breaks Prisma's advisory locking (P1002).
+CMD ["sh", "-c", "n=0; until pnpm exec prisma migrate deploy; do n=$((n+1)); if [ $n -ge 3 ]; then echo 'migrations failed after 3 attempts' >&2; exit 1; fi; echo 'migrate failed - retrying in 10s'; sleep 10; done; exec node dist/main.js"]
