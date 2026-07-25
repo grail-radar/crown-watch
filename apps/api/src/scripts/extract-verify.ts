@@ -53,6 +53,10 @@ async function main(): Promise<void> {
       price_high: 349,
       currency: 'USD',
       event_date: '2026-08-01',
+      promised_ship_date: '2026-11-01',
+      brand_country: 'Verifonia',
+      brand_website: 'https://example.com',
+      brand_founded_year: 2020,
       confidence: 0.92,
     };
 

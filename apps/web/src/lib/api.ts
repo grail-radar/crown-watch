@@ -45,6 +45,7 @@ export interface FeedDrop extends DropSummary {
 }
 
 export interface DropFeed {
+  total: number;
   count: number;
   drops: FeedDrop[];
 }
@@ -76,15 +77,21 @@ export async function getBrands(take = 100): Promise<BrandList> {
 }
 
 /** Latest published drops. Degrades to empty if the API is unreachable. */
-export async function getDrops(take = 24): Promise<DropFeed> {
+export async function getDrops(
+  take = 24,
+  skip = 0,
+  type?: string,
+): Promise<DropFeed> {
+  const params = new URLSearchParams({ take: String(take), skip: String(skip) });
+  if (type) params.set('type', type);
   try {
-    const res = await fetch(`${API_URL}/drops?take=${take}`, {
+    const res = await fetch(`${API_URL}/drops?${params.toString()}`, {
       cache: 'no-store',
     });
-    if (!res.ok) return { count: 0, drops: [] };
+    if (!res.ok) return { total: 0, count: 0, drops: [] };
     return (await res.json()) as DropFeed;
   } catch {
-    return { count: 0, drops: [] };
+    return { total: 0, count: 0, drops: [] };
   }
 }
 

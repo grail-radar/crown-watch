@@ -2,6 +2,10 @@ import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import Anthropic from '@anthropic-ai/sdk';
 import {
+  BRAND_ENRICH_SYSTEM_PROMPT,
+  BRAND_ENRICH_TOOL,
+  BRAND_ENRICH_TOOL_NAME,
+  BrandEnrichment,
   EXTRACTION_TOOL,
   EXTRACTION_TOOL_NAME,
   ExtractionResult,
@@ -73,5 +77,28 @@ export class AnthropicService {
       return null;
     }
     return block.input as ExtractionResult;
+  }
+
+  /** Look up short factual reference details for a brand by name. */
+  async enrichBrand(brandName: string): Promise<BrandEnrichment | null> {
+    if (!this.client) {
+      throw new Error('Anthropic client is not configured (missing API key).');
+    }
+    const message = await this.client.messages.create({
+      model: this.model,
+      max_tokens: 512,
+      system: BRAND_ENRICH_SYSTEM_PROMPT,
+      tools: [BRAND_ENRICH_TOOL],
+      tool_choice: { type: 'tool', name: BRAND_ENRICH_TOOL_NAME },
+      messages: [
+        {
+          role: 'user',
+          content: `Independent / microbrand watch brand: "${brandName}". Provide only details you are confident about.`,
+        },
+      ],
+    });
+    const block = message.content.find((b) => b.type === 'tool_use');
+    if (!block || block.type !== 'tool_use') return null;
+    return block.input as BrandEnrichment;
   }
 }

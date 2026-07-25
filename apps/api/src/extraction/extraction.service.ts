@@ -138,8 +138,30 @@ export class ExtractionService {
       const brand = await tx.brand.upsert({
         where: { slug },
         update: {},
-        create: { name: brandName, slug },
+        create: {
+          name: brandName,
+          slug,
+          country: this.toText(result.brand_country, 60),
+          website: this.toUrl(result.brand_website),
+          foundedYearEst: this.toYear(result.brand_founded_year),
+        },
       });
+
+      // Backfill metadata on brands discovered before we captured these fields
+      // (never overwrite a value we already have).
+      const patch: Prisma.BrandUpdateInput = {};
+      if (!brand.country && this.toText(result.brand_country, 60)) {
+        patch.country = this.toText(result.brand_country, 60);
+      }
+      if (!brand.website && this.toUrl(result.brand_website)) {
+        patch.website = this.toUrl(result.brand_website);
+      }
+      if (!brand.foundedYearEst && this.toYear(result.brand_founded_year)) {
+        patch.foundedYearEst = this.toYear(result.brand_founded_year);
+      }
+      if (Object.keys(patch).length > 0) {
+        await tx.brand.update({ where: { id: brand.id }, data: patch });
+      }
 
       let dropCreated = false;
       const dropType = this.toDropType(result.drop_type);
@@ -161,6 +183,7 @@ export class ExtractionService {
               priceHigh: this.toDecimal(result.price_high),
               currency: this.toCurrency(result.currency),
               eventDate: this.toDate(result.event_date),
+              promisedShipDate: this.toDate(result.promised_ship_date),
               imageUrl: media.imageUrl,
               sourceUrl: media.sourceUrl,
               sourceEventId: rawEvent.id,
@@ -203,5 +226,92 @@ export class ExtractionService {
   private clampConfidence(value: number): number {
     if (Number.isNaN(value)) return 0;
     return Math.min(1, Math.max(0, value));
+  }
+
+  private toText(value: string | null, max: number): string | null {
+    if (typeof value !== 'string') return null;
+    const trimmed = value.trim();
+    return trimmed ? trimmed.slice(0, max) : null;
+  }
+
+  private toUrl(value: string | null): string | null {
+    if (typeof value !== 'string') return null;
+    const trimmed = value.trim();
+    return /^https?:\/\/[^\s]+\.[^\s]+$/i.test(trimmed) ? trimmed : null;
+  }
+
+  private toYear(value: number | null): number | null {
+    if (typeof value !== 'number' || !Number.isFinite(value)) return null;
+    const year = Math.trunc(value);
+    const currentYear = new Date().getFullYear();
+    return year >= 1800 && year <= currentYear ? year : null;
+  }
+
+  /**
+   * Fill missing country / website / founded-year on existing brands via a
+   * small tool-use lookup per brand. Only touches fields that are null.
+   */
+  async enrichBrands(limit = 40): Promise<{
+    enabled: boolean;
+    considered: number;
+    updated: number;
+    errors: number;
+  }> {
+    const out = {
+      enabled: this.anthropic.isEnabled(),
+      considered: 0,
+      updated: 0,
+      errors: 0,
+    };
+    if (!out.enabled) return out;
+
+    const brands = await this.prisma.brand.findMany({
+      where: {
+        OR: [{ country: null }, { website: null }, { foundedYearEst: null }],
+      },
+      orderBy: { createdAt: 'asc' },
+      take: Math.min(Math.max(limit, 1), 100),
+      select: {
+        id: true,
+        name: true,
+        country: true,
+        website: true,
+        foundedYearEst: true,
+      },
+    });
+    out.considered = brands.length;
+
+    for (const brand of brands) {
+      try {
+        const details = await this.anthropic.enrichBrand(brand.name);
+        if (!details) continue;
+        const patch: Prisma.BrandUpdateInput = {};
+        if (!brand.country && this.toText(details.country, 60)) {
+          patch.country = this.toText(details.country, 60);
+        }
+        if (!brand.website && this.toUrl(details.website)) {
+          patch.website = this.toUrl(details.website);
+        }
+        if (!brand.foundedYearEst && this.toYear(details.founded_year)) {
+          patch.foundedYearEst = this.toYear(details.founded_year);
+        }
+        if (Object.keys(patch).length > 0) {
+          await this.prisma.brand.update({
+            where: { id: brand.id },
+            data: patch,
+          });
+          out.updated += 1;
+        }
+      } catch (err) {
+        out.errors += 1;
+        this.logger.error(
+          `Brand enrichment failed for ${brand.name}: ${err instanceof Error ? err.message : err}`,
+        );
+      }
+    }
+    this.logger.log(
+      `Brand enrichment: considered=${out.considered} updated=${out.updated} errors=${out.errors}`,
+    );
+    return out;
   }
 }

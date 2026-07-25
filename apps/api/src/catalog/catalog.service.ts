@@ -7,6 +7,13 @@ const PUBLISHED: Prisma.DropWhereInput = {
   publishedAt: { not: null },
 };
 
+const DROP_TYPES = new Set<string>([
+  'kickstarter_launch',
+  'waitlist_open',
+  'restock',
+  'pre_order',
+]);
+
 /** Fields the public feed exposes for a drop. */
 const DROP_SELECT = {
   id: true,
@@ -16,6 +23,7 @@ const DROP_SELECT = {
   priceHigh: true,
   currency: true,
   eventDate: true,
+  promisedShipDate: true,
   imageUrl: true,
   sourceUrl: true,
   publishedAt: true,
@@ -100,18 +108,30 @@ export class CatalogService {
     return { ...flattenDrop(rest), brand };
   }
 
-  async listPublishedDrops(take = 50) {
+  async listPublishedDrops(take = 50, skip = 0, type?: string) {
     const safeTake = Math.min(Math.max(take, 1), 200);
-    const drops = await this.prisma.drop.findMany({
-      where: PUBLISHED,
-      orderBy: { publishedAt: 'desc' },
-      take: safeTake,
-      select: {
-        ...DROP_SELECT,
-        brand: { select: { name: true, slug: true } },
-      },
-    });
+    const safeSkip = Math.max(skip, 0);
+    const where: Prisma.DropWhereInput = {
+      ...PUBLISHED,
+      ...(type && DROP_TYPES.has(type)
+        ? { type: type as Prisma.EnumDropTypeFilter['equals'] }
+        : {}),
+    };
+    const [total, drops] = await this.prisma.$transaction([
+      this.prisma.drop.count({ where }),
+      this.prisma.drop.findMany({
+        where,
+        orderBy: { publishedAt: 'desc' },
+        take: safeTake,
+        skip: safeSkip,
+        select: {
+          ...DROP_SELECT,
+          brand: { select: { name: true, slug: true } },
+        },
+      }),
+    ]);
     return {
+      total,
       count: drops.length,
       drops: drops.map((row) => {
         const { brand, ...rest } = row;

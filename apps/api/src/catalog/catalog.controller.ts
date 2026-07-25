@@ -17,8 +17,16 @@ export class CatalogController {
   }
 
   @Get('drops')
-  drops(@Query('take') take?: string) {
-    return this.catalog.listPublishedDrops(this.int(take, 50));
+  drops(
+    @Query('take') take?: string,
+    @Query('skip') skip?: string,
+    @Query('type') type?: string,
+  ) {
+    return this.catalog.listPublishedDrops(
+      this.int(take, 50),
+      this.int(skip, 0),
+      type,
+    );
   }
 
   @Get('drops/:id')

@@ -141,6 +141,10 @@ model Drop {
   priceHigh        Decimal?         @map("price_high") @db.Decimal(12, 2)
   currency         String?          @db.VarChar(3)
   eventDate        DateTime?        @map("event_date")
+  // Ship date the brand promised at announcement. Captured now so the
+  // reliability/delivery track-record score (CONTEXT.md §2) becomes possible
+  // later — it needs promised-vs-actual history that only accrues over time.
+  promisedShipDate DateTime?        @map("promised_ship_date")
   // Article media, extracted from the raw feed payload: thumbnail + link back
   // to the original coverage (attribution — we never copy article prose).
   imageUrl         String?          @map("image_url")

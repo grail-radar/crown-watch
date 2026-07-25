@@ -19,9 +19,6 @@
     "extract": "ts-node --transpile-only src/scripts/extract.ts",
     "extract:verify": "ts-node --transpile-only src/scripts/extract-verify.ts"
   },
-  "prisma": {
-    "seed": "ts-node --transpile-only prisma/seed.ts"
-  },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.115.0",
     "@nestjs/common": "^11.1.28",
@@ -29,7 +26,9 @@
     "@nestjs/core": "^11.1.28",
     "@nestjs/platform-express": "^11.1.28",
     "@nestjs/schedule": "^6.1.3",
+    "@nestjs/throttler": "^6.5.0",
     "@prisma/client": "^6.14.0",
+    "@sentry/nestjs": "^10.68.0",
     "cron": "^4.4.0",
     "reflect-metadata": "^0.2.2",
     "rss-parser": "^3.13.0",
@@ -39,6 +38,7 @@
     "@nestjs/cli": "^11.0.24",
     "@nestjs/schematics": "^11.1.0",
     "@types/node": "^22.10.0",
+    "dotenv": "^17.4.2",
     "prisma": "^6.14.0",
     "ts-node": "^10.9.2",
     "typescript": "^5.6.3"

@@ -41,7 +41,10 @@ export default (): AppConfig => ({
   },
   anthropic: {
     apiKey: process.env.ANTHROPIC_API_KEY || undefined,
-    model: process.env.ANTHROPIC_MODEL ?? 'claude-opus-4-8',
+    // Haiku by default for the recurring extraction (~5x cheaper; quality is
+    // sufficient for this well-scoped task). Set ANTHROPIC_MODEL to
+    // claude-opus-4-8 to trade cost for maximum extraction quality.
+    model: process.env.ANTHROPIC_MODEL ?? 'claude-haiku-4-5',
     maxItemsPerRun: parseInt(process.env.EXTRACTION_MAX_ITEMS ?? '25', 10),
   },
   digest: {

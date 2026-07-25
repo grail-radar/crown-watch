@@ -1,12 +1,16 @@
+import './instrument'; // Sentry — must be first
 import 'reflect-metadata';
 import { Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { NestFactory } from '@nestjs/core';
+import type { NestExpressApplication } from '@nestjs/platform-express';
 import { AppModule } from './app.module';
 
 async function bootstrap(): Promise<void> {
-  const app = await NestFactory.create(AppModule);
+  const app = await NestFactory.create<NestExpressApplication>(AppModule);
   app.enableShutdownHooks();
+  // Behind Render's proxy — needed so rate limiting sees real client IPs.
+  app.set('trust proxy', 1);
 
   const config = app.get(ConfigService);
   const webOrigin = config.get<string>('webOrigin');

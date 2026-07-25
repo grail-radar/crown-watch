@@ -51,12 +51,15 @@ export default function RootLayout({
             <Link href="/" className="font-display text-lg tracking-tight">
               <span className="text-gold">Crown</span> Watch
             </Link>
-            <nav className="flex items-center gap-6 text-sm text-faint">
-              <Link href="/#drops" className="transition hover:text-ink">
+            <nav className="flex items-center gap-5 text-sm text-faint sm:gap-6">
+              <Link href="/drops" className="transition hover:text-ink">
                 Drops
               </Link>
               <Link href="/#brands" className="transition hover:text-ink">
                 Brands
+              </Link>
+              <Link href="/submit" className="hidden transition hover:text-ink sm:inline">
+                Submit
               </Link>
               <Link
                 href="/#digest"
@@ -82,6 +85,15 @@ export default function RootLayout({
               Sourced from Worn &amp; Wound, aBlogtoWatch, Monochrome Watches,
               Fratello and Hodinkee. Headlines and images belong to their
               publishers and link to the original coverage.
+            </p>
+            <p className="mt-3">
+              <Link href="/submit" className="text-gold transition hover:text-gold-bright">
+                Submit a drop
+              </Link>
+              <span className="mx-2 text-line">·</span>
+              <Link href="/drops" className="transition hover:text-ink">
+                All drops
+              </Link>
             </p>
           </div>
         </footer>

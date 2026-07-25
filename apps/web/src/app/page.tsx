@@ -65,7 +65,7 @@ export default async function HomePage({
             {total} independent brand{total === 1 ? '' : 's'}
           </span>
           <span className="rounded-full border border-line px-3 py-1.5">
-            {feed.count} published drop{feed.count === 1 ? '' : 's'}
+            {feed.total} published drop{feed.total === 1 ? '' : 's'}
           </span>
           <span className="rounded-full border border-line px-3 py-1.5">
             Refreshed every 20 minutes
@@ -77,10 +77,13 @@ export default async function HomePage({
       <section id="drops" className="scroll-mt-8 border-t border-line/70 pt-12">
         <div className="mb-5 flex items-baseline justify-between">
           <h2 className="font-display text-2xl tracking-tight">Latest drops</h2>
-          {feed.count > 0 && (
-            <span className="text-sm text-faint">
-              {feed.count} live on the radar
-            </span>
+          {feed.total > 0 && (
+            <Link
+              href="/drops"
+              className="text-sm text-faint transition hover:text-ink"
+            >
+              All {feed.total} drops →
+            </Link>
           )}
         </div>
 

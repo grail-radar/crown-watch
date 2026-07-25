@@ -8,6 +8,7 @@ import {
   Query,
   UseGuards,
 } from '@nestjs/common';
+import { Throttle } from '@nestjs/throttler';
 import { AdminGuard } from '../moderation/admin.guard';
 import { DigestSenderService } from './digest-sender.service';
 import { DigestService } from './digest.service';
@@ -22,6 +23,7 @@ export class DigestController {
   /** Public signup for the weekly digest. Body: { email } */
   @Post('subscribe')
   @HttpCode(200)
+  @Throttle({ default: { limit: 5, ttl: 60_000 } })
   subscribe(@Body() body: { email?: unknown }) {
     return this.digest.subscribe(body?.email);
   }
