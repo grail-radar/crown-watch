@@ -235,11 +235,24 @@ model NotificationLog {
 
 // Weekly-digest email capture (CONTEXT.md §7.4) — lightweight, no account.
 model DigestSubscriber {
-  id        String   @id @default(cuid())
-  email     String   @unique
-  createdAt DateTime @default(now()) @map("created_at")
+  id               String    @id @default(cuid())
+  email            String    @unique
+  unsubscribeToken String    @unique @default(uuid()) @map("unsubscribe_token")
+  unsubscribedAt   DateTime? @map("unsubscribed_at")
+  createdAt        DateTime  @default(now()) @map("created_at")
 
   @@map("digest_subscribers")
+}
+
+// Audit log of digest sends — also the double-send guard.
+model DigestSend {
+  id             String   @id @default(cuid())
+  sentAt         DateTime @default(now()) @map("sent_at")
+  dropCount      Int      @map("drop_count")
+  recipientCount Int      @map("recipient_count")
+  dryRun         Boolean  @default(false) @map("dry_run")
+
+  @@map("digest_sends")
 }
 
 model Subscription {

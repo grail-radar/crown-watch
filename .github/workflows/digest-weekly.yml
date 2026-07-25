@@ -1,0 +1,27 @@
+name: Weekly digest
+
+# Sends the weekly digest every Friday afternoon. The API refuses duplicate
+# sends within 5 days, so an accidental double-trigger is harmless.
+# Requires repo secrets: API_BASE_URL, ADMIN_TOKEN.
+on:
+  schedule:
+    - cron: "0 15 * * 5" # Fridays 15:00 UTC
+  workflow_dispatch: {}
+
+jobs:
+  send:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Send weekly digest
+        env:
+          API_BASE_URL: ${{ secrets.API_BASE_URL }}
+          ADMIN_TOKEN: ${{ secrets.ADMIN_TOKEN }}
+        run: |
+          if [ -z "$API_BASE_URL" ] || [ -z "$ADMIN_TOKEN" ]; then
+            echo "Set the API_BASE_URL and ADMIN_TOKEN repo secrets."
+            exit 1
+          fi
+          # Wake the free-tier API first (cold starts can exceed curl defaults)
+          curl -fsS --max-time 120 "$API_BASE_URL/health" || true
+          curl -fsS --max-time 300 -X POST "$API_BASE_URL/digest/send" \
+            -H "x-admin-token: $ADMIN_TOKEN"

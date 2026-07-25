@@ -1,15 +1,34 @@
+import Link from 'next/link';
 import { BrandCard, DropCard } from '@/components/cards';
 import { SubscribeForm } from '@/components/subscribe-form';
 import { getBrands, getDrops } from '@/lib/api';
+import { dropTypeLabel } from '@/lib/format';
 
 // Render on each request (the API is the source of truth; free-tier friendly).
 export const dynamic = 'force-dynamic';
 
-export default async function HomePage() {
+const FILTER_TYPES = [
+  'pre_order',
+  'kickstarter_launch',
+  'waitlist_open',
+  'restock',
+] as const;
+
+export default async function HomePage({
+  searchParams,
+}: {
+  searchParams: Promise<{ type?: string }>;
+}) {
+  const { type } = await searchParams;
+  const activeType = FILTER_TYPES.includes(type as never) ? type : undefined;
+
   const [{ total, brands }, feed] = await Promise.all([
     getBrands(100),
-    getDrops(24),
+    getDrops(48),
   ]);
+  const visibleDrops = activeType
+    ? feed.drops.filter((d) => d.type === activeType)
+    : feed.drops;
 
   return (
     <main className="mx-auto w-full max-w-6xl px-6 pb-24">
@@ -42,7 +61,7 @@ export default async function HomePage() {
 
       {/* Latest drops */}
       <section id="drops" className="scroll-mt-8 border-t border-line/70 pt-12">
-        <div className="mb-6 flex items-baseline justify-between">
+        <div className="mb-5 flex items-baseline justify-between">
           <h2 className="font-display text-2xl tracking-tight">Latest drops</h2>
           {feed.count > 0 && (
             <span className="text-sm text-faint">
@@ -51,14 +70,43 @@ export default async function HomePage() {
           )}
         </div>
 
-        {feed.drops.length === 0 ? (
+        {feed.count > 0 && (
+          <div className="mb-6 flex flex-wrap gap-2 text-xs">
+            <Link
+              href="/#drops"
+              className={`rounded-full border px-3 py-1.5 transition ${
+                !activeType
+                  ? 'border-gold bg-gold/10 text-gold-bright'
+                  : 'border-line text-faint hover:border-gold/50 hover:text-ink'
+              }`}
+            >
+              All
+            </Link>
+            {FILTER_TYPES.map((t) => (
+              <Link
+                key={t}
+                href={`/?type=${t}#drops`}
+                className={`rounded-full border px-3 py-1.5 transition ${
+                  activeType === t
+                    ? 'border-gold bg-gold/10 text-gold-bright'
+                    : 'border-line text-faint hover:border-gold/50 hover:text-ink'
+                }`}
+              >
+                {dropTypeLabel(t)}
+              </Link>
+            ))}
+          </div>
+        )}
+
+        {visibleDrops.length === 0 ? (
           <p className="rounded-2xl border border-dashed border-line p-10 text-center text-faint">
-            No published drops yet — new releases land here as soon as they
-            clear moderation.
+            {activeType
+              ? `No ${dropTypeLabel(activeType).toLowerCase()} drops on the radar right now — check back soon.`
+              : 'No published drops yet — new releases land here as soon as they clear moderation.'}
           </p>
         ) : (
           <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3">
-            {feed.drops.map((d) => (
+            {visibleDrops.map((d) => (
               <DropCard key={d.id} drop={d} brand={d.brand} />
             ))}
           </div>

@@ -62,9 +62,9 @@ export default function RootLayout({
               — an independent radar for microbrand watch drops.
             </p>
             <p className="mt-2">
-              Sourced from Worn &amp; Wound, aBlogtoWatch and Monochrome
-              Watches. Headlines and images belong to their publishers and link
-              to the original coverage.
+              Sourced from Worn &amp; Wound, aBlogtoWatch, Monochrome Watches,
+              Fratello and Hodinkee. Headlines and images belong to their
+              publishers and link to the original coverage.
             </p>
           </div>
         </footer>
