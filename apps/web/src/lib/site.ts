@@ -2,7 +2,7 @@
 export const SITE_URL = (
   process.env.SITE_URL ??
   process.env.NEXT_PUBLIC_SITE_URL ??
-  'https://crown-watch-web.vercel.app'
+  'https://crownswatch.org'
 ).replace(/\/$/, '');
 
 export const SITE_NAME = 'Crown Watch';

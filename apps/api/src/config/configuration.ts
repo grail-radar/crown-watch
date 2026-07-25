@@ -48,7 +48,7 @@ export default (): AppConfig => ({
     resendApiKey: process.env.RESEND_API_KEY || undefined,
     from: process.env.DIGEST_FROM ?? 'Crown Watch <onboarding@resend.dev>',
     publicWebUrl: (
-      process.env.PUBLIC_WEB_URL ?? 'https://crown-watch-web.vercel.app'
+      process.env.PUBLIC_WEB_URL ?? 'https://crownswatch.org'
     ).replace(/\/$/, ''),
     // Render injects RENDER_EXTERNAL_URL with the service's own public URL.
     publicApiUrl: (
