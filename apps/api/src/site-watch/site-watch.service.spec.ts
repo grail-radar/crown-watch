@@ -8,6 +8,7 @@
  */
 import { SourceHealth, SourceType } from '@prisma/client';
 import { randomUUID } from 'node:crypto';
+import { CatalogService } from '../catalog/catalog.service';
 import { DropWriterService } from '../drops/drop-writer.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { FetchResult, SiteFetcher } from './site-fetcher';
@@ -47,6 +48,7 @@ describe('SiteWatchService', () => {
   let prisma: PrismaService;
   let fetcher: StubFetcher;
   let service: SiteWatchService;
+  let catalog: CatalogService;
   const brandIds: string[] = [];
   const sourceIds: string[] = [];
 
@@ -55,6 +57,7 @@ describe('SiteWatchService', () => {
     await prisma.$connect();
     fetcher = new StubFetcher();
     service = new SiteWatchService(prisma, fetcher, new DropWriterService(prisma));
+    catalog = new CatalogService(prisma);
   });
 
   afterAll(async () => {
@@ -194,6 +197,29 @@ describe('SiteWatchService', () => {
     expect(await dropsFor(brandId)).toHaveLength(0);
   });
 
+  it('detects a restock even when the catalogue returns to an earlier state', async () => {
+    // The canonical silent restock: in stock → sold out → back in stock. The
+    // third poll's catalogue is byte-identical to the first, so any dedup that
+    // compares against all history (rather than the previous poll) would treat
+    // it as "nothing changed" and swallow the alert.
+    const { source, brandId } = await arrangeSource();
+
+    fetcher.serve([{ handle: 'diver', title: 'Diver', available: true }]);
+    await service.pollSource(source.id);
+
+    fetcher.serve([{ handle: 'diver', title: 'Diver', available: false }]);
+    await service.pollSource(source.id);
+
+    fetcher.serve([{ handle: 'diver', title: 'Diver', available: true }]);
+    const result = await service.pollSource(source.id);
+
+    expect(result.changed).toBe(true);
+    expect(result.dropsCreated).toBe(1);
+    const drops = await dropsFor(brandId);
+    expect(drops).toHaveLength(1);
+    expect(drops[0].type).toBe('restock');
+  });
+
   it('reports several changes from a single poll', async () => {
     const { source, brandId } = await arrangeSource();
     fetcher.serve([{ handle: 'diver', available: false }]);
@@ -232,6 +258,52 @@ describe('SiteWatchService', () => {
       where: { brandId, moderationStatus: 'pending' },
     });
     expect(queued).toBe(0);
+  });
+
+  it('serves the drop from the public catalogue the website reads', async () => {
+    // Asserting the two columns is not the same as proving the public API
+    // returns it — this drives the real CatalogService.
+    const { source, brandId } = await arrangeSource();
+    fetcher.serve([{ handle: 'diver', available: true }]);
+    await service.pollSource(source.id);
+    fetcher.serve([
+      { handle: 'diver', available: true },
+      { handle: 'field', title: 'Field Watch', available: true },
+    ]);
+    await service.pollSource(source.id);
+
+    const feed = await catalog.listPublishedDrops(100);
+    const mine = feed.drops.filter((d) => d.brand.slug.startsWith('watch-co-'));
+    expect(mine.some((d) => d.title === 'Field Watch')).toBe(true);
+
+    const brand = await prisma.brand.findUniqueOrThrow({ where: { id: brandId } });
+    const detail = await catalog.getBrandBySlug(brand.slug);
+    expect(detail.drops.map((d) => d.title)).toContain('Field Watch');
+  });
+
+  it('reports which products changed, not just how many', async () => {
+    const { source } = await arrangeSource();
+    fetcher.serve([{ handle: 'diver', title: 'Diver', available: false }]);
+    await service.pollSource(source.id);
+
+    fetcher.serve([
+      { handle: 'diver', title: 'Diver', available: true },
+      { handle: 'field', title: 'Field Watch', available: true },
+    ]);
+    const result = await service.pollSource(source.id);
+
+    expect(result.changes).toHaveLength(2);
+    expect(result.changes).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ kind: 'restock', type: 'restock', title: 'Diver' }),
+        expect.objectContaining({
+          kind: 'new_product',
+          type: 'pre_order',
+          title: 'Field Watch',
+          url: 'https://brand.example/products/field',
+        }),
+      ]),
+    );
   });
 
   it('keeps provenance back to the site-watch source', async () => {

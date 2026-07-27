@@ -48,6 +48,27 @@ describe('hashSnapshot', () => {
   it('is stable for identical input', () => {
     expect(hashSnapshot([product()])).toBe(hashSnapshot([product()]));
   });
+
+  it('ignores object key order, so a snapshot survives a jsonb round trip', () => {
+    // Postgres jsonb reorders keys. If the hash depended on key order, every
+    // poll after the first would look like a change.
+    const inMemory = product();
+    const roundTripped = {
+      available: inMemory.available,
+      imageUrl: inMemory.imageUrl,
+      currency: inMemory.currency,
+      price: inMemory.price,
+      title: inMemory.title,
+      url: inMemory.url,
+    } as ProductSnapshot;
+    expect(hashSnapshot([roundTripped])).toBe(hashSnapshot([inMemory]));
+  });
+
+  it('still distinguishes products that differ only by url', () => {
+    expect(hashSnapshot([product({ url: 'https://brand.example/products/x' })])).not.toBe(
+      hashSnapshot([product({ url: 'https://brand.example/products/y' })]),
+    );
+  });
 });
 
 describe('diffSnapshots', () => {

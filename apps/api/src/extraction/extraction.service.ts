@@ -2,7 +2,6 @@ import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import {
   DropType,
-  ModerationStatus,
   Prisma,
   RawIngestionEvent,
 } from '@prisma/client';
@@ -210,15 +209,6 @@ export class ExtractionService {
 
   private toDropType(value: string | null): DropType | null {
     return value && DROP_TYPES.has(value) ? (value as DropType) : null;
-  }
-
-  private toDecimal(value: number | null): Prisma.Decimal | null {
-    if (value === null || Number.isNaN(value)) return null;
-    return new Prisma.Decimal(value);
-  }
-
-  private toCurrency(value: string | null): string | null {
-    return value && /^[A-Za-z]{3}$/.test(value) ? value.toUpperCase() : null;
   }
 
   private toDate(value: string | null): Date | null {

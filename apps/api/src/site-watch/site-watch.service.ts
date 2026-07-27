@@ -1,5 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { DropType, Prisma, SourceHealth, SourceType } from '@prisma/client';
+import { createHash } from 'node:crypto';
 import { DropWriterService } from '../drops/drop-writer.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { getAdapter, parseWatchConfig } from './adapters';
@@ -10,18 +11,30 @@ import {
   normalizeSnapshot,
   ProductSnapshot,
   SnapshotChange,
+  SnapshotChangeKind,
 } from './snapshot';
+
+/** What a single detected change produced, for the poll report. */
+export interface SiteWatchChangeReport {
+  kind: SnapshotChangeKind;
+  type: DropType;
+  title: string;
+  url: string;
+}
 
 export interface SiteWatchSourceResult {
   sourceId: string;
   name: string | null;
+  endpoint: string;
   status: 'ok' | 'error';
-  /** true when this poll produced a snapshot the store had not shown before */
+  /** true when the store differs from what it showed at the previous poll */
   changed: boolean;
   /** true when this was the source's first ever snapshot */
   baseline: boolean;
   productCount: number;
   dropsCreated: number;
+  /** The specific changes this poll turned into drops. */
+  changes: SiteWatchChangeReport[];
   error?: string;
 }
 
@@ -32,8 +45,6 @@ export interface SiteWatchRunResult {
   totalDropsCreated: number;
   sources: SiteWatchSourceResult[];
 }
-
-const PRISMA_UNIQUE_VIOLATION = 'P2002';
 
 @Injectable()
 export class SiteWatchService {
@@ -80,11 +91,13 @@ export class SiteWatchService {
     const result: SiteWatchSourceResult = {
       sourceId: source.id,
       name: source.name,
+      endpoint: source.endpoint,
       status: 'ok',
       changed: false,
       baseline: false,
       productCount: 0,
       dropsCreated: 0,
+      changes: [],
     };
 
     try {
@@ -114,11 +127,17 @@ export class SiteWatchService {
       }
 
       const previous = await this.previousSnapshot(source.id);
-      const created = await this.storeSnapshot(source.id, products);
-      if (!created) {
+      const snapshotHash = hashSnapshot(products);
+
+      // Compare against the PREVIOUS poll only. A catalogue legitimately
+      // returns to an earlier state — in stock, sold out, in stock again — and
+      // that return is precisely the restock we exist to catch.
+      if (previous && hashSnapshot(previous) === snapshotHash) {
         await this.markHealth(source.id, SourceHealth.healthy);
-        return result; // identical to a snapshot we already hold — nothing changed
+        return result; // store unchanged since last poll
       }
+
+      const created = await this.storeSnapshot(source.id, products, snapshotHash);
       result.changed = true;
 
       if (!previous) {
@@ -133,10 +152,11 @@ export class SiteWatchService {
 
       const changes = diffSnapshots(previous, products);
       for (const change of changes) {
+        const type = this.dropType(change);
         await this.drops.create({
           brandId: source.brandId,
           title: change.product.title,
-          type: this.dropType(change),
+          type,
           priceLow: change.product.price,
           currency: change.product.currency,
           imageUrl: change.product.imageUrl,
@@ -147,6 +167,12 @@ export class SiteWatchService {
           publish: true,
         });
         result.dropsCreated += 1;
+        result.changes.push({
+          kind: change.kind,
+          type,
+          title: change.product.title,
+          url: change.product.url,
+        });
       }
 
       await this.markHealth(source.id, SourceHealth.healthy);
@@ -183,29 +209,32 @@ export class SiteWatchService {
   }
 
   /**
-   * Persist the snapshot in the landing zone. Returns null when this exact
-   * snapshot is already stored — the store has not changed since last time.
+   * Persist the snapshot in the landing zone.
+   *
+   * `content_hash` is unique per source, but a site-watch snapshot is a point
+   * in a time series rather than a one-off document: the same catalogue state
+   * recurs whenever a watch sells out and comes back. So the stored hash
+   * identifies this *observation* — content plus when it was seen — instead of
+   * the content alone, which would make the constraint reject exactly the
+   * restock this feature exists to detect.
    */
-  private async storeSnapshot(sourceId: string, products: ProductSnapshot[]) {
-    try {
-      return await this.prisma.rawIngestionEvent.create({
-        data: {
-          sourceId,
-          contentHash: hashSnapshot(products),
-          rawPayload: products as unknown as Prisma.InputJsonValue,
-          // Site-watch needs no LLM pass; the snapshot is already structured.
-          processed: true,
-        },
-      });
-    } catch (err) {
-      if (
-        err instanceof Prisma.PrismaClientKnownRequestError &&
-        err.code === PRISMA_UNIQUE_VIOLATION
-      ) {
-        return null;
-      }
-      throw err;
-    }
+  private async storeSnapshot(
+    sourceId: string,
+    products: ProductSnapshot[],
+    snapshotHash: string,
+  ) {
+    const observedAt = new Date();
+    return this.prisma.rawIngestionEvent.create({
+      data: {
+        sourceId,
+        contentHash: createHash('sha256')
+          .update(`${snapshotHash}:${observedAt.toISOString()}`)
+          .digest('hex'),
+        rawPayload: products as unknown as Prisma.InputJsonValue,
+        // Site-watch needs no LLM pass; the snapshot is already structured.
+        processed: true,
+      },
+    });
   }
 
   private async markHealth(sourceId: string, healthStatus: SourceHealth) {

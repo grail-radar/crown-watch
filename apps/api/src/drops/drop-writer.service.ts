@@ -6,8 +6,8 @@ export interface DropInput {
   brandId: string;
   title: string;
   type: DropType;
-  priceLow?: number | Prisma.Decimal | null;
-  priceHigh?: number | Prisma.Decimal | null;
+  priceLow?: number | null;
+  priceHigh?: number | null;
   currency?: string | null;
   eventDate?: Date | null;
   promisedShipDate?: Date | null;
@@ -63,12 +63,11 @@ export class DropWriterService {
     });
   }
 
-  private decimal(
-    value: number | Prisma.Decimal | null | undefined,
-  ): Prisma.Decimal | null {
-    if (value === null || value === undefined) return null;
-    if (value instanceof Prisma.Decimal) return value;
-    return Number.isFinite(value) ? new Prisma.Decimal(value) : null;
+  private decimal(value: number | null | undefined): Prisma.Decimal | null {
+    if (value === null || value === undefined || !Number.isFinite(value)) {
+      return null;
+    }
+    return new Prisma.Decimal(value);
   }
 
   private currency(value: string | null | undefined): string | null {
