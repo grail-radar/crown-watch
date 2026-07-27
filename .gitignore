@@ -29,6 +29,14 @@ Thumbs.db
 .vscode/*
 !.vscode/extensions.json
 
+# Claude Code local tooling (personal skills / worktrees / local settings)
+.claude/skills/
+.claude/worktrees/
+.claude/settings.local.json
+# Installed agent-skill packs and their manifest (personal tooling, not project code)
+.agents/
+skills-lock.json
+
 # Test / coverage
 coverage/
 
