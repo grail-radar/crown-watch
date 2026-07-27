@@ -99,6 +99,21 @@ Copyright-safe: only short factual fields are stored, never source prose.
 | `pnpm db:seed` | Seed RSS sources (api) |
 | `pnpm ingest:rss` | Run one Tier 1 RSS poll (api) |
 | `pnpm extract` | Run the LLM extraction stage (api) |
+| `pnpm test` | Run the test suite |
+
+## Tests
+
+```bash
+docker compose up -d          # tests need a database
+pnpm db:migrate               # once, to create the schema
+pnpm test
+```
+
+Two kinds of test live in the API: pure unit tests (dedup hashing, brand slugs,
+article media parsing) that need nothing, and persistence tests that drive the
+real Prisma write path against Postgres. They share one database, so they run on
+a single worker and delete every row they create. CI runs the same suite against
+a Postgres service container.
 
 ## Notes
 
