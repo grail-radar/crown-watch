@@ -74,6 +74,10 @@ model Source {
   name         String?
   brandId      String?      @map("brand_id")
   endpoint     String
+  // Tier 4 only: which store adapter to use and its settings, e.g.
+  // { "adapter": "shopify_products_json", "currency": "EUR" }. Keeping this as
+  // data means adding a brand on a supported platform needs no code change.
+  watchConfig  Json?        @map("watch_config")
   lastPolledAt DateTime?    @map("last_polled_at")
   healthStatus SourceHealth @default(unknown) @map("health_status")
   createdAt    DateTime     @default(now()) @map("created_at")

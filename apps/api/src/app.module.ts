@@ -8,6 +8,7 @@ import configuration from './config/configuration';
 import { ProxyThrottlerGuard } from './common/proxy-throttler.guard';
 import { PrismaModule } from './prisma/prisma.module';
 import { IngestionModule } from './ingestion/ingestion.module';
+import { SiteWatchModule } from './site-watch/site-watch.module';
 import { ExtractionModule } from './extraction/extraction.module';
 import { CatalogModule } from './catalog/catalog.module';
 import { ModerationModule } from './moderation/moderation.module';
@@ -32,6 +33,7 @@ import { AppController } from './app.controller';
     }),
     PrismaModule,
     IngestionModule,
+    SiteWatchModule,
     ExtractionModule,
     CatalogModule,
     ModerationModule,

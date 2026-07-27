@@ -6,6 +6,7 @@ import {
   Prisma,
   RawIngestionEvent,
 } from '@prisma/client';
+import { DropWriterService } from '../drops/drop-writer.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { AnthropicService } from './anthropic.service';
 import { ExtractionResult } from './extraction.types';
@@ -42,6 +43,7 @@ export class ExtractionService {
     private readonly prisma: PrismaService,
     private readonly anthropic: AnthropicService,
     private readonly config: ConfigService,
+    private readonly drops: DropWriterService,
   ) {}
 
   /**
@@ -174,23 +176,25 @@ export class ExtractionService {
           const media = extractMediaFromPayload(
             rawEvent.rawPayload as Record<string, unknown> | null,
           );
-          await tx.drop.create({
-            data: {
+          // Extraction always queues for human review (CONTEXT.md §5).
+          await this.drops.create(
+            {
               brandId: brand.id,
               title: result.model_title?.trim() || `${brandName} — ${dropType}`,
               type: dropType,
-              priceLow: this.toDecimal(result.price_low),
-              priceHigh: this.toDecimal(result.price_high),
-              currency: this.toCurrency(result.currency),
+              priceLow: result.price_low,
+              priceHigh: result.price_high,
+              currency: result.currency,
               eventDate: this.toDate(result.event_date),
               promisedShipDate: this.toDate(result.promised_ship_date),
               imageUrl: media.imageUrl,
               sourceUrl: media.sourceUrl,
               sourceEventId: rawEvent.id,
               confidenceScore: this.clampConfidence(result.confidence),
-              moderationStatus: ModerationStatus.pending,
+              publish: false,
             },
-          });
+            tx,
+          );
           dropCreated = true;
         }
       }

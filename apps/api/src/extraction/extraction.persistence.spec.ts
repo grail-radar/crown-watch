@@ -12,6 +12,7 @@
 import { ConfigService } from '@nestjs/config';
 import { SourceType } from '@prisma/client';
 import { randomUUID } from 'node:crypto';
+import { DropWriterService } from '../drops/drop-writer.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { AnthropicService } from './anthropic.service';
 import { ExtractionService } from './extraction.service';
@@ -47,7 +48,12 @@ describe('ExtractionService persistence', () => {
     await prisma.$connect();
     const config = new ConfigService({ anthropic: { maxItemsPerRun: 25 } });
     // Extraction is never called on this path; only persistence is exercised.
-    service = new ExtractionService(prisma, new AnthropicService(config), config);
+    service = new ExtractionService(
+      prisma,
+      new AnthropicService(config),
+      config,
+      new DropWriterService(prisma),
+    );
   });
 
   afterAll(async () => {
