@@ -1,0 +1,74 @@
+name: Site-watch poll
+
+# Tier 4: watch brands' own stores and turn changes into published drops and
+# instant Telegram alerts.
+#
+# The API has its own in-process cron, but free hosts sleep when idle, so it
+# cannot be relied on alone — this workflow also wakes the service. Running both
+# is safe: alerts are claimed per (drop, channel), so an overlapping run cannot
+# post twice (docs/adr/0002-broadcasts-are-at-most-once.md).
+on:
+  schedule:
+    # Hourly. Every poll is a request to somebody else's shop, and a restock
+    # radar does not need minutes. GitHub may delay or skip runs under load —
+    # that is accepted; see the runbook.
+    - cron: "7 * * * *"
+  workflow_dispatch: {}
+
+jobs:
+  poll:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Trigger Tier 4 site-watch poll
+        env:
+          API_BASE_URL: ${{ secrets.API_BASE_URL }}
+          ADMIN_TOKEN: ${{ secrets.ADMIN_TOKEN }}
+        run: |
+          set -euo pipefail
+          if [ -z "${API_BASE_URL:-}" ] || [ -z "${ADMIN_TOKEN:-}" ]; then
+            echo "Set the API_BASE_URL and ADMIN_TOKEN repo secrets." >&2
+            exit 1
+          fi
+
+          # Wake the free-tier instance first. A cold start can take ~60s, and
+          # the health probe failing is not itself a reason to fail the run.
+          curl -fsS --max-time 120 --retry 3 --retry-delay 10 --retry-all-errors \
+            "$API_BASE_URL/health" || true
+
+          # The poll itself tolerates a slow start: generous timeout, retries on
+          # the 5xx a mid-deploy restart produces. Per-source failures do NOT
+          # fail this step — the API returns them itemised inside a 200.
+          curl -fsS --max-time 300 --retry 4 --retry-delay 15 --retry-all-errors \
+            -X POST "$API_BASE_URL/ingestion/site-watch/poll" \
+            -H "x-admin-token: $ADMIN_TOKEN" \
+            -o run.json
+
+          cat run.json
+
+      # The run's outcome, readable after the fact without opening the logs.
+      - name: Summarise the run
+        if: always()
+        run: |
+          set -uo pipefail
+          if [ ! -f run.json ]; then
+            echo "No run output — the poll step did not complete." >> "$GITHUB_STEP_SUMMARY"
+            exit 0
+          fi
+
+          jq -r '
+            "## Site-watch run\n",
+            "- sources: \(.sourceCount)",
+            "- drops created: \(.totalDropsCreated)",
+            "- alerts sent: \(.totalBroadcastsSent)",
+            "- failures: \(.failureCount)",
+            "- skipped (backoff or robots.txt): \(.skippedCount)\n",
+            "| source | status | health | changed | drops | alerts | detail |",
+            "|---|---|---|---|---|---|---|",
+            (.sources[] |
+              "| \(.name // .endpoint) | \(.status) | \(.health) | \(.changed) | \(.dropsCreated) | \(.broadcastsSent) | \(.error // .skippedReason // "") |")
+          ' run.json >> "$GITHUB_STEP_SUMMARY" || {
+            echo "Could not parse run output:" >> "$GITHUB_STEP_SUMMARY"
+            echo '```' >> "$GITHUB_STEP_SUMMARY"
+            cat run.json >> "$GITHUB_STEP_SUMMARY"
+            echo '```' >> "$GITHUB_STEP_SUMMARY"
+          }

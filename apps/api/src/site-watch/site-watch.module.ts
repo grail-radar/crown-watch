@@ -5,6 +5,7 @@ import { AdminGuard } from '../moderation/admin.guard';
 import { RobotsService } from './robots.service';
 import { HttpSiteFetcher, SiteFetcher } from './site-fetcher';
 import { SiteWatchController } from './site-watch.controller';
+import { SiteWatchScheduler } from './site-watch.scheduler';
 import { SiteWatchService } from './site-watch.service';
 
 @Module({
@@ -12,6 +13,7 @@ import { SiteWatchService } from './site-watch.service';
   controllers: [SiteWatchController],
   providers: [
     SiteWatchService,
+    SiteWatchScheduler,
     RobotsService,
     AdminGuard,
     { provide: SiteFetcher, useClass: HttpSiteFetcher },

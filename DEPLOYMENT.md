@@ -44,12 +44,20 @@ $env:DATABASE_URL="<neon-url>"; pnpm --filter @crown-watch/api exec prisma db se
 3. Deploy → copy the URL, e.g. `https://crown-watch.vercel.app`.
 4. Back in Render → API service → Environment → set `WEB_ORIGIN` to that Vercel URL → save (redeploys).
 
-## 5. RSS polling — GitHub Actions
-The workflow `.github/workflows/rss-poll.yml` pokes the API every 20 min (free
-hosts sleep, so the in-process cron isn't reliable).
+## 5. Scheduled polling — GitHub Actions
+`rss-poll.yml` pokes the API every 20 min and `site-watch-poll.yml` runs the
+Tier 4 store watch hourly. Free hosts sleep when idle, so the in-process crons
+can't be relied on alone; these workflows also wake the service.
 1. GitHub repo → Settings → Secrets and variables → Actions → **New repository secret**:
    - `API_BASE_URL` = your Render URL (no trailing slash)
+   - `ADMIN_TOKEN` = the same value as the API's `ADMIN_TOKEN`. The site-watch
+     poll is admin-guarded: it publishes straight to the public feed and sends
+     outbound requests to brands' shops, so it is not left open.
 2. Actions tab → enable workflows. Trigger once via **Run workflow** to test.
+
+> Scheduled runs are best-effort — GitHub delays cron under load and sometimes
+> skips it. See the [site-watch runbook](./docs/operations/site-watch-runbook.md)
+> for what to expect, how to add a brand, and how to check source health.
 
 ## 6. Telegram drop broadcast (optional)
 Detected drops are posted to two public channels, one per language. Skip this

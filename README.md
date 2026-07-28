@@ -88,6 +88,35 @@ Copyright-safe: only short factual fields are stored, never source prose.
 - The persistence path is covered (no API key needed) by
   `pnpm --filter @crown-watch/api extract:verify`.
 
+## Tier 4 site-watch (CONTEXT.md §4)
+
+Watches brands' **own stores** and turns structural changes into published drops
+— a product URL that was not there before is a new release, an availability flag
+flipping to true is a restock. Price edits, copy tweaks and photo swaps produce
+nothing. Because no language model reads prose on this path, these drops publish
+immediately rather than queueing for moderation
+([ADR-0001](./docs/adr/0001-tier-4-signals-publish-without-moderation.md)).
+
+Two adapters, chosen per source as data:
+
+- **`shopify_products_json`** — the store's structured product feed, with exact
+  per-variant availability. Preferred wherever it exists.
+- **`html_selectors`** — an ordinary HTML listing page read through configured
+  CSS selectors, for the brands that expose no feed.
+
+The watcher is a deliberate good citizen: it identifies itself honestly by user
+agent, fetches and obeys each store's `robots.txt`, and backs off when a store
+pushes back — doubling from 15 minutes to a one-day cap, honouring `Retry-After`.
+One brand's broken selector never blinds the rest of a run; failures are
+itemised per source, with health on the source row.
+
+It runs unattended, hourly, via `.github/workflows/site-watch-poll.yml` (which
+also wakes free-tier hosting) and the API's own cron. Running both is safe:
+alerts are claimed per `(drop, channel)`, so overlapping runs cannot double-post.
+
+> **Adding a brand, choosing an adapter, or fixing a broken watcher:**
+> see the [site-watch runbook](./docs/operations/site-watch-runbook.md).
+
 ## Telegram drop broadcast (CONTEXT.md §2)
 
 The moment a site-watch poll detects a drop, it is posted to two public Telegram
