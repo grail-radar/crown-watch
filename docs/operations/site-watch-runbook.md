@@ -45,14 +45,29 @@ A brand is a database row. No code change is needed for either adapter.
 
 ### 1. Find the best endpoint
 
-Try the structured feed first — it is strictly better where it exists:
+Probe the candidates. This sorts a list of brands by what each one needs, and
+goes through the same user agent and `robots.txt` guard as a real poll:
 
 ```bash
-curl -fsS "https://thebrand.example/products.json?limit=250" | jq '.products | length'
+pnpm --filter @crown-watch/api probe:stores -- yema.com baltic-watches.com
 ```
 
-A number back means the brand is on a platform with a machine-readable product
-list. Nothing usable means you need the HTML adapter.
+`--file=brands.txt` reads one domain per line (`#` comments allowed), which is
+how you sort thirty brands in one go. It only reads — nothing is registered.
+
+Results are grouped by what to do next:
+
+| Group | Meaning |
+|---|---|
+| **Register with the structured adapter** | A real feed with products in it. Ready as-is. |
+| **Needs HTML selectors** | No product endpoint. Write selectors against the listing page. |
+| **Probe again later** | The store rate-limited us. It may still have a feed — do *not* write selectors yet. |
+| **Off limits** | `robots.txt` disallows the path. Respect it. |
+| **No answer** | Unreachable, or blocking us outright. |
+
+The probe never trusts a status code alone: a store answering `200` with a
+lander page instead of a feed is reported as needing selectors, because only
+parsing it tells you the difference. One brand on the roster does exactly this.
 
 ### 2. Choose the adapter
 

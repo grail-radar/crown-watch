@@ -194,6 +194,7 @@ The same thing is available to an admin over HTTP:
 | `pnpm extract` | Run the LLM extraction stage (api) |
 | `pnpm test` | Run the test suite |
 | `pnpm --filter @crown-watch/api backfill:telegram` | Preview a Telegram backfill (dry run) |
+| `pnpm --filter @crown-watch/api probe:stores -- <domains>` | Sort brands by which site-watch adapter they need |
 
 ## Tests
 

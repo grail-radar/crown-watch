@@ -7,6 +7,7 @@ import { HttpSiteFetcher, SiteFetcher } from './site-fetcher';
 import { SiteWatchController } from './site-watch.controller';
 import { SiteWatchScheduler } from './site-watch.scheduler';
 import { SiteWatchService } from './site-watch.service';
+import { StoreProbe } from './store-probe';
 
 @Module({
   imports: [DropsModule, AlertsModule],
@@ -15,9 +16,10 @@ import { SiteWatchService } from './site-watch.service';
     SiteWatchService,
     SiteWatchScheduler,
     RobotsService,
+    StoreProbe,
     AdminGuard,
     { provide: SiteFetcher, useClass: HttpSiteFetcher },
   ],
-  exports: [SiteWatchService],
+  exports: [SiteWatchService, StoreProbe],
 })
 export class SiteWatchModule {}
