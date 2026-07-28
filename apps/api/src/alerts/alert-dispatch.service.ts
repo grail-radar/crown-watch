@@ -1,11 +1,7 @@
 import { Injectable, Logger, OnApplicationShutdown } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import {
-  BroadcastStatus,
-  ModerationStatus,
-  Prisma,
-  SourceType,
-} from '@prisma/client';
+import { BroadcastStatus, ModerationStatus, Prisma } from '@prisma/client';
+import { purchaseLinkFor } from '../drops/purchase-link';
 import { PrismaService } from '../prisma/prisma.service';
 import {
   ALERT_LOCALES,
@@ -517,12 +513,19 @@ export class AlertDispatchService implements OnApplicationShutdown {
       type: drop.type,
       price: this.price(drop.priceLow),
       currency: drop.currency,
-      // Only Tier 4 watches the brand's own storefront, so only its drops carry
-      // a URL a reader can actually buy from. Anything else — RSS, newsletter,
-      // Kickstarter, a manual submission — links to coverage, and saying "buy"
-      // over an article link would be a lie to every follower.
+      // Asked, not decided here: the website needs the same answer, and the two
+      // surfaces drifting is exactly how "Buy from the brand" once ended up over
+      // a magazine link.
+      //
+      // No brand website is supplied yet, so this can only answer `store` or
+      // nothing, and messages are unchanged. Offering the brand's own site in a
+      // channel needs wording that does not yet exist in either language.
       linkKind:
-        drop.sourceEvent?.source.type === SourceType.site_watch
+        purchaseLinkFor({
+          sourceType: drop.sourceEvent?.source.type,
+          sourceUrl: drop.sourceUrl,
+          brandWebsite: null,
+        })?.kind === 'store'
           ? 'store'
           : 'coverage',
       productUrl: drop.sourceUrl,
