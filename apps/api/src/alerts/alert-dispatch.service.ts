@@ -26,6 +26,7 @@ const DROP_FIELDS = {
   priceLow: true,
   currency: true,
   sourceUrl: true,
+  imageUrl: true,
   publishedAt: true,
   brand: { select: { name: true, slug: true } },
   // Decides what the link is called: a site-watch drop's sourceUrl is the
@@ -49,6 +50,13 @@ export type BroadcastOutcome = 'sent' | 'skipped' | 'failed';
 export interface BroadcastChannel {
   locale: AlertLocale;
   chatId: string;
+}
+
+/** Everything one drop contributes to a post, shared across its channels. */
+interface BroadcastPayload {
+  alert: DropAlert;
+  imageUrl: string | null;
+  webUrl: string;
 }
 
 export interface ChannelBroadcastResult extends BroadcastChannel {
@@ -184,15 +192,17 @@ export class AlertDispatchService {
         return result;
       }
 
-      const alert = this.toAlert(drop);
-      const webUrl = this.webUrl();
+      const payload: BroadcastPayload = {
+        alert: this.toAlert(drop),
+        imageUrl: drop.imageUrl,
+        webUrl: this.webUrl(),
+      };
 
       for (const channel of channels) {
         const outcome = await this.broadcastToChannel(
           drop.id,
           channel,
-          alert,
-          webUrl,
+          payload,
         );
         result.channels.push(outcome);
         if (outcome.outcome === 'sent') result.sentCount += 1;
@@ -211,8 +221,7 @@ export class AlertDispatchService {
   private async broadcastToChannel(
     dropId: string,
     channel: BroadcastChannel,
-    alert: DropAlert,
-    webUrl: string,
+    payload: BroadcastPayload,
   ): Promise<ChannelBroadcastResult> {
     const base = { locale: channel.locale, chatId: channel.chatId };
 
@@ -243,12 +252,13 @@ export class AlertDispatchService {
       return { ...base, outcome: 'failed', reason: message };
     }
 
-    const text = renderDropAlert(channel.locale, alert, webUrl);
+    const text = renderDropAlert(channel.locale, payload.alert, payload.webUrl);
 
     try {
       const { messageId } = await this.telegram.send({
         chatId: channel.chatId,
         text,
+        imageUrl: payload.imageUrl,
       });
       await this.prisma.dropBroadcast.update({
         where: { id: claimId },

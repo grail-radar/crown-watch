@@ -103,6 +103,7 @@ describe('AlertDispatchService', () => {
       priceLow?: number | null;
       currency?: string | null;
       sourceUrl?: string | null;
+      imageUrl?: string | null;
       fromStore?: boolean;
     } = {},
   ) {
@@ -141,6 +142,10 @@ describe('AlertDispatchService', () => {
           over.sourceUrl === undefined
             ? 'https://lorier.com/products/neptune-iv'
             : over.sourceUrl,
+        imageUrl:
+          over.imageUrl === undefined
+            ? 'https://cdn.example/neptune.jpg'
+            : over.imageUrl,
         sourceEventId,
         moderationStatus: 'approved',
         publishedAt: new Date(),
@@ -204,6 +209,28 @@ describe('AlertDispatchService', () => {
 
     expect(telegram.textFor(EN_CHANNEL)).toContain('Buy from the brand');
     expect(telegram.textFor(UK_CHANNEL)).toContain('Купити в бренда');
+  });
+
+  it('carries the drop photo through to the channel', async () => {
+    const { drop } = await arrangeDrop({
+      imageUrl: 'https://cdn.example/baltic-scalegraph.jpg',
+    });
+
+    await dispatcher().broadcastDrop(drop.id);
+
+    expect(telegram.sent).toHaveLength(2);
+    for (const message of telegram.sent) {
+      expect(message.imageUrl).toBe('https://cdn.example/baltic-scalegraph.jpg');
+    }
+  });
+
+  it('still posts a drop that has no photo', async () => {
+    const { drop } = await arrangeDrop({ imageUrl: null });
+
+    const result = await dispatcher().broadcastDrop(drop.id);
+
+    expect(result.sentCount).toBe(2);
+    expect(telegram.sent.every((s) => !s.imageUrl)).toBe(true);
   });
 
   it('says "back in stock" for a restock', async () => {
