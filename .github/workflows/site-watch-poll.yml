@@ -55,20 +55,34 @@ jobs:
             exit 0
           fi
 
-          jq -r '
-            "## Site-watch run\n",
-            "- sources: \(.sourceCount)",
-            "- drops created: \(.totalDropsCreated)",
-            "- alerts sent: \(.totalBroadcastsSent)",
-            "- failures: \(.failureCount)",
-            "- skipped (backoff or robots.txt): \(.skippedCount)\n",
-            "| source | status | health | changed | drops | alerts | detail |",
-            "|---|---|---|---|---|---|---|",
-            (.sources[] |
-              "| \(.name // .endpoint) | \(.status) | \(.health) | \(.changed) | \(.dropsCreated) | \(.broadcastsSent) | \(.error // .skippedReason // "") |")
-          ' run.json >> "$GITHUB_STEP_SUMMARY" || {
-            echo "Could not parse run output:" >> "$GITHUB_STEP_SUMMARY"
-            echo '```' >> "$GITHUB_STEP_SUMMARY"
-            cat run.json >> "$GITHUB_STEP_SUMMARY"
-            echo '```' >> "$GITHUB_STEP_SUMMARY"
-          }
+          # Rendered to a buffer first. Writing straight to the summary would
+          # leave a half-built table behind when the payload is not a run at
+          # all — an auth failure, say — because jq only errors once it reaches
+          # the rows, after the header has already been emitted.
+          if jq -r '
+            if (.sources | type) != "array" then
+              error("not a site-watch run")
+            else
+              "## Site-watch run\n",
+              "- sources: \(.sourceCount)",
+              "- drops created: \(.totalDropsCreated)",
+              "- alerts sent: \(.totalBroadcastsSent)",
+              "- failures: \(.failureCount)",
+              "- skipped (backoff or robots.txt): \(.skippedCount)\n",
+              "| source | status | health | changed | drops | alerts | detail |",
+              "|---|---|---|---|---|---|---|",
+              (.sources[] |
+                "| \(.name // .endpoint) | \(.status) | \(.health) | \(.changed) | \(.dropsCreated) | \(.broadcastsSent) | \(.error // .skippedReason // "") |")
+            end
+          ' run.json > summary.md 2>/dev/null; then
+            cat summary.md >> "$GITHUB_STEP_SUMMARY"
+          else
+            {
+              echo "## Site-watch run"
+              echo
+              echo "The API did not return a run. Raw response:"
+              echo '```'
+              cat run.json
+              echo '```'
+            } >> "$GITHUB_STEP_SUMMARY"
+          fi
