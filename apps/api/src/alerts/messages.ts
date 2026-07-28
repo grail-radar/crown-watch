@@ -19,7 +19,10 @@ interface AlertStrings {
   /** Headline per drop type — the "what kind of event is this" line. */
   headline: Record<DropType, string>;
   price: string;
+  /** Label when the link goes to the brand's own store. */
   productLink: string;
+  /** Label when the link goes to a publication's article about the drop. */
+  coverageLink: string;
   brandLink: string;
 }
 
@@ -33,6 +36,7 @@ const STRINGS: Record<AlertLocale, AlertStrings> = {
     },
     price: 'Ціна',
     productLink: 'Купити в бренда',
+    coverageLink: 'Читати огляд',
     brandLink: 'Бренд на Crown Watch',
   },
   en: {
@@ -44,6 +48,7 @@ const STRINGS: Record<AlertLocale, AlertStrings> = {
     },
     price: 'Price',
     productLink: 'Buy from the brand',
+    coverageLink: 'Read the coverage',
     brandLink: 'Brand on Crown Watch',
   },
 };
@@ -56,7 +61,14 @@ export interface DropAlert {
   type: DropType;
   price: number | null;
   currency: string | null;
-  /** The brand's own product page, when the store exposed one. */
+  /** Where the drop was seen: the brand's store, or an article about it. */
+  linkKind: 'store' | 'coverage';
+  /**
+   * The link itself. A site-watch drop carries the brand's own product page; a
+   * drop extracted from a publication carries that article. They are labelled
+   * differently because telling a reader to "buy" and handing them a magazine
+   * is a lie, and because coverage links are attribution (CONTEXT.md §6).
+   */
   productUrl: string | null;
 }
 
@@ -106,7 +118,8 @@ export function renderDropAlert(
   ];
   if (price) lines.push(`${s.price}: ${escapeHtml(price)}`);
   if (alert.productUrl) {
-    lines.push(`<a href="${escapeHtml(alert.productUrl)}">${s.productLink}</a>`);
+    const label = alert.linkKind === 'store' ? s.productLink : s.coverageLink;
+    lines.push(`<a href="${escapeHtml(alert.productUrl)}">${label}</a>`);
   }
   lines.push(`<a href="${escapeHtml(brandUrl)}">${s.brandLink}</a>`);
 

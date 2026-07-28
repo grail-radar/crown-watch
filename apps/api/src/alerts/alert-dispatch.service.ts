@@ -1,6 +1,11 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { BroadcastStatus, ModerationStatus, Prisma } from '@prisma/client';
+import {
+  BroadcastStatus,
+  ModerationStatus,
+  Prisma,
+  SourceType,
+} from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import {
   ALERT_LOCALES,
@@ -23,6 +28,9 @@ const DROP_FIELDS = {
   sourceUrl: true,
   publishedAt: true,
   brand: { select: { name: true, slug: true } },
+  // Decides what the link is called: a site-watch drop's sourceUrl is the
+  // brand's own product page, everything else is a publication's article.
+  sourceEvent: { select: { source: { select: { type: true } } } },
 } as const;
 
 type DropRecord = Prisma.DropGetPayload<{ select: typeof DROP_FIELDS }>;
@@ -412,6 +420,14 @@ export class AlertDispatchService {
       type: drop.type,
       price: this.price(drop.priceLow),
       currency: drop.currency,
+      // Only Tier 4 watches the brand's own storefront, so only its drops carry
+      // a URL a reader can actually buy from. Anything else — RSS, newsletter,
+      // Kickstarter, a manual submission — links to coverage, and saying "buy"
+      // over an article link would be a lie to every follower.
+      linkKind:
+        drop.sourceEvent?.source.type === SourceType.site_watch
+          ? 'store'
+          : 'coverage',
       productUrl: drop.sourceUrl,
     };
   }

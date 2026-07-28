@@ -16,6 +16,7 @@ const alert = (over: Partial<DropAlert> = {}): DropAlert => ({
   type: DropType.pre_order,
   price: 499,
   currency: 'USD',
+  linkKind: 'store',
   productUrl: 'https://lorier.com/products/neptune-iv',
   ...over,
 });
@@ -117,6 +118,30 @@ describe('renderDropAlert', () => {
     expect(text).toContain('&quot;');
     // Exactly one anchor was opened for the product link, not two.
     expect(text.match(/<a href="/g)).toHaveLength(2); // product + brand page
+  });
+
+  it('does not say "buy" over a link to a magazine article', () => {
+    // Tier 1 drops carry the publication's article as their sourceUrl, not a
+    // product page. Labelling that "Buy from the brand" misleads every reader
+    // and misrepresents the publication's coverage (CONTEXT.md §6).
+    const coverage = alert({
+      linkKind: 'coverage',
+      productUrl: 'https://wornandwound.com/nomos-introduces-new-tetra-27/',
+    });
+
+    expect(renderDropAlert('en', coverage, WEB)).toContain('Read the coverage');
+    expect(renderDropAlert('en', coverage, WEB)).not.toContain('Buy from');
+    expect(renderDropAlert('uk', coverage, WEB)).toContain('Читати огляд');
+    expect(renderDropAlert('uk', coverage, WEB)).not.toContain('Купити');
+  });
+
+  it('does say "buy" when the link really is the brand’s store', () => {
+    expect(renderDropAlert('en', alert({ linkKind: 'store' }), WEB)).toContain(
+      'Buy from the brand',
+    );
+    expect(renderDropAlert('uk', alert({ linkKind: 'store' }), WEB)).toContain(
+      'Купити в бренда',
+    );
   });
 
   it('drops the trailing zeros a Decimal price arrives with', () => {

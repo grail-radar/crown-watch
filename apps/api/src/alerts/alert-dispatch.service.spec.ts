@@ -6,7 +6,7 @@
  * received — no network is touched.
  */
 import { ConfigService } from '@nestjs/config';
-import { DropType } from '@prisma/client';
+import { DropType, SourceType } from '@prisma/client';
 import { randomUUID } from 'node:crypto';
 import { PrismaService } from '../prisma/prisma.service';
 import {
@@ -67,6 +67,7 @@ describe('AlertDispatchService', () => {
   let prisma: PrismaService;
   let telegram: CapturingTelegram;
   const brandIds: string[] = [];
+  const sourceIds: string[] = [];
 
   beforeAll(async () => {
     prisma = new PrismaService();
@@ -79,6 +80,10 @@ describe('AlertDispatchService', () => {
 
   afterAll(async () => {
     await prisma.drop.deleteMany({ where: { brandId: { in: brandIds } } });
+    await prisma.rawIngestionEvent.deleteMany({
+      where: { sourceId: { in: sourceIds } },
+    });
+    await prisma.source.deleteMany({ where: { id: { in: sourceIds } } });
     await prisma.brand.deleteMany({ where: { id: { in: brandIds } } });
     await prisma.$disconnect();
   });
@@ -86,7 +91,11 @@ describe('AlertDispatchService', () => {
   const dispatcher = (config = configure()) =>
     new AlertDispatchService(prisma, config, telegram);
 
-  /** A published drop, as the site-watch path would have created it. */
+  /**
+   * A published drop. By default it has no provenance, like an RSS-extracted
+   * drop; pass `fromStore` to give it the site-watch lineage that makes its
+   * sourceUrl a real product page.
+   */
   async function arrangeDrop(
     over: {
       title?: string;
@@ -94,6 +103,7 @@ describe('AlertDispatchService', () => {
       priceLow?: number | null;
       currency?: string | null;
       sourceUrl?: string | null;
+      fromStore?: boolean;
     } = {},
   ) {
     const tag = randomUUID().slice(0, 8);
@@ -101,6 +111,25 @@ describe('AlertDispatchService', () => {
       data: { name: `Lorier ${tag}`, slug: `lorier-${tag}` },
     });
     brandIds.push(brand.id);
+
+    let sourceEventId: string | undefined;
+    if (over.fromStore) {
+      const source = await prisma.source.create({
+        data: {
+          type: SourceType.site_watch,
+          name: 'Store',
+          endpoint: `https://lorier.com/products.json?s=${tag}`,
+          brandId: brand.id,
+          watchConfig: { adapter: 'shopify_products_json' },
+        },
+      });
+      sourceIds.push(source.id);
+      const event = await prisma.rawIngestionEvent.create({
+        data: { sourceId: source.id, rawPayload: [], contentHash: tag, processed: true },
+      });
+      sourceEventId = event.id;
+    }
+
     const drop = await prisma.drop.create({
       data: {
         brandId: brand.id,
@@ -112,6 +141,7 @@ describe('AlertDispatchService', () => {
           over.sourceUrl === undefined
             ? 'https://lorier.com/products/neptune-iv'
             : over.sourceUrl,
+        sourceEventId,
         moderationStatus: 'approved',
         publishedAt: new Date(),
       },
@@ -146,6 +176,34 @@ describe('AlertDispatchService', () => {
     // …in its own language.
     expect(telegram.textFor(UK_CHANNEL)).toContain('Новий реліз');
     expect(telegram.textFor(EN_CHANNEL)).toContain('New release');
+  });
+
+  it('never says "buy" over a link to a magazine article', () => {
+    // Tier 1 drops carry the publication's article as their sourceUrl. Calling
+    // that "Buy from the brand" misleads every follower and misrepresents the
+    // publication's coverage (CONTEXT.md §6).
+    return (async () => {
+      const { drop } = await arrangeDrop({
+        sourceUrl: 'https://wornandwound.com/nomos-introduces-new-tetra-27/',
+      });
+
+      await dispatcher().broadcastDrop(drop.id);
+
+      expect(telegram.textFor(EN_CHANNEL)).toContain('Read the coverage');
+      expect(telegram.textFor(EN_CHANNEL)).not.toContain('Buy from');
+      expect(telegram.textFor(UK_CHANNEL)).toContain('Читати огляд');
+      // The link itself is still there — only its label changed.
+      expect(telegram.textFor(EN_CHANNEL)).toContain('wornandwound.com');
+    })();
+  });
+
+  it('says "buy" only when the drop came from the brand’s own store', async () => {
+    const { drop } = await arrangeDrop({ fromStore: true });
+
+    await dispatcher().broadcastDrop(drop.id);
+
+    expect(telegram.textFor(EN_CHANNEL)).toContain('Buy from the brand');
+    expect(telegram.textFor(UK_CHANNEL)).toContain('Купити в бренда');
   });
 
   it('says "back in stock" for a restock', async () => {
