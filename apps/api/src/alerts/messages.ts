@@ -8,6 +8,7 @@
  * locales differ solely in the strings they supply.
  */
 import { DropType } from '@prisma/client';
+import { PurchaseLink } from '../drops/purchase-link';
 
 /** Languages we broadcast in. One public Telegram channel per locale. */
 export type AlertLocale = 'uk' | 'en';
@@ -19,10 +20,17 @@ interface AlertStrings {
   /** Headline per drop type — the "what kind of event is this" line. */
   headline: Record<DropType, string>;
   price: string;
-  /** Label when the link goes to the brand's own store. */
+  /** Label when the link goes to the brand's own product page. */
   productLink: string;
+  /**
+   * Label when the link goes to the brand's homepage rather than the watch.
+   * Distinct from both the others on purpose: it is not somewhere to buy this
+   * particular watch, and it is not coverage.
+   */
+  brandSiteLink: string;
   /** Label when the link goes to a publication's article about the drop. */
   coverageLink: string;
+  /** Label for the brand's page on Crown Watch itself. */
   brandLink: string;
 }
 
@@ -36,6 +44,7 @@ const STRINGS: Record<AlertLocale, AlertStrings> = {
     },
     price: 'Ціна',
     productLink: 'Купити в бренда',
+    brandSiteLink: 'Сайт бренда',
     coverageLink: 'Читати огляд',
     brandLink: 'Бренд на Crown Watch',
   },
@@ -48,6 +57,7 @@ const STRINGS: Record<AlertLocale, AlertStrings> = {
     },
     price: 'Price',
     productLink: 'Buy from the brand',
+    brandSiteLink: 'Visit the brand',
     coverageLink: 'Read the coverage',
     brandLink: 'Brand on Crown Watch',
   },
@@ -61,15 +71,18 @@ export interface DropAlert {
   type: DropType;
   price: number | null;
   currency: string | null;
-  /** Where the drop was seen: the brand's store, or an article about it. */
-  linkKind: 'store' | 'coverage';
   /**
-   * The link itself. A site-watch drop carries the brand's own product page; a
-   * drop extracted from a publication carries that article. They are labelled
-   * differently because telling a reader to "buy" and handing them a magazine
-   * is a lie, and because coverage links are attribution (CONTEXT.md §6).
+   * Where a reader can act, decided by the shared rule so the channels and the
+   * website can never classify the same drop differently. Null when there is
+   * nothing honest to offer.
    */
-  productUrl: string | null;
+  purchase: PurchaseLink | null;
+  /**
+   * The publication's article, when the drop came from one. Kept separate from
+   * `purchase` because it is attribution, not somewhere to buy (CONTEXT.md §6):
+   * telling a reader to buy and handing them a magazine is a lie.
+   */
+  coverageUrl: string | null;
 }
 
 /**
@@ -117,9 +130,17 @@ export function renderDropAlert(
     `<b>${escapeHtml(alert.brandName)}</b> — ${escapeHtml(alert.title)}`,
   ];
   if (price) lines.push(`${s.price}: ${escapeHtml(price)}`);
-  if (alert.productUrl) {
-    const label = alert.linkKind === 'store' ? s.productLink : s.coverageLink;
-    lines.push(`<a href="${escapeHtml(alert.productUrl)}">${label}</a>`);
+
+  // Where to act comes first, because it is what the reader wants; the article
+  // follows as attribution. A drop can carry both — a brand's own site plus the
+  // coverage that surfaced it — and they are never the same link.
+  if (alert.purchase) {
+    const label =
+      alert.purchase.kind === 'store' ? s.productLink : s.brandSiteLink;
+    lines.push(`<a href="${escapeHtml(alert.purchase.url)}">${label}</a>`);
+  }
+  if (alert.coverageUrl) {
+    lines.push(`<a href="${escapeHtml(alert.coverageUrl)}">${s.coverageLink}</a>`);
   }
   lines.push(`<a href="${escapeHtml(brandUrl)}">${s.brandLink}</a>`);
 

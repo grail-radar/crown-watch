@@ -16,8 +16,8 @@ const alert = (over: Partial<DropAlert> = {}): DropAlert => ({
   type: DropType.pre_order,
   price: 499,
   currency: 'USD',
-  linkKind: 'store',
-  productUrl: 'https://lorier.com/products/neptune-iv',
+  purchase: { url: 'https://lorier.com/products/neptune-iv', kind: 'store' },
+  coverageUrl: null,
   ...over,
 });
 
@@ -84,7 +84,7 @@ describe('renderDropAlert', () => {
   });
 
   it('still links to the brand page when there is no product URL', () => {
-    const text = renderDropAlert('en', alert({ productUrl: null }), WEB);
+    const text = renderDropAlert('en', alert({ purchase: null }), WEB);
 
     expect(text).toContain(`${WEB}/brands/lorier`);
     expect(text).not.toContain('Buy from the brand');
@@ -110,7 +110,7 @@ describe('renderDropAlert', () => {
     // quote would close the attribute and turn the rest into markup.
     const text = renderDropAlert(
       'en',
-      alert({ productUrl: 'https://evil.example/p?x="><script>alert(1)</script>' }),
+      alert({ purchase: { url: 'https://evil.example/p?x="><script>alert(1)</script>', kind: 'store' } }),
       WEB,
     );
 
@@ -121,12 +121,12 @@ describe('renderDropAlert', () => {
   });
 
   it('does not say "buy" over a link to a magazine article', () => {
-    // Tier 1 drops carry the publication's article as their sourceUrl, not a
-    // product page. Labelling that "Buy from the brand" misleads every reader
-    // and misrepresents the publication's coverage (CONTEXT.md §6).
+    // Tier 1 drops carry the publication's article, not a product page.
+    // Labelling that "Buy from the brand" misleads every reader and
+    // misrepresents the publication's coverage (CONTEXT.md §6).
     const coverage = alert({
-      linkKind: 'coverage',
-      productUrl: 'https://wornandwound.com/nomos-introduces-new-tetra-27/',
+      purchase: null,
+      coverageUrl: 'https://wornandwound.com/nomos-introduces-new-tetra-27/',
     });
 
     expect(renderDropAlert('en', coverage, WEB)).toContain('Read the coverage');
@@ -136,12 +136,76 @@ describe('renderDropAlert', () => {
   });
 
   it('does say "buy" when the link really is the brand’s store', () => {
-    expect(renderDropAlert('en', alert({ linkKind: 'store' }), WEB)).toContain(
-      'Buy from the brand',
-    );
-    expect(renderDropAlert('uk', alert({ linkKind: 'store' }), WEB)).toContain(
-      'Купити в бренда',
-    );
+    expect(renderDropAlert('en', alert(), WEB)).toContain('Buy from the brand');
+    expect(renderDropAlert('uk', alert(), WEB)).toContain('Купити в бренда');
+  });
+
+  it('offers the brand’s own site in its own words, not the other two', () => {
+    // A drop we only have coverage for, whose brand we do know the site of.
+    const both = alert({
+      purchase: { url: 'https://lorier.com', kind: 'brand_site' },
+      coverageUrl: 'https://wornandwound.com/hands-on-the-lorier-neptune-iv/',
+    });
+
+    const en = renderDropAlert('en', both, WEB);
+    const uk = renderDropAlert('uk', both, WEB);
+
+    expect(en).toContain('Visit the brand');
+    expect(en).not.toContain('Buy from the brand');
+    expect(uk).toContain('Сайт бренда');
+    expect(uk).not.toContain('Купити в бренда');
+  });
+
+  it('carries the brand’s site and the coverage as two separate links', () => {
+    const both = alert({
+      purchase: { url: 'https://lorier.com', kind: 'brand_site' },
+      coverageUrl: 'https://wornandwound.com/hands-on-the-lorier-neptune-iv/',
+    });
+
+    const text = renderDropAlert('en', both, WEB);
+
+    expect(text).toContain('https://lorier.com"');
+    expect(text).toContain('wornandwound.com');
+    expect(text).toContain('Read the coverage');
+    // Where to act, then the article, then our own brand page.
+    expect(text.match(/<a href="/g)).toHaveLength(3);
+  });
+
+  it('says nothing about buying when there is nowhere to send the reader', () => {
+    const bare = alert({ purchase: null, coverageUrl: null });
+
+    const text = renderDropAlert('en', bare, WEB);
+
+    expect(text).not.toContain('Buy from');
+    expect(text).not.toContain('Visit the brand');
+    expect(text).not.toContain('Read the coverage');
+    // Still a valid message: the drop and our own brand page.
+    expect(text).toContain('Neptune IV');
+    expect(text).toContain(`${WEB}/brands/lorier`);
+  });
+
+  it('gives all three link labels distinct wording in both languages', () => {
+    // Reusing a label would tell a reader the wrong thing about a destination.
+    const labels = (locale: 'uk' | 'en') => [
+      renderDropAlert(locale, alert(), WEB),
+      renderDropAlert(
+        locale,
+        alert({ purchase: { url: 'https://lorier.com', kind: 'brand_site' } }),
+        WEB,
+      ),
+      renderDropAlert(
+        locale,
+        alert({ purchase: null, coverageUrl: 'https://wornandwound.com/x/' }),
+        WEB,
+      ),
+    ];
+
+    for (const locale of ALERT_LOCALES) {
+      const [store, brandSite, coverage] = labels(locale);
+      expect(store).not.toEqual(brandSite);
+      expect(brandSite).not.toEqual(coverage);
+      expect(store).not.toEqual(coverage);
+    }
   });
 
   it('drops the trailing zeros a Decimal price arrives with', () => {

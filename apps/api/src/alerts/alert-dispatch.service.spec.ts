@@ -81,12 +81,17 @@ describe('AlertDispatchService', () => {
       currency?: string | null;
       sourceUrl?: string | null;
       imageUrl?: string | null;
+      brandWebsite?: string | null;
       fromStore?: boolean;
     } = {},
   ) {
     const tag = randomUUID().slice(0, 8);
     const brand = await prisma.brand.create({
-      data: { name: `Lorier ${tag}`, slug: `lorier-${tag}` },
+      data: {
+        name: `Lorier ${tag}`,
+        slug: `lorier-${tag}`,
+        website: over.brandWebsite ?? null,
+      },
     });
     brandIds.push(brand.id);
 
@@ -208,6 +213,58 @@ describe('AlertDispatchService', () => {
 
     expect(result.sentCount).toBe(2);
     expect(telegram.sent.every((s) => !s.imageUrl)).toBe(true);
+  });
+
+  it('offers the brand’s own site when there is no product page', async () => {
+    // The common case for an extracted drop: we know the brand's site, but the
+    // only link the article gave us is the article.
+    const { drop, brand } = await arrangeDrop({
+      sourceUrl: 'https://wornandwound.com/nomos-introduces-new-tetra-27/',
+      brandWebsite: 'https://lorier.com',
+    });
+
+    await dispatcher().broadcastDrop(drop.id);
+
+    const en = telegram.textFor(EN_CHANNEL)!;
+    expect(en).toContain('Visit the brand');
+    expect(en).toContain('https://lorier.com');
+    expect(en).not.toContain('Buy from');
+    // The coverage is still there, as its own link.
+    expect(en).toContain('Read the coverage');
+    expect(en).toContain('wornandwound.com');
+    expect(telegram.textFor(UK_CHANNEL)).toContain('Сайт бренда');
+    expect(en).toContain(`${WEB}/brands/${brand.slug}`);
+  });
+
+  it('prefers the product page over the brand site when it has one', async () => {
+    const { drop } = await arrangeDrop({
+      fromStore: true,
+      brandWebsite: 'https://lorier.com',
+    });
+
+    await dispatcher().broadcastDrop(drop.id);
+
+    const en = telegram.textFor(EN_CHANNEL)!;
+    expect(en).toContain('Buy from the brand');
+    expect(en).toContain('https://lorier.com/products/neptune-iv');
+    expect(en).not.toContain('Visit the brand');
+    // A store drop's link is the product page — there is no article to cite.
+    expect(en).not.toContain('Read the coverage');
+  });
+
+  it('offers nothing to click when the brand site is unknown', async () => {
+    const { drop } = await arrangeDrop({
+      sourceUrl: null,
+      brandWebsite: null,
+    });
+
+    await dispatcher().broadcastDrop(drop.id);
+
+    const en = telegram.textFor(EN_CHANNEL)!;
+    expect(en).not.toContain('Buy from');
+    expect(en).not.toContain('Visit the brand');
+    expect(en).not.toContain('Read the coverage');
+    expect(en).toContain('Neptune IV');
   });
 
   it('says "back in stock" for a restock', async () => {

@@ -1,6 +1,11 @@
 import { Injectable, Logger, OnApplicationShutdown } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { BroadcastStatus, ModerationStatus, Prisma } from '@prisma/client';
+import {
+  BroadcastStatus,
+  ModerationStatus,
+  Prisma,
+  SourceType,
+} from '@prisma/client';
 import { purchaseLinkFor } from '../drops/purchase-link';
 import { PrismaService } from '../prisma/prisma.service';
 import {
@@ -24,7 +29,7 @@ const DROP_FIELDS = {
   sourceUrl: true,
   imageUrl: true,
   publishedAt: true,
-  brand: { select: { name: true, slug: true } },
+  brand: { select: { name: true, slug: true, website: true } },
   // Decides what the link is called: a site-watch drop's sourceUrl is the
   // brand's own product page, everything else is a publication's article.
   sourceEvent: { select: { source: { select: { type: true } } } },
@@ -506,6 +511,8 @@ export class AlertDispatchService implements OnApplicationShutdown {
   }
 
   private toAlert(drop: DropRecord): DropAlert {
+    const isFromStore =
+      drop.sourceEvent?.source.type === SourceType.site_watch;
     return {
       brandName: drop.brand.name,
       brandSlug: drop.brand.slug,
@@ -513,22 +520,17 @@ export class AlertDispatchService implements OnApplicationShutdown {
       type: drop.type,
       price: this.price(drop.priceLow),
       currency: drop.currency,
-      // Asked, not decided here: the website needs the same answer, and the two
-      // surfaces drifting is exactly how "Buy from the brand" once ended up over
-      // a magazine link.
-      //
-      // No brand website is supplied yet, so this can only answer `store` or
-      // nothing, and messages are unchanged. Offering the brand's own site in a
-      // channel needs wording that does not yet exist in either language.
-      linkKind:
-        purchaseLinkFor({
-          sourceType: drop.sourceEvent?.source.type,
-          sourceUrl: drop.sourceUrl,
-          brandWebsite: null,
-        })?.kind === 'store'
-          ? 'store'
-          : 'coverage',
-      productUrl: drop.sourceUrl,
+      // Asked, not decided here: the website answers from the same rule, so the
+      // two surfaces cannot classify one drop differently — which is exactly how
+      // "Buy from the brand" once ended up over a magazine link.
+      purchase: purchaseLinkFor({
+        sourceType: drop.sourceEvent?.source.type,
+        sourceUrl: drop.sourceUrl,
+        brandWebsite: drop.brand.website,
+      }),
+      // Only a drop that came from a publication has coverage. A site-watch
+      // drop's link is its product page, and it is already the purchase link.
+      coverageUrl: isFromStore ? null : drop.sourceUrl,
     };
   }
 
