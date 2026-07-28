@@ -88,6 +88,64 @@ Copyright-safe: only short factual fields are stored, never source prose.
 - The persistence path is covered (no API key needed) by
   `pnpm --filter @crown-watch/api extract:verify`.
 
+## Telegram drop broadcast (CONTEXT.md §2)
+
+The moment a site-watch poll detects a drop, it is posted to two public Telegram
+channels — one Ukrainian, one English. Both messages are built from the same
+drop data by `src/alerts/messages.ts`; the languages differ only in their
+template strings, so adding one is a translation, not per-post work.
+
+Each message carries the brand, the model, whether it is a new release or a
+restock, the price when the store exposed one, a direct link to the product
+page, and a link to the brand's page on the site.
+
+Set up:
+
+1. Create a bot with [@BotFather](https://t.me/BotFather) and copy its token.
+2. Add the bot to each channel as an admin with **Post messages** permission.
+3. Set `TELEGRAM_BOT_TOKEN`, `TELEGRAM_CHANNEL_UA` and `TELEGRAM_CHANNEL_EN`.
+
+Without a token — or with no channels configured — dispatch is skipped with a
+warning and the poll still publishes drops normally, matching how extraction and
+the digest sender degrade without their keys.
+
+**A drop reaches a given channel at most once, ever.** A `drop_broadcasts` row is
+claimed before each send, so an overlapping poll, a re-run or a restart mid-run
+cannot repeat a post. A send that fails is recorded and *not* retried — see
+[ADR-0002](./docs/adr/0002-broadcasts-are-at-most-once.md) for why silence beats
+a duplicate here, and how to force a re-broadcast if you need one.
+
+### Backfilling a channel
+
+Drops published on the site before broadcasting existed — or before a given
+channel was wired up — can be posted after the fact:
+
+```bash
+pnpm --filter @crown-watch/api backfill:telegram
+```
+
+**It is a dry run by default**: it prints every message it would post, in each
+language, and sends nothing. Read that output before going further, because a
+channel cannot unsend and each message notifies every follower.
+
+```bash
+pnpm --filter @crown-watch/api backfill:telegram -- --confirm --limit=5
+```
+
+`--limit` defaults to 10 and is capped at 50 — run it repeatedly to work
+through a backlog rather than posting one enormous burst. Sends are paced by
+`TELEGRAM_BACKFILL_DELAY_MS` (3s) to stay under Telegram's per-channel rate
+limit, and go oldest-first so the channel reads chronologically.
+
+Candidates are picked **per channel**, so adding a third language backfills only
+that channel. Backfill routes through the same `(drop_id, chat_id)` claim as the
+live path, so it can never repeat a drop that has already been posted — a
+partially-delivered drop is topped up on the channel that missed it, and a
+failed send stays failed rather than being quietly retried.
+
+The same thing is available to an admin over HTTP:
+`POST /alerts/backfill?confirm=true&limit=5`.
+
 ## Useful scripts
 
 | Command | What it does |
@@ -100,6 +158,7 @@ Copyright-safe: only short factual fields are stored, never source prose.
 | `pnpm ingest:rss` | Run one Tier 1 RSS poll (api) |
 | `pnpm extract` | Run the LLM extraction stage (api) |
 | `pnpm test` | Run the test suite |
+| `pnpm --filter @crown-watch/api backfill:telegram` | Preview a Telegram backfill (dry run) |
 
 ## Tests
 

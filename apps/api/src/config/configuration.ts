@@ -22,6 +22,14 @@ export interface AppConfig {
     publicWebUrl: string;
     publicApiUrl: string;
   };
+  telegram: {
+    botToken: string | undefined;
+    /** One public broadcast channel per language. */
+    channels: { uk: string | undefined; en: string | undefined };
+    requestTimeoutMs: number;
+    /** Pause between drops during a backfill, to stay under Telegram's limits. */
+    backfillDelayMs: number;
+  };
 }
 
 export default (): AppConfig => ({
@@ -59,5 +67,30 @@ export default (): AppConfig => ({
       process.env.RENDER_EXTERNAL_URL ??
       'http://localhost:3333'
     ).replace(/\/$/, ''),
+  },
+  telegram: {
+    // Absent credentials or channels are a supported state: dispatch is skipped
+    // with a warning and ingestion still succeeds, matching how extraction and
+    // the digest sender degrade without their keys.
+    botToken: process.env.TELEGRAM_BOT_TOKEN || undefined,
+    channels: {
+      // The locale is `uk` — ISO 639-1 for Ukrainian — but `UA` is the country
+      // code, reads as "Ukraine" rather than "United Kingdom", and is what
+      // people actually type. Both spellings are accepted; UA wins if both are
+      // set. Silently ignoring TELEGRAM_CHANNEL_UA would leave the Ukrainian
+      // channel unconfigured with no error anywhere, which is exactly the kind
+      // of failure this whole path is built to avoid.
+      uk:
+        process.env.TELEGRAM_CHANNEL_UA ||
+        process.env.TELEGRAM_CHANNEL_UK ||
+        undefined,
+      en: process.env.TELEGRAM_CHANNEL_EN || undefined,
+    },
+    requestTimeoutMs: parseInt(process.env.TELEGRAM_TIMEOUT_MS ?? '15000', 10),
+    // Telegram throttles bursts to a channel at roughly 20 messages a minute.
+    backfillDelayMs: parseInt(
+      process.env.TELEGRAM_BACKFILL_DELAY_MS ?? '3000',
+      10,
+    ),
   },
 });
