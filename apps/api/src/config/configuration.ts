@@ -11,6 +11,13 @@ export interface AppConfig {
     userAgent: string;
     requestTimeoutMs: number;
   };
+  siteWatch: {
+    /** Identifies the bot honestly to every store it touches. */
+    userAgent: string;
+    requestTimeoutMs: number;
+    pollCron: string;
+    pollOnBoot: boolean;
+  };
   anthropic: {
     apiKey: string | undefined;
     model: string;
@@ -46,6 +53,21 @@ export default (): AppConfig => ({
       process.env.RSS_USER_AGENT ??
       'CrownWatchBot/0.1 (+https://crown-watch.example; Tier1 RSS ingestion)',
     requestTimeoutMs: parseInt(process.env.RSS_TIMEOUT_MS ?? '20000', 10),
+  },
+  siteWatch: {
+    // Names the bot and points at a page a shop owner can read. These stores
+    // are the subject of the product: being blocked by them would end it, so
+    // the UA says who we are and how to reach us rather than impersonating a
+    // browser.
+    userAgent:
+      process.env.SITE_WATCH_USER_AGENT ??
+      'CrownWatchBot/0.1 (+https://crownswatch.org/about-the-bot; Tier4 store watch)',
+    requestTimeoutMs: parseInt(process.env.SITE_WATCH_TIMEOUT_MS ?? '20000', 10),
+    // Stores change far less often than a news feed, and each poll is a request
+    // to somebody else's shop — hourly is plenty for a restock radar.
+    pollCron: process.env.SITE_WATCH_POLL_CRON ?? '0 5 * * * *',
+    pollOnBoot:
+      (process.env.SITE_WATCH_POLL_ON_BOOT ?? 'false').toLowerCase() === 'true',
   },
   anthropic: {
     apiKey: process.env.ANTHROPIC_API_KEY || undefined,

@@ -16,12 +16,16 @@ export class SiteWatchController {
   /**
    * Poll Tier 4 stores. With `?sourceId=` only that source is polled, which is
    * how a newly added brand gets its baseline on demand.
+   *
+   * `?force=true` ignores an active backoff window for that one source — how an
+   * operator retries straight after fixing a broken selector, rather than
+   * waiting out a window the old configuration earned.
    */
   @Post('poll')
   @HttpCode(200)
-  poll(@Query('sourceId') sourceId?: string) {
+  poll(@Query('sourceId') sourceId?: string, @Query('force') force?: string) {
     return sourceId
-      ? this.siteWatch.pollSource(sourceId)
+      ? this.siteWatch.pollSource(sourceId, { force: force === 'true' })
       : this.siteWatch.pollAll();
   }
 }

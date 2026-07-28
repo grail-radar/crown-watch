@@ -89,6 +89,13 @@ model Source {
   watchConfig  Json?        @map("watch_config")
   lastPolledAt DateTime?    @map("last_polled_at")
   healthStatus SourceHealth @default(unknown) @map("health_status")
+  // Politeness state. A store that errors or rate-limits us is asking to be
+  // left alone for a while; persisting that request is what makes it survive a
+  // restart, which an in-memory backoff would not.
+  consecutiveFailures Int       @default(0) @map("consecutive_failures")
+  nextAttemptAt       DateTime? @map("next_attempt_at")
+  /// Why the source is unhealthy, so an operator can see it without logs.
+  lastError           String?   @map("last_error")
   createdAt    DateTime     @default(now()) @map("created_at")
   updatedAt    DateTime     @updatedAt @map("updated_at")
 

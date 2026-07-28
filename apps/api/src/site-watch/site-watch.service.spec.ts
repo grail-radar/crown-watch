@@ -19,6 +19,7 @@ import {
 import { CatalogService } from '../catalog/catalog.service';
 import { DropWriterService } from '../drops/drop-writer.service';
 import { PrismaService } from '../prisma/prisma.service';
+import { RobotsService } from './robots.service';
 import { FetchResult, SiteFetcher } from './site-fetcher';
 import { SiteWatchService } from './site-watch.service';
 
@@ -26,10 +27,20 @@ import { SiteWatchService } from './site-watch.service';
 class StubFetcher extends SiteFetcher {
   next: FetchResult = { status: 200, body: '{"products":[]}' };
   calls: string[] = [];
+  /** Served for any /robots.txt request; empty means "no restrictions". */
+  robotsTxt = '';
 
   async fetch(url: string): Promise<FetchResult> {
     this.calls.push(url);
+    if (url.endsWith('/robots.txt')) {
+      return { status: this.robotsTxt ? 200 : 404, body: this.robotsTxt };
+    }
     return this.next;
+  }
+
+  /** Requests that actually hit the store, ignoring robots.txt lookups. */
+  get storeCalls(): string[] {
+    return this.calls.filter((u) => !u.endsWith('/robots.txt'));
   }
 
   /** Shape a Shopify-style response from a compact description. */
@@ -70,6 +81,7 @@ describe('SiteWatchService', () => {
   let telegram: CapturingTelegram;
   let alerts: AlertDispatchService;
   let service: SiteWatchService;
+  let robots: RobotsService;
   let catalog: CatalogService;
   const brandIds: string[] = [];
   const sourceIds: string[] = [];
@@ -81,23 +93,30 @@ describe('SiteWatchService', () => {
     telegram = new CapturingTelegram();
     const config = new ConfigService({
       digest: { publicWebUrl: 'https://crownswatch.org' },
+      siteWatch: { userAgent: 'CrownWatchBot/0.1 (+https://crownswatch.org)' },
       telegram: {
         botToken: 'test-token',
         channels: { uk: UK_CHANNEL, en: EN_CHANNEL },
       },
     });
     alerts = new AlertDispatchService(prisma, config, telegram);
+    robots = new RobotsService(fetcher, config);
     service = new SiteWatchService(
       prisma,
       fetcher,
       new DropWriterService(prisma),
       alerts,
+      robots,
     );
     catalog = new CatalogService(prisma);
   });
 
   beforeEach(() => {
     telegram.sent = [];
+    fetcher.calls = [];
+    fetcher.robotsTxt = '';
+    // robots.txt is cached per origin, and every fixture shares one origin.
+    robots.clearCache();
   });
 
   afterAll(async () => {
@@ -451,6 +470,7 @@ describe('SiteWatchService', () => {
           }
         })(),
       ),
+      robots,
     );
 
     const { source, brandId } = await arrangeSource();
@@ -481,6 +501,7 @@ describe('SiteWatchService', () => {
         }),
         telegram,
       ),
+      robots,
     );
 
     const { source, brandId } = await arrangeSource();
@@ -511,8 +532,12 @@ describe('SiteWatchService', () => {
     expect(result.error).toContain('429');
     expect(await dropsFor(brandId)).toHaveLength(0);
     const reloaded = await prisma.source.findUniqueOrThrow({ where: { id: source.id } });
-    expect(reloaded.healthStatus).toBe(SourceHealth.error);
+    // `degraded`, not `error`: one rate-limit response is a store having a
+    // moment, and health only escalates once failures persist. The escalation
+    // itself is covered below.
+    expect(reloaded.healthStatus).toBe(SourceHealth.degraded);
     expect(reloaded.lastPolledAt).not.toBeNull();
+    expect(reloaded.nextAttemptAt).not.toBeNull();
   });
 
   it('refuses to treat an empty catalogue as the truth', async () => {
@@ -570,5 +595,142 @@ describe('SiteWatchService', () => {
     expect(ours).toHaveLength(2);
     expect(ours.find((s) => s.sourceId === good.source.id)?.status).toBe('ok');
     expect(ours.find((s) => s.sourceId === broken.source.id)?.status).toBe('error');
+  });
+
+  it('calls a first failure degraded, not broken', async () => {
+    // One bad fetch is usually the internet. Escalating straight to "error"
+    // would train an operator to ignore the field.
+    const { source } = await arrangeSource();
+    fetcher.next = { status: 500, body: 'boom' };
+
+    const result = await service.pollSource(source.id);
+
+    expect(result.status).toBe('error');
+    expect(result.health).toBe(SourceHealth.degraded);
+    expect(result.consecutiveFailures).toBe(1);
+    expect(result.nextAttemptAt).not.toBeNull();
+    const reloaded = await prisma.source.findUniqueOrThrow({ where: { id: source.id } });
+    expect(reloaded.healthStatus).toBe(SourceHealth.degraded);
+    expect(reloaded.lastError).toContain('500');
+    expect(reloaded.lastPolledAt).not.toBeNull();
+  });
+
+  it('escalates to error once a source keeps failing', async () => {
+    const { source } = await arrangeSource();
+    fetcher.next = { status: 500, body: 'boom' };
+
+    // force=true is the operator retrying; it must not also skip escalation.
+    await service.pollSource(source.id, { force: true });
+    await service.pollSource(source.id, { force: true });
+    const third = await service.pollSource(source.id, { force: true });
+
+    expect(third.consecutiveFailures).toBe(3);
+    expect(third.health).toBe(SourceHealth.error);
+  });
+
+  it('leaves a backing-off source completely alone', async () => {
+    const { source } = await arrangeSource();
+    fetcher.next = { status: 500, body: 'boom' };
+    await service.pollSource(source.id);
+    fetcher.calls = [];
+
+    const skipped = await service.pollSource(source.id);
+
+    expect(skipped.status).toBe('skipped');
+    expect(skipped.skippedReason).toMatch(/backing off/);
+    // The whole point: a source in backoff costs the store no request at all.
+    expect(fetcher.storeCalls).toHaveLength(0);
+  });
+
+  it('lets an operator force past the backoff window', async () => {
+    const { source, brandId } = await arrangeSource();
+    fetcher.next = { status: 500, body: 'boom' };
+    await service.pollSource(source.id);
+
+    // The operator fixed the store and does not want to wait 15 minutes.
+    fetcher.serve([{ handle: 'diver', available: true }]);
+    const forced = await service.pollSource(source.id, { force: true });
+
+    expect(forced.status).toBe('ok');
+    expect(forced.baseline).toBe(true);
+    expect(await dropsFor(brandId)).toHaveLength(0);
+  });
+
+  it('waits as long as a rate-limited store asks it to', async () => {
+    const { source } = await arrangeSource();
+    const twoHours = 2 * 60 * 60;
+    fetcher.next = { status: 429, body: 'slow down', retryAfterSeconds: twoHours };
+
+    const result = await service.pollSource(source.id);
+
+    expect(result.status).toBe('error');
+    expect(result.error).toMatch(/rate limited/i);
+    // Retry-After is longer than our own first-failure curve, so it wins.
+    const waitMs = new Date(result.nextAttemptAt!).getTime() - Date.now();
+    expect(waitMs).toBeGreaterThan(1.9 * 60 * 60 * 1000);
+  });
+
+  it('records a source as healthy again once it recovers', async () => {
+    const { source } = await arrangeSource();
+    fetcher.next = { status: 500, body: 'boom' };
+    await service.pollSource(source.id);
+
+    fetcher.serve([{ handle: 'diver', available: true }]);
+    const recovered = await service.pollSource(source.id, { force: true });
+
+    expect(recovered.status).toBe('ok');
+    expect(recovered.health).toBe(SourceHealth.healthy);
+    expect(recovered.consecutiveFailures).toBe(0);
+    const reloaded = await prisma.source.findUniqueOrThrow({ where: { id: source.id } });
+    expect(reloaded.healthStatus).toBe(SourceHealth.healthy);
+    // Window and stale error both cleared, so the next scheduled run treats it
+    // as an ordinary source again.
+    expect(reloaded.nextAttemptAt).toBeNull();
+    expect(reloaded.lastError).toBeNull();
+  });
+
+  it('does not fetch a path robots.txt disallows', async () => {
+    const { source, brandId } = await arrangeSource();
+    fetcher.robotsTxt = 'User-agent: *\nDisallow: /products.json';
+    fetcher.serve([{ handle: 'diver', available: true }]);
+
+    const result = await service.pollSource(source.id);
+
+    expect(result.status).toBe('skipped');
+    expect(result.skippedReason).toMatch(/robots/i);
+    expect(fetcher.storeCalls).toHaveLength(0);
+    expect(await dropsFor(brandId)).toHaveLength(0);
+    // Being told not to crawl is obedience, not a fault — health is untouched.
+    const reloaded = await prisma.source.findUniqueOrThrow({ where: { id: source.id } });
+    expect(reloaded.healthStatus).not.toBe(SourceHealth.error);
+    expect(reloaded.consecutiveFailures).toBe(0);
+  });
+
+  it('polls normally when robots.txt allows the path', async () => {
+    const { source } = await arrangeSource();
+    fetcher.robotsTxt = 'User-agent: *\nDisallow: /admin\nCrawl-delay: 1';
+    fetcher.serve([{ handle: 'diver', available: true }]);
+
+    const result = await service.pollSource(source.id);
+
+    expect(result.status).toBe('ok');
+    expect(fetcher.storeCalls).toHaveLength(1);
+  });
+
+  it('reports a run as successful with its failures itemised', async () => {
+    // A run that throws on the first bad shop would page someone every time a
+    // single store had a bad night.
+    const good = await arrangeSource();
+    const broken = await arrangeSource({ watchConfig: { adapter: 'wat' } });
+    fetcher.serve([{ handle: 'diver', available: true }]);
+
+    const run = await service.pollAll();
+
+    expect(run.failureCount).toBeGreaterThanOrEqual(1);
+    expect(run.sources.find((s) => s.sourceId === good.source.id)?.status).toBe('ok');
+    const failed = run.sources.find((s) => s.sourceId === broken.source.id);
+    expect(failed?.status).toBe('error');
+    expect(failed?.error).toMatch(/adapter/i);
+    expect(failed?.health).toBe(SourceHealth.degraded);
   });
 });

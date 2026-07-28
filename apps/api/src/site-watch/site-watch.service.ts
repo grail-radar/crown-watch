@@ -5,6 +5,8 @@ import { AlertDispatchService } from '../alerts/alert-dispatch.service';
 import { DropWriterService } from '../drops/drop-writer.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { getAdapter, parseWatchConfig } from './adapters';
+import { healthFor, isBackedOff, nextAttemptAt } from './backoff';
+import { RobotsService } from './robots.service';
 import { SiteFetcher } from './site-fetcher';
 import {
   diffSnapshots,
@@ -14,6 +16,22 @@ import {
   SnapshotChange,
   SnapshotChangeKind,
 } from './snapshot';
+
+/**
+ * A store telling us to slow down. Distinct from a generic failure because it
+ * carries the store's own `Retry-After`, which backoff honours.
+ */
+class RateLimited extends Error {
+  constructor(
+    status: number,
+    readonly retryAfterSeconds: number | null | undefined,
+  ) {
+    super(
+      `Store responded ${status} (rate limited)` +
+        (retryAfterSeconds ? `; asked to retry after ${retryAfterSeconds}s` : ''),
+    );
+  }
+}
 
 /** What a single detected change produced, for the poll report. */
 export interface SiteWatchChangeReport {
@@ -25,11 +43,27 @@ export interface SiteWatchChangeReport {
   broadcasts: number;
 }
 
+/**
+ * `ok`      — polled, whatever it found.
+ * `skipped` — inside a backoff window, or robots.txt forbids the path. Not a
+ *             failure: doing nothing was the correct behaviour.
+ * `error`   — the poll was attempted and failed.
+ */
+export type SiteWatchSourceStatus = 'ok' | 'skipped' | 'error';
+
 export interface SiteWatchSourceResult {
   sourceId: string;
   name: string | null;
   endpoint: string;
-  status: 'ok' | 'error';
+  status: SiteWatchSourceStatus;
+  /** Health recorded against the source after this attempt. */
+  health: SourceHealth;
+  /** Failures in a row including this attempt; 0 once a source recovers. */
+  consecutiveFailures: number;
+  /** When this source may next be polled, while it is backing off. */
+  nextAttemptAt: string | null;
+  /** Why it was skipped — backoff or a robots.txt directive. */
+  skippedReason?: string;
   /** true when the store differs from what it showed at the previous poll */
   changed: boolean;
   /** true when this was the source's first ever snapshot */
@@ -49,6 +83,10 @@ export interface SiteWatchRunResult {
   sourceCount: number;
   totalDropsCreated: number;
   totalBroadcastsSent: number;
+  /** Sources that were attempted and failed. The run itself still succeeded. */
+  failureCount: number;
+  /** Sources deliberately left alone this run — backoff or robots.txt. */
+  skippedCount: number;
   sources: SiteWatchSourceResult[];
 }
 
@@ -61,9 +99,17 @@ export class SiteWatchService {
     private readonly fetcher: SiteFetcher,
     private readonly drops: DropWriterService,
     private readonly alerts: AlertDispatchService,
+    private readonly robots: RobotsService,
   ) {}
 
-  /** Poll every configured Tier 4 source. One failure never stops the rest. */
+  /**
+   * Poll every configured Tier 4 source.
+   *
+   * One brand's broken selector or unreachable store cannot blind the run: each
+   * source is isolated, and the run reports success with its failures itemised
+   * rather than throwing on the first one. A caller that treated any failure as
+   * a failed run would page someone every time a single shop had a bad night.
+   */
   async pollAll(): Promise<SiteWatchRunResult> {
     const startedAt = new Date();
     const sources = await this.prisma.source.findMany({
@@ -77,14 +123,23 @@ export class SiteWatchService {
       results.push(await this.pollSource(id));
     }
 
-    return {
+    const run: SiteWatchRunResult = {
       startedAt: startedAt.toISOString(),
       finishedAt: new Date().toISOString(),
       sourceCount: sources.length,
       totalDropsCreated: results.reduce((n, r) => n + r.dropsCreated, 0),
       totalBroadcastsSent: results.reduce((n, r) => n + r.broadcastsSent, 0),
+      failureCount: results.filter((r) => r.status === 'error').length,
+      skippedCount: results.filter((r) => r.status === 'skipped').length,
       sources: results,
     };
+
+    this.logger.log(
+      `Site-watch run: ${run.sourceCount} source(s), ${run.totalDropsCreated} drop(s), ` +
+        `${run.totalBroadcastsSent} broadcast(s), ${run.failureCount} failure(s), ` +
+        `${run.skippedCount} skipped`,
+    );
+    return run;
   }
 
   /**
@@ -92,7 +147,10 @@ export class SiteWatchService {
    * published drops. Never throws — failures are recorded on the source's
    * health and returned in the result.
    */
-  async pollSource(sourceId: string): Promise<SiteWatchSourceResult> {
+  async pollSource(
+    sourceId: string,
+    options: { force?: boolean } = {},
+  ): Promise<SiteWatchSourceResult> {
     const source = await this.prisma.source.findUniqueOrThrow({
       where: { id: sourceId },
     });
@@ -101,6 +159,9 @@ export class SiteWatchService {
       name: source.name,
       endpoint: source.endpoint,
       status: 'ok',
+      health: source.healthStatus,
+      consecutiveFailures: source.consecutiveFailures,
+      nextAttemptAt: source.nextAttemptAt?.toISOString() ?? null,
       changed: false,
       baseline: false,
       productCount: 0,
@@ -108,6 +169,16 @@ export class SiteWatchService {
       broadcastsSent: 0,
       changes: [],
     };
+
+    const now = new Date();
+
+    // A store that pushed back is left alone until its window expires. Checked
+    // before anything else so a backing-off source costs no request at all.
+    if (!options.force && isBackedOff(source.nextAttemptAt, now)) {
+      result.status = 'skipped';
+      result.skippedReason = `backing off until ${source.nextAttemptAt!.toISOString()}`;
+      return result;
+    }
 
     try {
       if (!source.brandId) {
@@ -119,7 +190,29 @@ export class SiteWatchService {
       const config = parseWatchConfig(source.watchConfig);
       const adapter = getAdapter(config.adapter);
 
+      // Asked before fetching, never after: a disallowed path must not be
+      // requested at all, which is the whole point of the directive.
+      if (!(await this.robots.allows(source.endpoint))) {
+        result.status = 'skipped';
+        result.skippedReason = 'disallowed by robots.txt';
+        this.logger.warn(
+          `[${source.name ?? source.endpoint}] robots.txt disallows this path — not fetched`,
+        );
+        // Not a failure of the source, so health and backoff are untouched;
+        // only the attempt time moves, so an operator can see we looked.
+        await this.prisma.source.update({
+          where: { id: source.id },
+          data: { lastPolledAt: now },
+        });
+        return result;
+      }
+
       const response = await this.fetcher.fetch(source.endpoint);
+      if (response.status === 429 || response.status === 503) {
+        // An explicit "slow down". Honour it as a first-class outcome rather
+        // than as a generic error, so Retry-After can extend the window.
+        throw new RateLimited(response.status, response.retryAfterSeconds);
+      }
       if (response.status < 200 || response.status >= 300) {
         throw new Error(`Store responded ${response.status}`);
       }
@@ -142,7 +235,7 @@ export class SiteWatchService {
       // returns to an earlier state — in stock, sold out, in stock again — and
       // that return is precisely the restock we exist to catch.
       if (previous && hashSnapshot(previous) === snapshotHash) {
-        await this.markHealth(source.id, SourceHealth.healthy);
+        await this.recordSuccess(source.id, result);
         return result; // store unchanged since last poll
       }
 
@@ -152,7 +245,7 @@ export class SiteWatchService {
       if (!previous) {
         // First sight of this store: remember it, announce nothing.
         result.baseline = true;
-        await this.markHealth(source.id, SourceHealth.healthy);
+        await this.recordSuccess(source.id, result);
         this.logger.log(
           `[${source.name ?? source.endpoint}] baseline recorded (${products.length} products)`,
         );
@@ -192,7 +285,7 @@ export class SiteWatchService {
         });
       }
 
-      await this.markHealth(source.id, SourceHealth.healthy);
+      await this.recordSuccess(source.id, result);
       this.logger.log(
         `[${source.name ?? source.endpoint}] ${products.length} products, ` +
           `${result.dropsCreated} drop(s), ${result.broadcastsSent} broadcast(s)`,
@@ -201,11 +294,78 @@ export class SiteWatchService {
       const message = err instanceof Error ? err.message : String(err);
       result.status = 'error';
       result.error = message;
-      await this.markHealth(source.id, SourceHealth.error);
-      this.logger.error(`[${source.name ?? source.endpoint}] ${message}`);
+      await this.recordFailure(
+        source.id,
+        source.consecutiveFailures,
+        message,
+        err instanceof RateLimited ? (err.retryAfterSeconds ?? null) : null,
+        result,
+      );
+      this.logger.error(
+        `[${source.name ?? source.endpoint}] ${message} — ` +
+          `${result.consecutiveFailures} failure(s) in a row, ` +
+          `next attempt ${result.nextAttemptAt}`,
+      );
     }
 
     return result;
+  }
+
+  /**
+   * A source that answered is healthy again, whatever it did last week.
+   * Clearing the counter is what lets a store recover on its own.
+   */
+  private async recordSuccess(
+    sourceId: string,
+    result: SiteWatchSourceResult,
+  ): Promise<void> {
+    result.health = SourceHealth.healthy;
+    result.consecutiveFailures = 0;
+    result.nextAttemptAt = null;
+    await this.prisma.source.update({
+      where: { id: sourceId },
+      data: {
+        lastPolledAt: new Date(),
+        healthStatus: SourceHealth.healthy,
+        consecutiveFailures: 0,
+        nextAttemptAt: null,
+        lastError: null,
+      },
+    });
+  }
+
+  /**
+   * Escalate: count the failure, widen the window, and record why — so an
+   * operator can see which source is unhappy, and since when, without reading
+   * logs.
+   */
+  private async recordFailure(
+    sourceId: string,
+    previousFailures: number,
+    message: string,
+    retryAfterSeconds: number | null,
+    result: SiteWatchSourceResult,
+  ): Promise<void> {
+    const now = new Date();
+    const failures = previousFailures + 1;
+    const health = healthFor(failures);
+    const nextAttempt = nextAttemptAt(failures, now, retryAfterSeconds);
+
+    result.health = health;
+    result.consecutiveFailures = failures;
+    result.nextAttemptAt = nextAttempt.toISOString();
+
+    await this.prisma.source.update({
+      where: { id: sourceId },
+      data: {
+        lastPolledAt: now,
+        healthStatus: health,
+        consecutiveFailures: failures,
+        nextAttemptAt: nextAttempt,
+        // Truncated: this is a signal for an operator, not a stack trace store.
+        lastError: message.slice(0, 500),
+      },
+    });
   }
 
   private dropType(change: SnapshotChange): DropType {
@@ -255,10 +415,4 @@ export class SiteWatchService {
     });
   }
 
-  private async markHealth(sourceId: string, healthStatus: SourceHealth) {
-    await this.prisma.source.update({
-      where: { id: sourceId },
-      data: { lastPolledAt: new Date(), healthStatus },
-    });
-  }
 }
