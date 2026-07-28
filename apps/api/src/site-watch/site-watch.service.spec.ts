@@ -11,11 +11,7 @@ import { ConfigService } from '@nestjs/config';
 import { SourceHealth, SourceType } from '@prisma/client';
 import { randomUUID } from 'node:crypto';
 import { AlertDispatchService } from '../alerts/alert-dispatch.service';
-import {
-  TelegramClient,
-  TelegramSendRequest,
-  TelegramSendResult,
-} from '../alerts/telegram-client';
+import { CapturingTelegram } from '../../test/capturing-telegram';
 import { CatalogService } from '../catalog/catalog.service';
 import { DropWriterService } from '../drops/drop-writer.service';
 import { PrismaService } from '../prisma/prisma.service';
@@ -58,16 +54,6 @@ class StubFetcher extends SiteFetcher {
         })),
       }),
     };
-  }
-}
-
-/** Captures what would have been posted to Telegram. */
-class CapturingTelegram extends TelegramClient {
-  sent: TelegramSendRequest[] = [];
-
-  async send(request: TelegramSendRequest): Promise<TelegramSendResult> {
-    this.sent.push(request);
-    return { messageId: String(this.sent.length) };
   }
 }
 
@@ -464,10 +450,12 @@ describe('SiteWatchService', () => {
             channels: { uk: UK_CHANNEL, en: EN_CHANNEL },
           },
         }),
-        new (class extends TelegramClient {
-          async send(): Promise<TelegramSendResult> {
+        (() => {
+          const down = new CapturingTelegram();
+          down.onSend = () => {
             throw new Error('Telegram is down');
-          }
+          };
+          return down;
         })(),
       ),
       robots,

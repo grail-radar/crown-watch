@@ -1,4 +1,4 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable, Logger, OnApplicationShutdown } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import {
   BroadcastStatus,
@@ -43,6 +43,12 @@ type DropRecord = Prisma.DropGetPayload<{ select: typeof DROP_FIELDS }>;
  */
 const DEFAULT_BACKFILL_LIMIT = 10;
 const MAX_BACKFILL_LIMIT = 50;
+
+/**
+ * Gap between queued drops. Telegram throttles bursts to a channel at roughly
+ * twenty messages a minute, and each drop is one message per channel.
+ */
+const DEFAULT_DISPATCH_GAP_MS = 3000;
 
 export type BroadcastOutcome = 'sent' | 'skipped' | 'failed';
 
@@ -138,8 +144,24 @@ export interface BackfillResult {
  *    digest sender behave without their keys.
  */
 @Injectable()
-export class AlertDispatchService {
+export class AlertDispatchService implements OnApplicationShutdown {
   private readonly logger = new Logger(AlertDispatchService.name);
+
+  /**
+   * Drops waiting to be announced, oldest first.
+   *
+   * In process, deliberately. CONTEXT.md §3 intends Redis + BullMQ for
+   * notification dispatch; like the cron schedulers, this is the lightweight
+   * interim until that exists. It is honest for the job because the queue never
+   * holds a claim — see `enqueueBroadcast`.
+   *
+   * Named `queued` rather than `pending`: `pending` is a defined term in the
+   * glossary for both a drop awaiting moderation and a broadcast awaiting an
+   * outcome, and this is neither.
+   */
+  private readonly queued: string[] = [];
+  /** The in-flight drain, or null when the queue is idle. */
+  private draining: Promise<void> | null = null;
 
   constructor(
     private readonly prisma: PrismaService,
@@ -153,6 +175,71 @@ export class AlertDispatchService {
       const chatId = this.config.get<string>(`telegram.channels.${locale}`);
       return chatId ? [{ locale, chatId }] : [];
     });
+  }
+
+  /**
+   * Announce a drop without making the caller wait for Telegram.
+   *
+   * Returns immediately. Queued drops are sent one at a time with a gap between
+   * them, because the caller is a person working through a queue: approving a
+   * dozen drops is two dozen messages, Telegram throttles bursts per channel,
+   * and under ADR-0002 a rejected send is recorded and never retried. Sending
+   * them all at once would not merely be slow — it would lose those alerts for
+   * good.
+   *
+   * A drop is claimed only when its turn comes, so a process that dies with
+   * work still queued leaves no claim behind — the drop stays a backfill
+   * candidate rather than being silently marked as delivered (ADR-0002).
+   */
+  enqueueBroadcast(dropId: string): void {
+    this.queued.push(dropId);
+    if (!this.draining) {
+      this.draining = this.drain()
+        // drain awaits only broadcastDrop, which never throws, but an unhandled
+        // rejection here would take down the API process for an alert.
+        .catch((err) => {
+          this.logger.error(
+            `Broadcast queue stopped: ${err instanceof Error ? err.message : err}`,
+          );
+        })
+        .finally(() => {
+          this.draining = null;
+        });
+    }
+  }
+
+  /** Resolves once the queue is empty. */
+  async whenIdle(): Promise<void> {
+    while (this.draining) await this.draining;
+  }
+
+  /**
+   * Finish announcing what is already queued before the process goes away.
+   *
+   * Without this, a deploy landing while a reviewer works through the queue
+   * would discard the remaining announcements. They would still be recoverable
+   * by a backfill, but only once a human noticed — so draining here is what
+   * keeps that a theoretical hole rather than a routine one. A hard kill still
+   * skips it, which is why nothing is claimed until it is sent.
+   */
+  async onApplicationShutdown(): Promise<void> {
+    if (!this.draining && this.queued.length === 0) return;
+    this.logger.log(
+      `Shutting down with ${this.queued.length} drop(s) still to announce`,
+    );
+    await this.whenIdle();
+  }
+
+  private async drain(): Promise<void> {
+    const gapMs =
+      this.config.get<number>('telegram.dispatchGapMs') ?? DEFAULT_DISPATCH_GAP_MS;
+
+    while (this.queued.length > 0) {
+      const dropId = this.queued.shift()!;
+      // broadcastDrop never throws, so one bad drop cannot stall the queue.
+      await this.broadcastDrop(dropId);
+      if (this.queued.length > 0 && gapMs > 0) await this.pause(gapMs);
+    }
   }
 
   /**

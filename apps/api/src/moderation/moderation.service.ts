@@ -1,14 +1,19 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { ModerationStatus } from '@prisma/client';
+import { AlertDispatchService } from '../alerts/alert-dispatch.service';
 import { PrismaService } from '../prisma/prisma.service';
 
 /**
  * Human moderation over candidate drops. Approving a drop sets it published,
- * which is what makes it visible on the public feed (CONTEXT.md §5).
+ * which is what makes it visible on the public feed (CONTEXT.md §5) — and, from
+ * that same moment, announced to the channels.
  */
 @Injectable()
 export class ModerationService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly alerts: AlertDispatchService,
+  ) {}
 
   /** Pending drops awaiting review (the moderation queue). */
   async queue(take = 50) {
@@ -40,10 +45,18 @@ export class ModerationService {
     return { total, count: drops.length, drops };
   }
 
-  /** Approve + publish a drop so it appears on the public feed. */
+  /**
+   * Approve + publish a drop so it appears on the public feed, and announce it.
+   *
+   * A reviewer clicking approve has decided the drop is real and public, which
+   * is exactly the moment it should reach people's phones. The announcement is
+   * queued rather than awaited: publishing must not depend on Telegram being
+   * reachable, and a reviewer must not wait on a third party. Re-approving is
+   * harmless — a drop reaches a channel at most once ever (ADR-0002).
+   */
   async approve(id: string) {
     await this.ensureExists(id);
-    return this.prisma.drop.update({
+    const drop = await this.prisma.drop.update({
       where: { id },
       data: {
         moderationStatus: ModerationStatus.approved,
@@ -57,6 +70,11 @@ export class ModerationService {
         publishedAt: true,
       },
     });
+
+    // Only after the row is committed: an alert for a drop that failed to
+    // publish would point at a page nobody can see.
+    this.alerts.enqueueBroadcast(drop.id);
+    return drop;
   }
 
   /** Reject a drop (kept for the record, never published). */

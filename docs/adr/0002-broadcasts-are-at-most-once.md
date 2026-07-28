@@ -56,6 +56,16 @@ which is precisely the "restart mid-run" case.
 - A transient Telegram outage silently costs those drops their alerts. They are
   visible on the feed and in the digest, and `drop_broadcasts.error` records
   what happened, but nothing re-sends them.
+- **A drop approved in the moderation queue is announced from an in-process
+  queue, which a hard kill discards.** Approvals are drained one drop at a time
+  with a gap between them: a reviewer clears a backlog far faster than Telegram
+  will accept it, and since a rejected send is never retried, an unpaced burst
+  would lose those alerts permanently rather than merely slowly. The queue holds
+  drop ids only — nothing is claimed until its turn comes — so a discarded queue
+  leaves no row behind, and the drop stays a backfill candidate instead of
+  looking delivered. A graceful shutdown drains it first; `SIGKILL` does not,
+  and those announcements then wait for a backfill. Same trade as everywhere
+  else here: a lost alert over a repeated one.
 - **A drop can end up never broadcast at all, not merely broadcast late.**
   `SiteWatchService` stores the new snapshot *before* it dispatches, so a
   process killed part-way through the change loop leaves a snapshot the next

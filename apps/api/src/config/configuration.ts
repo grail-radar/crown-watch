@@ -36,6 +36,8 @@ export interface AppConfig {
     requestTimeoutMs: number;
     /** Pause between drops during a backfill, to stay under Telegram's limits. */
     backfillDelayMs: number;
+    /** Pause between queued drops when several are approved in quick succession. */
+    dispatchGapMs: number;
   };
 }
 
@@ -114,5 +116,9 @@ export default (): AppConfig => ({
       process.env.TELEGRAM_BACKFILL_DELAY_MS ?? '3000',
       10,
     ),
+    // A reviewer clearing the moderation queue approves drops far faster than
+    // Telegram will accept them, and a rejected send is never retried, so the
+    // queue is drained one drop at a time with this gap between them.
+    dispatchGapMs: parseInt(process.env.TELEGRAM_DISPATCH_GAP_MS ?? '3000', 10),
   },
 });

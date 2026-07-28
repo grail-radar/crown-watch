@@ -8,40 +8,17 @@
 import { ConfigService } from '@nestjs/config';
 import { DropType, SourceType } from '@prisma/client';
 import { randomUUID } from 'node:crypto';
+import { CapturingTelegram } from '../../test/capturing-telegram';
 import { PrismaService } from '../prisma/prisma.service';
 import {
   AlertDispatchService,
   BackfillCandidate,
   BackfillResult,
 } from './alert-dispatch.service';
-import {
-  TelegramClient,
-  TelegramSendRequest,
-  TelegramSendResult,
-} from './telegram-client';
 
 const UK_CHANNEL = '@crownwatch_ua';
 const EN_CHANNEL = '@crownwatch_en';
 const WEB = 'https://crownswatch.org';
-
-/** Captures what would have been posted, and can be told to fail a channel. */
-class CapturingTelegram extends TelegramClient {
-  sent: TelegramSendRequest[] = [];
-  /** Channels that should throw instead of accepting a message. */
-  broken = new Set<string>();
-
-  async send(request: TelegramSendRequest): Promise<TelegramSendResult> {
-    if (this.broken.has(request.chatId)) {
-      throw new Error(`channel ${request.chatId} is unavailable`);
-    }
-    this.sent.push(request);
-    return { messageId: String(this.sent.length) };
-  }
-
-  textFor(chatId: string): string | undefined {
-    return this.sent.find((s) => s.chatId === chatId)?.text;
-  }
-}
 
 /** Config with both channels wired up, unless the test says otherwise. */
 function configure(

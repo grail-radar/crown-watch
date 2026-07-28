@@ -138,6 +138,12 @@ Without a token — or with no channels configured — dispatch is skipped with 
 warning and the poll still publishes drops normally, matching how extraction and
 the digest sender degrade without their keys.
 
+Drops reach the channels from two places: the site-watch poll announces a drop
+the moment it detects one, and approving a drop in the moderation queue announces
+it at the moment a reviewer makes it public. Approvals are queued and paced, so
+clearing a backlog does not lose alerts to Telegram's per-channel rate limit, and
+a reviewer never waits on Telegram to approve.
+
 **A drop reaches a given channel at most once, ever.** A `drop_broadcasts` row is
 claimed before each send, so an overlapping poll, a re-run or a restart mid-run
 cannot repeat a post. A send that fails is recorded and *not* retried — see

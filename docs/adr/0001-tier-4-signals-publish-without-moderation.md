@@ -27,9 +27,19 @@ anywhere on that path.
 Run two lanes:
 
 - **Tier 4 site-watch** — drops are created already approved and published, and
-  are eligible for immediate alerting.
+  are alerted the moment they are detected.
 - **Everything LLM-extracted** — unchanged. Drops are created `pending` and wait
   in `moderation_queue` exactly as before.
+
+> **Amended 2026-07-28.** This ADR is about *publishing*, not about dispatching,
+> but its original wording made immediate alerting sound like a property of the
+> Tier 4 lane alone. It is not: an extracted drop is alerted too, at the moment a
+> reviewer approves it. What the two lanes differ on is *when a drop becomes
+> public* — on detection for Tier 4, on approval for everything else. Alerting
+> follows publication in both, because a drop that is public and a drop worth
+> telling people about are the same thing. Delivery stays at-most-once per
+> channel either way (ADR-0002), which is what makes it safe for two paths to
+> announce the same drop.
 
 `DropWriterService` is the single place a drop row is created, so the
 published-versus-pending decision lives in one function rather than being
