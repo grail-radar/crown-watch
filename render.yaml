@@ -21,3 +21,10 @@ services:
       # Ingestion runs via the GitHub Actions cron hitting /ingestion/rss/poll.
       - key: RSS_POLL_ON_BOOT
         value: "false"
+      # Telegram drop broadcast. Blank = dispatch skipped, ingestion unaffected.
+      - key: TELEGRAM_BOT_TOKEN
+        sync: false
+      - key: TELEGRAM_CHANNEL_UK
+        sync: false
+      - key: TELEGRAM_CHANNEL_EN
+        sync: false

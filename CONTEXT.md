@@ -99,6 +99,13 @@ notification_channels   — user_id, type (email|telegram|discord), identifier, 
 
 notifications_log       — id, user_id, drop_id, channel, sent_at  // dedup guard
 
+drop_broadcasts         — id, drop_id, chat_id, locale, status, message_id,
+                          error, sent_at
+                          // public Telegram channels (UA/EN) belong to no user,
+                          // so they need their own guard: unique per
+                          // (drop, chat) and claimed before sending, making a
+                          // broadcast at-most-once (ADR-0002)
+
 subscriptions           — user_id, stripe_customer_id, plan, status
 ```
 

@@ -1,13 +1,21 @@
 /**
  * End-to-end tests for the Tier 4 pipeline.
  *
- * Everything runs through the real service and a real database; only the
- * network is replaced, via the SiteFetcher seam. Each test states what the
- * store returned and asserts on what a user would see: which drops exist, and
- * whether they are public.
+ * Everything runs through the real service and a real database; only the two
+ * network seams are replaced — SiteFetcher inbound, TelegramClient outbound.
+ * Each test states what the store returned and asserts on what a user would
+ * see: which drops exist, whether they are public, and what reached the
+ * channels.
  */
+import { ConfigService } from '@nestjs/config';
 import { SourceHealth, SourceType } from '@prisma/client';
 import { randomUUID } from 'node:crypto';
+import { AlertDispatchService } from '../alerts/alert-dispatch.service';
+import {
+  TelegramClient,
+  TelegramSendRequest,
+  TelegramSendResult,
+} from '../alerts/telegram-client';
 import { CatalogService } from '../catalog/catalog.service';
 import { DropWriterService } from '../drops/drop-writer.service';
 import { PrismaService } from '../prisma/prisma.service';
@@ -42,11 +50,25 @@ class StubFetcher extends SiteFetcher {
   }
 }
 
+/** Captures what would have been posted to Telegram. */
+class CapturingTelegram extends TelegramClient {
+  sent: TelegramSendRequest[] = [];
+
+  async send(request: TelegramSendRequest): Promise<TelegramSendResult> {
+    this.sent.push(request);
+    return { messageId: String(this.sent.length) };
+  }
+}
+
 const ENDPOINT = 'https://brand.example/products.json';
+const UK_CHANNEL = '@crownwatch_ua';
+const EN_CHANNEL = '@crownwatch_en';
 
 describe('SiteWatchService', () => {
   let prisma: PrismaService;
   let fetcher: StubFetcher;
+  let telegram: CapturingTelegram;
+  let alerts: AlertDispatchService;
   let service: SiteWatchService;
   let catalog: CatalogService;
   const brandIds: string[] = [];
@@ -56,8 +78,26 @@ describe('SiteWatchService', () => {
     prisma = new PrismaService();
     await prisma.$connect();
     fetcher = new StubFetcher();
-    service = new SiteWatchService(prisma, fetcher, new DropWriterService(prisma));
+    telegram = new CapturingTelegram();
+    const config = new ConfigService({
+      digest: { publicWebUrl: 'https://crownswatch.org' },
+      telegram: {
+        botToken: 'test-token',
+        channels: { uk: UK_CHANNEL, en: EN_CHANNEL },
+      },
+    });
+    alerts = new AlertDispatchService(prisma, config, telegram);
+    service = new SiteWatchService(
+      prisma,
+      fetcher,
+      new DropWriterService(prisma),
+      alerts,
+    );
     catalog = new CatalogService(prisma);
+  });
+
+  beforeEach(() => {
+    telegram.sent = [];
   });
 
   afterAll(async () => {
@@ -322,6 +362,143 @@ describe('SiteWatchService', () => {
     });
     expect(drop.sourceEvent?.source.id).toBe(source.id);
     expect(drop.sourceEvent?.source.type).toBe(SourceType.site_watch);
+  });
+
+  it('puts a detected drop on both channels the moment it is found', async () => {
+    const { source, brandId } = await arrangeSource();
+    fetcher.serve([{ handle: 'diver', available: true }]);
+    await service.pollSource(source.id);
+
+    fetcher.serve([
+      { handle: 'diver', available: true },
+      { handle: 'field', title: 'Field Watch', price: '650.00', available: true },
+    ]);
+    const result = await service.pollSource(source.id);
+
+    expect(result.broadcastsSent).toBe(2);
+    expect(result.changes[0].broadcasts).toBe(2);
+    expect(telegram.sent.map((s) => s.chatId).sort()).toEqual(
+      [EN_CHANNEL, UK_CHANNEL].sort(),
+    );
+
+    const brand = await prisma.brand.findUniqueOrThrow({ where: { id: brandId } });
+    for (const message of telegram.sent) {
+      expect(message.text).toContain('Field Watch');
+      expect(message.text).toContain(brand.name);
+      expect(message.text).toContain('650 EUR');
+      expect(message.text).toContain('https://brand.example/products/field');
+      expect(message.text).toContain(`https://crownswatch.org/brands/${brand.slug}`);
+    }
+  });
+
+  it('says nothing more when a later poll finds the store unchanged', async () => {
+    // The outer of the two guards: the snapshot diff finds no change, so no
+    // drop is created and dispatch is never reached. This does NOT exercise the
+    // drop-level dedup — the test below does that.
+    const { source } = await arrangeSource();
+    fetcher.serve([{ handle: 'diver', title: 'Diver', available: false }]);
+    await service.pollSource(source.id);
+
+    fetcher.serve([{ handle: 'diver', title: 'Diver', available: true }]);
+    await service.pollSource(source.id); // the restock — announced once
+    expect(telegram.sent).toHaveLength(2);
+
+    const repeat = await service.pollSource(source.id);
+
+    expect(repeat.changed).toBe(false);
+    expect(repeat.dropsCreated).toBe(0);
+    expect(telegram.sent).toHaveLength(2);
+  });
+
+  it('will not re-announce a drop the pipeline already broadcast', async () => {
+    // The inner guard, on a drop the real pipeline produced: handing that same
+    // drop back to the dispatcher — an overlapping run, a retry, an operator
+    // re-firing dispatch — must not produce a second post.
+    const { source, brandId } = await arrangeSource();
+    fetcher.serve([{ handle: 'diver', title: 'Diver', available: false }]);
+    await service.pollSource(source.id);
+
+    fetcher.serve([{ handle: 'diver', title: 'Diver', available: true }]);
+    await service.pollSource(source.id);
+    expect(telegram.sent).toHaveLength(2);
+
+    const [drop] = await dropsFor(brandId);
+    const again = await alerts.broadcastDrop(drop.id);
+
+    expect(again.sentCount).toBe(0);
+    expect(again.channels.every((c) => c.outcome === 'skipped')).toBe(true);
+    expect(telegram.sent).toHaveLength(2);
+  });
+
+  it('creates the drop even when every channel is down', async () => {
+    // Ingestion must not depend on Telegram being reachable.
+    const silent = new SiteWatchService(
+      prisma,
+      fetcher,
+      new DropWriterService(prisma),
+      new AlertDispatchService(
+        prisma,
+        new ConfigService({
+          digest: { publicWebUrl: 'https://crownswatch.org' },
+          telegram: {
+            botToken: 'test-token',
+            channels: { uk: UK_CHANNEL, en: EN_CHANNEL },
+          },
+        }),
+        new (class extends TelegramClient {
+          async send(): Promise<TelegramSendResult> {
+            throw new Error('Telegram is down');
+          }
+        })(),
+      ),
+    );
+
+    const { source, brandId } = await arrangeSource();
+    fetcher.serve([{ handle: 'diver', available: true }]);
+    await silent.pollSource(source.id);
+    fetcher.serve([
+      { handle: 'diver', available: true },
+      { handle: 'field', title: 'Field Watch', available: true },
+    ]);
+    const result = await silent.pollSource(source.id);
+
+    expect(result.status).toBe('ok');
+    expect(result.dropsCreated).toBe(1);
+    expect(result.broadcastsSent).toBe(0);
+    expect(await dropsFor(brandId)).toHaveLength(1);
+  });
+
+  it('polls and publishes normally when Telegram is not configured at all', async () => {
+    const unconfigured = new SiteWatchService(
+      prisma,
+      fetcher,
+      new DropWriterService(prisma),
+      new AlertDispatchService(
+        prisma,
+        new ConfigService({
+          digest: { publicWebUrl: 'https://crownswatch.org' },
+          telegram: { botToken: undefined, channels: {} },
+        }),
+        telegram,
+      ),
+    );
+
+    const { source, brandId } = await arrangeSource();
+    fetcher.serve([{ handle: 'diver', available: true }]);
+    await unconfigured.pollSource(source.id);
+    fetcher.serve([
+      { handle: 'diver', available: true },
+      { handle: 'field', available: true },
+    ]);
+    const result = await unconfigured.pollSource(source.id);
+
+    expect(result.status).toBe('ok');
+    expect(result.dropsCreated).toBe(1);
+    expect(result.broadcastsSent).toBe(0);
+    expect(telegram.sent).toHaveLength(0);
+    // The drop is still published to the site — only the alert was skipped.
+    const [drop] = await dropsFor(brandId);
+    expect(drop.publishedAt).not.toBeNull();
   });
 
   it('marks the source unhealthy when the store errors, and creates nothing', async () => {

@@ -22,6 +22,12 @@ export interface AppConfig {
     publicWebUrl: string;
     publicApiUrl: string;
   };
+  telegram: {
+    botToken: string | undefined;
+    /** One public broadcast channel per language. */
+    channels: { uk: string | undefined; en: string | undefined };
+    requestTimeoutMs: number;
+  };
 }
 
 export default (): AppConfig => ({
@@ -59,5 +65,16 @@ export default (): AppConfig => ({
       process.env.RENDER_EXTERNAL_URL ??
       'http://localhost:3333'
     ).replace(/\/$/, ''),
+  },
+  telegram: {
+    // Absent credentials or channels are a supported state: dispatch is skipped
+    // with a warning and ingestion still succeeds, matching how extraction and
+    // the digest sender degrade without their keys.
+    botToken: process.env.TELEGRAM_BOT_TOKEN || undefined,
+    channels: {
+      uk: process.env.TELEGRAM_CHANNEL_UK || undefined,
+      en: process.env.TELEGRAM_CHANNEL_EN || undefined,
+    },
+    requestTimeoutMs: parseInt(process.env.TELEGRAM_TIMEOUT_MS ?? '15000', 10),
   },
 });

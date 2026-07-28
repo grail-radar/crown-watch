@@ -51,7 +51,22 @@ hosts sleep, so the in-process cron isn't reliable).
    - `API_BASE_URL` = your Render URL (no trailing slash)
 2. Actions tab → enable workflows. Trigger once via **Run workflow** to test.
 
-## 6. Verify
+## 6. Telegram drop broadcast (optional)
+Detected drops are posted to two public channels, one per language. Skip this
+and ingestion still works — dispatch just logs that it was skipped.
+1. Telegram → [@BotFather](https://t.me/BotFather) → `/newbot` → copy the token.
+2. Create the two channels (UA + EN), then add the bot to each as an **admin**
+   with *Post messages* permission.
+3. Render → API service → Environment:
+   - `TELEGRAM_BOT_TOKEN` = the BotFather token
+   - `TELEGRAM_CHANNEL_UK` = `@your_ua_channel`
+   - `TELEGRAM_CHANNEL_EN` = `@your_en_channel`
+
+> Posts are at-most-once per channel and are never retried after a failure —
+> [ADR-0002](./docs/adr/0002-broadcasts-are-at-most-once.md). To force a
+> re-broadcast, delete that drop's row from `drop_broadcasts` and poll again.
+
+## 7. Verify
 ```bash
 curl https://<render-url>/health                      # {"status":"ok","db":"up"}
 curl -X POST https://<render-url>/ingestion/rss/poll  # first run inserts ~50

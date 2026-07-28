@@ -1,6 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { DropType, Prisma, SourceHealth, SourceType } from '@prisma/client';
 import { createHash } from 'node:crypto';
+import { AlertDispatchService } from '../alerts/alert-dispatch.service';
 import { DropWriterService } from '../drops/drop-writer.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { getAdapter, parseWatchConfig } from './adapters';
@@ -20,6 +21,8 @@ export interface SiteWatchChangeReport {
   type: DropType;
   title: string;
   url: string;
+  /** Channels this drop was posted to, for the operator running the poll. */
+  broadcasts: number;
 }
 
 export interface SiteWatchSourceResult {
@@ -33,6 +36,8 @@ export interface SiteWatchSourceResult {
   baseline: boolean;
   productCount: number;
   dropsCreated: number;
+  /** Telegram messages posted across all channels for this source's drops. */
+  broadcastsSent: number;
   /** The specific changes this poll turned into drops. */
   changes: SiteWatchChangeReport[];
   error?: string;
@@ -43,6 +48,7 @@ export interface SiteWatchRunResult {
   finishedAt: string;
   sourceCount: number;
   totalDropsCreated: number;
+  totalBroadcastsSent: number;
   sources: SiteWatchSourceResult[];
 }
 
@@ -54,6 +60,7 @@ export class SiteWatchService {
     private readonly prisma: PrismaService,
     private readonly fetcher: SiteFetcher,
     private readonly drops: DropWriterService,
+    private readonly alerts: AlertDispatchService,
   ) {}
 
   /** Poll every configured Tier 4 source. One failure never stops the rest. */
@@ -75,6 +82,7 @@ export class SiteWatchService {
       finishedAt: new Date().toISOString(),
       sourceCount: sources.length,
       totalDropsCreated: results.reduce((n, r) => n + r.dropsCreated, 0),
+      totalBroadcastsSent: results.reduce((n, r) => n + r.broadcastsSent, 0),
       sources: results,
     };
   }
@@ -97,6 +105,7 @@ export class SiteWatchService {
       baseline: false,
       productCount: 0,
       dropsCreated: 0,
+      broadcastsSent: 0,
       changes: [],
     };
 
@@ -153,7 +162,7 @@ export class SiteWatchService {
       const changes = diffSnapshots(previous, products);
       for (const change of changes) {
         const type = this.dropType(change);
-        await this.drops.create({
+        const drop = await this.drops.create({
           brandId: source.brandId,
           title: change.product.title,
           type,
@@ -167,17 +176,26 @@ export class SiteWatchService {
           publish: true,
         });
         result.dropsCreated += 1;
+
+        // The drop exists and is public the moment it is written; the broadcast
+        // is what puts it on someone's phone. It never throws, so a silent
+        // Telegram cannot fail the ingestion run that produced the drop.
+        const broadcast = await this.alerts.broadcastDrop(drop.id);
+        result.broadcastsSent += broadcast.sentCount;
+
         result.changes.push({
           kind: change.kind,
           type,
           title: change.product.title,
           url: change.product.url,
+          broadcasts: broadcast.sentCount,
         });
       }
 
       await this.markHealth(source.id, SourceHealth.healthy);
       this.logger.log(
-        `[${source.name ?? source.endpoint}] ${products.length} products, ${result.dropsCreated} drop(s)`,
+        `[${source.name ?? source.endpoint}] ${products.length} products, ` +
+          `${result.dropsCreated} drop(s), ${result.broadcastsSent} broadcast(s)`,
       );
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);

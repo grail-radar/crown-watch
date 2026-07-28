@@ -66,6 +66,15 @@ enum NotificationChannelType {
   discord
 }
 
+enum BroadcastStatus {
+  // Claimed but not yet resolved. A row left `pending` means the process died
+  // between claiming and hearing back from Telegram — the message may or may
+  // not have landed, so it is never retried (see DropBroadcast).
+  pending
+  sent
+  failed
+}
+
 // ── Ingestion ────────────────────────────────────────────────────────────
 
 model Source {
@@ -167,6 +176,7 @@ model Drop {
   sourceEvent   RawIngestionEvent? @relation(fields: [sourceEventId], references: [id], onDelete: SetNull)
   reviewer      User?              @relation("DropReviewer", fields: [reviewerId], references: [id], onDelete: SetNull)
   notifications NotificationLog[]
+  broadcasts    DropBroadcast[]
 
   @@index([brandId])
   @@index([moderationStatus])
@@ -239,6 +249,41 @@ model NotificationLog {
   @@unique([userId, dropId, channel])
   @@index([dropId])
   @@map("notifications_log")
+}
+
+// Public broadcast log — one row per (drop, Telegram channel).
+//
+// `notifications_log` above deduplicates *per-user* alerts and so is keyed on a
+// user. The UA and EN channels are public broadcasts that belong to nobody, so
+// they need their own log; the unique constraint below is what makes "posted at
+// most once, ever" true rather than merely intended. A row is written *before*
+// the send is attempted, so a crash mid-run can only ever lose a message —
+// never repeat one, which is the failure that gets a channel muted.
+//
+// Keyed on the chat id rather than the locale: a channel's identity is the chat
+// it posts to, so pointing a locale at a different channel (a test channel
+// swapped for the real one, a typo corrected) correctly counts as never having
+// been broadcast there.
+model DropBroadcast {
+  id        String          @id @default(cuid())
+  dropId    String          @map("drop_id")
+  chatId    String          @map("chat_id")
+  // Deliberately a string, not an enum, unlike every other closed set in this
+  // schema. The point of the template design is that adding a language is a
+  // translation and nothing else; an enum would make it a schema migration too.
+  // The closed set that matters is enforced in TypeScript, by `AlertLocale`.
+  locale    String          @db.VarChar(8)
+  status    BroadcastStatus @default(pending)
+  messageId String?         @map("message_id")
+  error     String?
+  createdAt DateTime        @default(now()) @map("created_at")
+  sentAt    DateTime?       @map("sent_at")
+
+  drop Drop @relation(fields: [dropId], references: [id], onDelete: Cascade)
+
+  @@unique([dropId, chatId])
+  @@index([dropId])
+  @@map("drop_broadcasts")
 }
 
 // Weekly-digest email capture (CONTEXT.md §7.4) — lightweight, no account.

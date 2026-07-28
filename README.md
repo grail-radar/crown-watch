@@ -88,6 +88,33 @@ Copyright-safe: only short factual fields are stored, never source prose.
 - The persistence path is covered (no API key needed) by
   `pnpm --filter @crown-watch/api extract:verify`.
 
+## Telegram drop broadcast (CONTEXT.md §2)
+
+The moment a site-watch poll detects a drop, it is posted to two public Telegram
+channels — one Ukrainian, one English. Both messages are built from the same
+drop data by `src/alerts/messages.ts`; the languages differ only in their
+template strings, so adding one is a translation, not per-post work.
+
+Each message carries the brand, the model, whether it is a new release or a
+restock, the price when the store exposed one, a direct link to the product
+page, and a link to the brand's page on the site.
+
+Set up:
+
+1. Create a bot with [@BotFather](https://t.me/BotFather) and copy its token.
+2. Add the bot to each channel as an admin with **Post messages** permission.
+3. Set `TELEGRAM_BOT_TOKEN`, `TELEGRAM_CHANNEL_UK` and `TELEGRAM_CHANNEL_EN`.
+
+Without a token — or with no channels configured — dispatch is skipped with a
+warning and the poll still publishes drops normally, matching how extraction and
+the digest sender degrade without their keys.
+
+**A drop reaches a given channel at most once, ever.** A `drop_broadcasts` row is
+claimed before each send, so an overlapping poll, a re-run or a restart mid-run
+cannot repeat a post. A send that fails is recorded and *not* retried — see
+[ADR-0002](./docs/adr/0002-broadcasts-are-at-most-once.md) for why silence beats
+a duplicate here, and how to force a re-broadcast if you need one.
+
 ## Useful scripts
 
 | Command | What it does |
