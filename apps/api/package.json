@@ -33,6 +33,7 @@
     "@prisma/client": "^6.19.3",
     "@sentry/nestjs": "^10.68.0",
     "cron": "^4.4.0",
+    "node-html-parser": "^9.0.0",
     "reflect-metadata": "^0.2.2",
     "rss-parser": "^3.13.0",
     "rxjs": "^7.8.1"

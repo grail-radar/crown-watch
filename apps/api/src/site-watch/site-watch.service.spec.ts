@@ -597,6 +597,141 @@ describe('SiteWatchService', () => {
     expect(ours.find((s) => s.sourceId === broken.source.id)?.status).toBe('error');
   });
 
+  describe('a brand with no structured product endpoint', () => {
+    const HTML_SELECTORS = {
+      adapter: 'html_selectors',
+      currency: 'EUR',
+      selectors: {
+        item: '.product-card',
+        link: '.product-card__link',
+        title: '.product-card__title',
+        price: '.price',
+        soldOut: '.badge--sold-out',
+      },
+    };
+
+    /** A listing page built from a compact description of what it shows. */
+    const page = (
+      products: Array<{ handle: string; title: string; price?: string; soldOut?: boolean }>,
+      banner = 'Free shipping this week',
+    ) => `<!doctype html><html><body>
+      <div class="announcement">${banner}</div>
+      <ul class="product-grid">
+        ${products
+          .map(
+            (p) => `<li class="product-card">
+              <a class="product-card__link" href="/products/${p.handle}?ref=grid">
+                <h3 class="product-card__title">${p.title}</h3>
+              </a>
+              <span class="price">€ ${p.price ?? '500.00'}</span>
+              ${p.soldOut ? '<span class="badge badge--sold-out">Sold out</span>' : ''}
+            </li>`,
+          )
+          .join('')}
+      </ul></body></html>`;
+
+    it('watches an HTML store end to end, sharing the same pipeline', async () => {
+      const { source, brandId } = await arrangeSource({ watchConfig: HTML_SELECTORS });
+      fetcher.next = {
+        status: 200,
+        body: page([{ handle: 'diver', title: 'Harbour Diver' }]),
+      };
+      const first = await service.pollSource(source.id);
+      expect(first.baseline).toBe(true);
+      expect(await dropsFor(brandId)).toHaveLength(0);
+
+      fetcher.next = {
+        status: 200,
+        body: page([
+          { handle: 'diver', title: 'Harbour Diver' },
+          { handle: 'field', title: 'Foundry Field', price: '640.00' },
+        ]),
+      };
+      const second = await service.pollSource(source.id);
+
+      expect(second.dropsCreated).toBe(1);
+      const drops = await dropsFor(brandId);
+      expect(drops[0].title).toBe('Foundry Field');
+      expect(drops[0].type).toBe('pre_order');
+      expect(Number(drops[0].priceLow)).toBe(640);
+      expect(drops[0].currency).toBe('EUR');
+      expect(drops[0].sourceUrl).toBe('https://brand.example/products/field');
+      // Same alerting as the structured path — nothing is duplicated per adapter.
+      expect(second.broadcastsSent).toBe(2);
+    });
+
+    it('turns a sold-out badge disappearing into a restock', async () => {
+      const { source, brandId } = await arrangeSource({ watchConfig: HTML_SELECTORS });
+      fetcher.next = {
+        status: 200,
+        body: page([{ handle: 'gmt', title: 'Meridian GMT', soldOut: true }]),
+      };
+      await service.pollSource(source.id);
+
+      fetcher.next = {
+        status: 200,
+        body: page([{ handle: 'gmt', title: 'Meridian GMT' }]),
+      };
+      const result = await service.pollSource(source.id);
+
+      expect(result.dropsCreated).toBe(1);
+      expect((await dropsFor(brandId))[0].type).toBe('restock');
+    });
+
+    it('stays silent when only the marketing furniture changed', async () => {
+      const { source, brandId } = await arrangeSource({ watchConfig: HTML_SELECTORS });
+      const products = [{ handle: 'diver', title: 'Harbour Diver' }];
+      fetcher.next = { status: 200, body: page(products, 'Free shipping this week') };
+      await service.pollSource(source.id);
+
+      fetcher.next = { status: 200, body: page(products, 'SUMMER SALE — 20% off') };
+      const result = await service.pollSource(source.id);
+
+      expect(result.changed).toBe(false);
+      expect(result.dropsCreated).toBe(0);
+      expect(await dropsFor(brandId)).toHaveLength(0);
+    });
+
+    it('goes unhealthy rather than silently reporting an empty catalogue', async () => {
+      // A store redesign is the realistic case: the selectors stop matching and
+      // the page still returns 200. Treating that as "no products" would look
+      // like the brand delisting everything.
+      const { source, brandId } = await arrangeSource({ watchConfig: HTML_SELECTORS });
+      fetcher.next = {
+        status: 200,
+        body: page([{ handle: 'diver', title: 'Harbour Diver' }]),
+      };
+      await service.pollSource(source.id);
+
+      fetcher.next = {
+        status: 200,
+        body: '<!doctype html><html><body><ul class="redesigned"></ul></body></html>',
+      };
+      const result = await service.pollSource(source.id);
+
+      expect(result.status).toBe('error');
+      expect(result.error).toMatch(/no products/i);
+      expect(result.health).toBe(SourceHealth.degraded);
+      // Nothing was created and nothing was deleted — the good snapshot stands.
+      expect(await dropsFor(brandId)).toHaveLength(0);
+      expect(
+        await prisma.rawIngestionEvent.count({ where: { sourceId: source.id } }),
+      ).toBe(1);
+    });
+
+    it('fails clearly when the selectors are missing', async () => {
+      const { source } = await arrangeSource({
+        watchConfig: { adapter: 'html_selectors' },
+      });
+      fetcher.next = { status: 200, body: page([{ handle: 'a', title: 'A' }]) };
+
+      const result = await service.pollSource(source.id);
+
+      expect(result.status).toBe('error');
+      expect(result.error).toMatch(/selectors/i);
+    });
+  });
+
   it('calls a first failure degraded, not broken', async () => {
     // One bad fetch is usually the internet. Escalating straight to "error"
     // would train an operator to ignore the field.

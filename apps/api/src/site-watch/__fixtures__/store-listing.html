@@ -1,0 +1,64 @@
+<!doctype html>
+<!--
+  A microbrand collection page, reduced from a real storefront to the shape that
+  matters: a repeating product card wrapping a link, a title, a price, an image
+  and a sold-out badge, surrounded by the marketing furniture such pages always
+  carry. Kept as a file so the adapter is tested against markup nobody wrote for
+  it.
+-->
+<html lang="en">
+  <head>
+    <title>All watches — Northlake Watch Co.</title>
+    <style>.product-card { display: grid; }</style>
+    <script>window.__ANALYTICS__ = { session: "a91f3c", ts: 1753700000 };</script>
+  </head>
+  <body>
+    <div class="announcement-bar">Free shipping on orders over €200 — this week only</div>
+
+    <header class="site-header">
+      <a href="/" class="logo">Northlake Watch Co.</a>
+      <nav><a href="/collections/all">Shop</a> <a href="/pages/about">About</a></nav>
+    </header>
+
+    <main>
+      <h1>All watches</h1>
+      <p class="collection-description">
+        Hand-assembled in small batches. Every reference is limited to 300 pieces.
+      </p>
+
+      <ul class="product-grid">
+        <li class="product-card">
+          <a class="product-card__link" href="/products/harbour-diver-blue?variant=44821&amp;ref=grid">
+            <img class="product-card__image" src="/cdn/shop/harbour-diver-blue_600x.jpg" alt="Harbour Diver" />
+            <h3 class="product-card__title">Harbour  Diver
+              — Pacific Blue</h3>
+          </a>
+          <span class="price">€ 1,240.00</span>
+        </li>
+
+        <li class="product-card">
+          <a class="product-card__link" href="/products/meridian-gmt">
+            <img class="product-card__image" src="/cdn/shop/meridian-gmt_600x.jpg" alt="Meridian GMT" />
+            <h3 class="product-card__title">Meridian GMT</h3>
+          </a>
+          <span class="price">€ 980.00</span>
+          <span class="badge badge--sold-out">Sold out</span>
+        </li>
+
+        <li class="product-card">
+          <a class="product-card__link" href="/products/foundry-field">
+            <img class="product-card__image" src="/cdn/shop/foundry-field_600x.jpg" alt="Foundry Field" />
+            <h3 class="product-card__title">Foundry Field</h3>
+          </a>
+          <span class="price">€ 640.00</span>
+        </li>
+      </ul>
+    </main>
+
+    <footer class="site-footer">
+      <a href="/pages/warranty">Warranty</a>
+      <a href="/pages/contact">Contact</a>
+      <p>&copy; 2026 Northlake Watch Co.</p>
+    </footer>
+  </body>
+</html>
