@@ -1,6 +1,9 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
 import { Fraunces, Instrument_Sans } from 'next/font/google';
+import { ReleaseNote } from '@/components/release-note';
+import { TelegramIcon } from '@/components/telegram-icon';
+import { TELEGRAM_CHANNELS } from '@/lib/channels';
 import { SITE_DESCRIPTION, SITE_NAME, SITE_TAGLINE, SITE_URL } from '@/lib/site';
 import './globals.css';
 
@@ -61,6 +64,18 @@ export default function RootLayout({
               <Link href="/submit" className="hidden transition hover:text-ink sm:inline">
                 Submit
               </Link>
+              {/* Telegram is the instant channel; the digest is the weekly one.
+                  Both live in the header so neither is buried. */}
+              <a
+                href={TELEGRAM_CHANNELS[0].url}
+                target="_blank"
+                rel="noopener noreferrer"
+                title={`Crown Watch on Telegram — ${TELEGRAM_CHANNELS[0].handle}`}
+                className="flex items-center gap-1.5 transition hover:text-ink"
+              >
+                <TelegramIcon className="h-4 w-4" />
+                <span className="hidden sm:inline">Telegram</span>
+              </a>
               <Link
                 href="/#digest"
                 className="rounded-full border border-gold/40 px-3.5 py-1.5 text-gold transition hover:border-gold hover:text-gold-bright"
@@ -86,7 +101,24 @@ export default function RootLayout({
               Fratello and Hodinkee. Headlines and images belong to their
               publishers and link to the original coverage.
             </p>
-            <p className="mt-3">
+            <div className="mt-4 flex flex-wrap items-center gap-2">
+              <span className="text-faint">Instant alerts on Telegram:</span>
+              {TELEGRAM_CHANNELS.map((channel) => (
+                <a
+                  key={channel.url}
+                  href={channel.url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="flex items-center gap-1.5 rounded-full border border-line px-3 py-1 text-ink transition hover:border-gold/50 hover:text-gold-bright"
+                >
+                  <TelegramIcon className="h-3.5 w-3.5 text-gold" />
+                  {channel.label}
+                  <span className="text-faint">{channel.handle}</span>
+                </a>
+              ))}
+            </div>
+
+            <p className="mt-4">
               <Link href="/submit" className="text-gold transition hover:text-gold-bright">
                 Submit a drop
               </Link>
@@ -97,6 +129,8 @@ export default function RootLayout({
             </p>
           </div>
         </footer>
+
+        <ReleaseNote />
       </body>
     </html>
   );
