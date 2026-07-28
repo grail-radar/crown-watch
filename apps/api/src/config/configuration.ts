@@ -74,7 +74,16 @@ export default (): AppConfig => ({
     // the digest sender degrade without their keys.
     botToken: process.env.TELEGRAM_BOT_TOKEN || undefined,
     channels: {
-      uk: process.env.TELEGRAM_CHANNEL_UK || undefined,
+      // The locale is `uk` — ISO 639-1 for Ukrainian — but `UA` is the country
+      // code, reads as "Ukraine" rather than "United Kingdom", and is what
+      // people actually type. Both spellings are accepted; UA wins if both are
+      // set. Silently ignoring TELEGRAM_CHANNEL_UA would leave the Ukrainian
+      // channel unconfigured with no error anywhere, which is exactly the kind
+      // of failure this whole path is built to avoid.
+      uk:
+        process.env.TELEGRAM_CHANNEL_UA ||
+        process.env.TELEGRAM_CHANNEL_UK ||
+        undefined,
       en: process.env.TELEGRAM_CHANNEL_EN || undefined,
     },
     requestTimeoutMs: parseInt(process.env.TELEGRAM_TIMEOUT_MS ?? '15000', 10),

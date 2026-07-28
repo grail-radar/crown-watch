@@ -103,7 +103,7 @@ Set up:
 
 1. Create a bot with [@BotFather](https://t.me/BotFather) and copy its token.
 2. Add the bot to each channel as an admin with **Post messages** permission.
-3. Set `TELEGRAM_BOT_TOKEN`, `TELEGRAM_CHANNEL_UK` and `TELEGRAM_CHANNEL_EN`.
+3. Set `TELEGRAM_BOT_TOKEN`, `TELEGRAM_CHANNEL_UA` and `TELEGRAM_CHANNEL_EN`.
 
 Without a token — or with no channels configured — dispatch is skipped with a
 warning and the poll still publishes drops normally, matching how extraction and

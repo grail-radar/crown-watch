@@ -59,7 +59,7 @@ and ingestion still works — dispatch just logs that it was skipped.
    with *Post messages* permission.
 3. Render → API service → Environment:
    - `TELEGRAM_BOT_TOKEN` = the BotFather token
-   - `TELEGRAM_CHANNEL_UK` = `@your_ua_channel`
+   - `TELEGRAM_CHANNEL_UA` = `@your_ua_channel`
    - `TELEGRAM_CHANNEL_EN` = `@your_en_channel`
 
 > Posts are at-most-once per channel and are never retried after a failure —

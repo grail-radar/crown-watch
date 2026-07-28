@@ -24,7 +24,7 @@ services:
       # Telegram drop broadcast. Blank = dispatch skipped, ingestion unaffected.
       - key: TELEGRAM_BOT_TOKEN
         sync: false
-      - key: TELEGRAM_CHANNEL_UK
+      - key: TELEGRAM_CHANNEL_UA
         sync: false
       - key: TELEGRAM_CHANNEL_EN
         sync: false
