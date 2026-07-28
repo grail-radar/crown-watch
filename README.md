@@ -115,6 +115,37 @@ cannot repeat a post. A send that fails is recorded and *not* retried — see
 [ADR-0002](./docs/adr/0002-broadcasts-are-at-most-once.md) for why silence beats
 a duplicate here, and how to force a re-broadcast if you need one.
 
+### Backfilling a channel
+
+Drops published on the site before broadcasting existed — or before a given
+channel was wired up — can be posted after the fact:
+
+```bash
+pnpm --filter @crown-watch/api backfill:telegram
+```
+
+**It is a dry run by default**: it prints every message it would post, in each
+language, and sends nothing. Read that output before going further, because a
+channel cannot unsend and each message notifies every follower.
+
+```bash
+pnpm --filter @crown-watch/api backfill:telegram -- --confirm --limit=5
+```
+
+`--limit` defaults to 10 and is capped at 50 — run it repeatedly to work
+through a backlog rather than posting one enormous burst. Sends are paced by
+`TELEGRAM_BACKFILL_DELAY_MS` (3s) to stay under Telegram's per-channel rate
+limit, and go oldest-first so the channel reads chronologically.
+
+Candidates are picked **per channel**, so adding a third language backfills only
+that channel. Backfill routes through the same `(drop_id, chat_id)` claim as the
+live path, so it can never repeat a drop that has already been posted — a
+partially-delivered drop is topped up on the channel that missed it, and a
+failed send stays failed rather than being quietly retried.
+
+The same thing is available to an admin over HTTP:
+`POST /alerts/backfill?confirm=true&limit=5`.
+
 ## Useful scripts
 
 | Command | What it does |
@@ -127,6 +158,7 @@ a duplicate here, and how to force a re-broadcast if you need one.
 | `pnpm ingest:rss` | Run one Tier 1 RSS poll (api) |
 | `pnpm extract` | Run the LLM extraction stage (api) |
 | `pnpm test` | Run the test suite |
+| `pnpm --filter @crown-watch/api backfill:telegram` | Preview a Telegram backfill (dry run) |
 
 ## Tests
 

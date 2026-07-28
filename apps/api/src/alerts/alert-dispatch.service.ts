@@ -1,6 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { BroadcastStatus, Prisma } from '@prisma/client';
+import { BroadcastStatus, ModerationStatus, Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import {
   ALERT_LOCALES,
@@ -12,6 +12,28 @@ import { TelegramClient } from './telegram-client';
 
 /** Prisma's unique-constraint violation. */
 const UNIQUE_VIOLATION = 'P2002';
+
+/** Everything a message is built from — one definition, both entry points. */
+const DROP_FIELDS = {
+  id: true,
+  title: true,
+  type: true,
+  priceLow: true,
+  currency: true,
+  sourceUrl: true,
+  publishedAt: true,
+  brand: { select: { name: true, slug: true } },
+} as const;
+
+type DropRecord = Prisma.DropGetPayload<{ select: typeof DROP_FIELDS }>;
+
+/**
+ * Backfill defaults. Deliberately small: a backfill posts to public channels,
+ * so the damage from getting it wrong scales with how many it sends at once.
+ * Run it repeatedly to work through a backlog rather than raising the cap.
+ */
+const DEFAULT_BACKFILL_LIMIT = 10;
+const MAX_BACKFILL_LIMIT = 50;
 
 export type BroadcastOutcome = 'sent' | 'skipped' | 'failed';
 
@@ -45,6 +67,41 @@ export interface DropBroadcastResult {
   /** Channels that actually received the message. */
   sentCount: number;
   channels: ChannelBroadcastResult[];
+}
+
+export interface BackfillOptions {
+  /** How many drops to work through. Clamped to MAX_BACKFILL_LIMIT. */
+  limit?: number;
+  /**
+   * Actually post. Omitted or false = a dry run that renders every message and
+   * sends nothing. Opt-in rather than opt-out: unlike a single drop alert, a
+   * backfill's blast radius is the whole backlog, and a channel cannot unsend.
+   */
+  confirm?: boolean;
+  /** Pause between drops, keeping under Telegram's per-channel rate limit. */
+  delayMs?: number;
+}
+
+/** One drop the backfill would post, and where it has not yet been seen. */
+export interface BackfillCandidate {
+  dropId: string;
+  brandName: string;
+  title: string;
+  publishedAt: string | null;
+  pendingLocales: AlertLocale[];
+  /** The exact messages, so a dry run can be read before anything is sent. */
+  messages: Array<{ locale: AlertLocale; chatId: string; text: string }>;
+}
+
+export interface BackfillResult {
+  status: DispatchStatus;
+  reason?: string;
+  /** true when nothing was sent because `confirm` was not passed. */
+  dryRun: boolean;
+  limit: number;
+  candidateCount: number;
+  sentCount: number;
+  candidates: BackfillCandidate[];
 }
 
 /**
@@ -110,15 +167,7 @@ export class AlertDispatchService {
 
       const drop = await this.prisma.drop.findUnique({
         where: { id: dropId },
-        select: {
-          id: true,
-          title: true,
-          type: true,
-          priceLow: true,
-          currency: true,
-          sourceUrl: true,
-          brand: { select: { name: true, slug: true } },
-        },
+        select: DROP_FIELDS,
       });
       if (!drop) {
         result.status = 'error';
@@ -127,16 +176,8 @@ export class AlertDispatchService {
         return result;
       }
 
-      const alert: DropAlert = {
-        brandName: drop.brand.name,
-        brandSlug: drop.brand.slug,
-        title: drop.title,
-        type: drop.type,
-        price: this.price(drop.priceLow),
-        currency: drop.currency,
-        productUrl: drop.sourceUrl,
-      };
-      const webUrl = this.config.get<string>('digest.publicWebUrl')!;
+      const alert = this.toAlert(drop);
+      const webUrl = this.webUrl();
 
       for (const channel of channels) {
         const outcome = await this.broadcastToChannel(
@@ -227,6 +268,160 @@ export class AlertDispatchService {
       );
       return { ...base, outcome: 'failed', reason: message };
     }
+  }
+
+  /**
+   * Post drops that are already live on the site but have never reached a
+   * channel — a new channel being wired up, a backlog published before
+   * broadcasting existed, or drops whose alert was lost to a run that died
+   * (ADR-0002).
+   *
+   * Safe to re-run: every send still goes through `broadcastDrop`, so the
+   * `(drop_id, chat_id)` claim decides what actually goes out. This only picks
+   * *which* drops to offer it. Candidates are chosen per channel, so adding a
+   * third language backfills that channel without re-posting to the two that
+   * are already caught up.
+   *
+   * Oldest first, so a channel reads in the order things actually happened.
+   *
+   * Never throws.
+   */
+  async backfill(options: BackfillOptions = {}): Promise<BackfillResult> {
+    const limit = Math.max(
+      1,
+      Math.min(options.limit ?? DEFAULT_BACKFILL_LIMIT, MAX_BACKFILL_LIMIT),
+    );
+    const dryRun = options.confirm !== true;
+    const result: BackfillResult = {
+      status: 'dispatched',
+      dryRun,
+      limit,
+      candidateCount: 0,
+      sentCount: 0,
+      candidates: [],
+    };
+
+    try {
+      const token = this.config.get<string>('telegram.botToken');
+      const channels = this.channels();
+      if (!token || channels.length === 0) {
+        result.status = 'skipped';
+        result.reason = !token
+          ? 'TELEGRAM_BOT_TOKEN not configured — backfill skipped'
+          : 'no Telegram channels configured — backfill skipped';
+        this.logger.warn(result.reason);
+        return result;
+      }
+
+      const pending = await this.backfillCandidates(channels, limit);
+      result.candidateCount = pending.length;
+      const webUrl = this.webUrl();
+
+      for (const { drop, locales } of pending) {
+        const alert = this.toAlert(drop);
+        result.candidates.push({
+          dropId: drop.id,
+          brandName: drop.brand.name,
+          title: drop.title,
+          publishedAt: drop.publishedAt?.toISOString() ?? null,
+          pendingLocales: locales.map((c) => c.locale),
+          messages: locales.map((c) => ({
+            locale: c.locale,
+            chatId: c.chatId,
+            text: renderDropAlert(c.locale, alert, webUrl),
+          })),
+        });
+      }
+
+      if (dryRun) {
+        result.reason = `dry run — ${result.candidateCount} drop(s) would be posted; pass confirm to send`;
+        this.logger.log(result.reason);
+        return result;
+      }
+
+      const delayMs =
+        options.delayMs ?? this.config.get<number>('telegram.backfillDelayMs') ?? 3000;
+
+      for (const [index, { drop }] of pending.entries()) {
+        // Telegram throttles per channel, and a backfill is the one path that
+        // posts in bursts. Pace it rather than discovering the limit in prod.
+        if (index > 0 && delayMs > 0) await this.pause(delayMs);
+        const sent = await this.broadcastDrop(drop.id);
+        result.sentCount += sent.sentCount;
+      }
+
+      this.logger.log(
+        `Backfill posted ${result.sentCount} message(s) across ${result.candidateCount} drop(s)`,
+      );
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      result.status = 'error';
+      result.reason = message;
+      this.logger.error(`Backfill failed: ${message}`);
+    }
+
+    return result;
+  }
+
+  /**
+   * Published drops each channel has never been offered, oldest first.
+   *
+   * Asked per channel rather than once overall: a drop already on the English
+   * channel is still a candidate for a Ukrainian channel added later. A drop
+   * whose send *failed* holds a claim row and so is correctly not a candidate —
+   * failures are not retried (ADR-0002).
+   */
+  private async backfillCandidates(channels: BroadcastChannel[], limit: number) {
+    const byDrop = new Map<
+      string,
+      { drop: DropRecord; locales: BroadcastChannel[] }
+    >();
+
+    for (const channel of channels) {
+      const drops = await this.prisma.drop.findMany({
+        where: {
+          moderationStatus: ModerationStatus.approved,
+          publishedAt: { not: null },
+          broadcasts: { none: { chatId: channel.chatId } },
+        },
+        orderBy: { publishedAt: 'asc' },
+        take: limit,
+        select: DROP_FIELDS,
+      });
+      for (const drop of drops) {
+        const entry = byDrop.get(drop.id) ?? { drop, locales: [] };
+        entry.locales.push(channel);
+        byDrop.set(drop.id, entry);
+      }
+    }
+
+    return [...byDrop.values()]
+      .sort(
+        (a, b) =>
+          (a.drop.publishedAt?.getTime() ?? 0) -
+          (b.drop.publishedAt?.getTime() ?? 0),
+      )
+      .slice(0, limit);
+  }
+
+  private toAlert(drop: DropRecord): DropAlert {
+    return {
+      brandName: drop.brand.name,
+      brandSlug: drop.brand.slug,
+      title: drop.title,
+      type: drop.type,
+      price: this.price(drop.priceLow),
+      currency: drop.currency,
+      productUrl: drop.sourceUrl,
+    };
+  }
+
+  private webUrl(): string {
+    return this.config.get<string>('digest.publicWebUrl')!;
+  }
+
+  private pause(ms: number): Promise<void> {
+    return new Promise((resolve) => setTimeout(resolve, ms));
   }
 
   /** Prisma Decimal → plain number; how it reads is `messages.ts`'s business. */

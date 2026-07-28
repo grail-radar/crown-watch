@@ -9,7 +9,11 @@ import { ConfigService } from '@nestjs/config';
 import { DropType } from '@prisma/client';
 import { randomUUID } from 'node:crypto';
 import { PrismaService } from '../prisma/prisma.service';
-import { AlertDispatchService } from './alert-dispatch.service';
+import {
+  AlertDispatchService,
+  BackfillCandidate,
+  BackfillResult,
+} from './alert-dispatch.service';
 import {
   TelegramClient,
   TelegramSendRequest,
@@ -297,6 +301,155 @@ describe('AlertDispatchService', () => {
     expect(result.status).toBe('error');
     expect(result.reason).toMatch(/not found/);
     expect(telegram.sent).toHaveLength(0);
+  });
+
+  describe('backfill', () => {
+    /** Only ever look at the drops this test created. */
+    const mine = (result: BackfillResult, ids: string[]): BackfillCandidate[] =>
+      result.candidates.filter((c) => ids.includes(c.dropId));
+
+    it('sends nothing unless the caller confirms', async () => {
+      const { drop } = await arrangeDrop();
+
+      const result = await dispatcher().backfill({ limit: 50 });
+
+      expect(result.dryRun).toBe(true);
+      expect(telegram.sent).toHaveLength(0);
+      expect(await broadcastsFor(drop.id)).toHaveLength(0);
+      // But it still shows exactly what would go out, in both languages.
+      const [candidate] = mine(result, [drop.id]);
+      expect(candidate.pendingLocales.sort()).toEqual(['en', 'uk']);
+      expect(candidate.messages).toHaveLength(2);
+      expect(candidate.messages[0].text).toContain('Neptune IV');
+    });
+
+    it('posts the pending drops once confirmed', async () => {
+      const { drop } = await arrangeDrop();
+
+      const result = await dispatcher().backfill({
+        limit: 50,
+        confirm: true,
+        delayMs: 0,
+      });
+
+      expect(result.dryRun).toBe(false);
+      expect(mine(result, [drop.id])).toHaveLength(1);
+      const rows = await broadcastsFor(drop.id);
+      expect(rows).toHaveLength(2);
+      expect(rows.every((r) => r.status === 'sent')).toBe(true);
+    });
+
+    it('will not repost a drop the backfill already sent', async () => {
+      const { drop } = await arrangeDrop();
+      const service = dispatcher();
+      await service.backfill({ limit: 50, confirm: true, delayMs: 0 });
+      const before = telegram.sent.length;
+
+      const second = await service.backfill({ limit: 50, confirm: true, delayMs: 0 });
+
+      expect(mine(second, [drop.id])).toHaveLength(0);
+      expect(telegram.sent).toHaveLength(before);
+    });
+
+    it('skips a drop the live path already broadcast', async () => {
+      // The whole point of routing backfill through the same claim: a drop
+      // announced at detection time must not be announced again later.
+      const { drop } = await arrangeDrop();
+      const service = dispatcher();
+      await service.broadcastDrop(drop.id);
+
+      const result = await service.backfill({ limit: 50, confirm: true, delayMs: 0 });
+
+      expect(mine(result, [drop.id])).toHaveLength(0);
+      expect(telegram.sent).toHaveLength(2);
+    });
+
+    it('catches a newly added channel up without repeating the others', async () => {
+      // The migration case: two channels are current, a third language is
+      // added later and must receive the backlog on its own.
+      const { drop, brand } = await arrangeDrop();
+      await dispatcher().backfill({ limit: 50, confirm: true, delayMs: 0 });
+      telegram.sent = [];
+
+      const widened = dispatcher(configure({ uk: '@crownwatch_ua_v2' }));
+      const result = await widened.backfill({ limit: 50, confirm: true, delayMs: 0 });
+
+      const [candidate] = mine(result, [drop.id]);
+      expect(candidate.pendingLocales).toEqual(['uk']);
+      // Only the new channel hears about it. Other tests in this file left
+      // their own drops pending, so scope this to the brand created here.
+      const ours = telegram.sent.filter((s) => s.text.includes(brand.name));
+      expect(ours.map((s) => s.chatId)).toEqual(['@crownwatch_ua_v2']);
+    });
+
+    it('never offers a drop that is not published', async () => {
+      const { drop } = await arrangeDrop();
+      await prisma.drop.update({
+        where: { id: drop.id },
+        data: { moderationStatus: 'pending', publishedAt: null },
+      });
+
+      const result = await dispatcher().backfill({ limit: 50 });
+
+      expect(mine(result, [drop.id])).toHaveLength(0);
+    });
+
+    it('works the backlog oldest first, so the channel reads in order', async () => {
+      const older = await arrangeDrop({ title: 'Older Watch' });
+      const newer = await arrangeDrop({ title: 'Newer Watch' });
+      await prisma.drop.update({
+        where: { id: older.drop.id },
+        data: { publishedAt: new Date('2020-01-01') },
+      });
+      await prisma.drop.update({
+        where: { id: newer.drop.id },
+        data: { publishedAt: new Date('2020-06-01') },
+      });
+
+      const result = await dispatcher().backfill({ limit: 50 });
+
+      const ours = mine(result, [older.drop.id, newer.drop.id]);
+      expect(ours.map((c) => c.title)).toEqual(['Older Watch', 'Newer Watch']);
+    });
+
+    it('honours the limit and clamps an absurd one', async () => {
+      await arrangeDrop();
+      await arrangeDrop();
+
+      const one = await dispatcher().backfill({ limit: 1 });
+      expect(one.candidates).toHaveLength(1);
+      expect(one.limit).toBe(1);
+
+      const clamped = await dispatcher().backfill({ limit: 100_000 });
+      expect(clamped.limit).toBe(50);
+    });
+
+    it('skips the backfill entirely when Telegram is not configured', async () => {
+      await arrangeDrop();
+
+      const result = await dispatcher(configure({ botToken: undefined }))
+        .backfill({ limit: 50, confirm: true });
+
+      expect(result.status).toBe('skipped');
+      expect(result.reason).toMatch(/TELEGRAM_BOT_TOKEN/);
+      expect(telegram.sent).toHaveLength(0);
+    });
+
+    it('keeps going when one drop fails to post', async () => {
+      const { drop } = await arrangeDrop();
+      telegram.broken.add(UK_CHANNEL);
+
+      const result = await dispatcher().backfill({
+        limit: 50,
+        confirm: true,
+        delayMs: 0,
+      });
+
+      expect(result.status).toBe('dispatched');
+      const rows = await broadcastsFor(drop.id);
+      expect(rows.find((r) => r.locale === 'uk')?.status).toBe('failed');
+      expect(rows.find((r) => r.locale === 'en')?.status).toBe('sent');
+    });
   });
 
   it('keeps Telegram’s message id for provenance', async () => {

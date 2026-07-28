@@ -68,12 +68,17 @@ which is precisely the "restart mid-run" case.
   would re-detect the same changes and create duplicate drop rows on the public
   feed — visible to everyone, not just to one channel's followers.
 
-  A re-drive is possible later precisely *because* the claim is keyed on
-  `(drop_id, chat_id)`: a job that sweeps recently published drops through
-  `broadcastDrop` cannot double-post, since already-broadcast pairs lose the
-  insert. Deferred until the scheduler exists
-  ([#7](https://github.com/grail-radar/crown-watch/issues/7)) makes unattended
-  runs — and therefore mid-run deaths — routine.
+  The recovery path is `AlertDispatchService.backfill`, which exists precisely
+  *because* the claim is keyed on `(drop_id, chat_id)`: it sweeps published
+  drops back through `broadcastDrop`, and already-broadcast pairs lose the
+  insert, so it cannot double-post. It is operator-triggered and dry-run by
+  default rather than automatic — an unattended re-drive would quietly convert
+  this ADR's at-most-once guarantee into "eventually, probably", which is the
+  property we deliberately did not choose.
+- The same backfill covers two adjacent cases: drops published before
+  broadcasting existed at all, and a channel added later that has to catch up
+  on a backlog. Candidates are computed per channel, so catching one up never
+  re-posts to another.
 - Re-broadcasting is a deliberate operator action: delete the `drop_broadcasts`
   row for that `(drop, channel)` and poll again. There is no automatic path,
   by design.

@@ -27,6 +27,8 @@ export interface AppConfig {
     /** One public broadcast channel per language. */
     channels: { uk: string | undefined; en: string | undefined };
     requestTimeoutMs: number;
+    /** Pause between drops during a backfill, to stay under Telegram's limits. */
+    backfillDelayMs: number;
   };
 }
 
@@ -76,5 +78,10 @@ export default (): AppConfig => ({
       en: process.env.TELEGRAM_CHANNEL_EN || undefined,
     },
     requestTimeoutMs: parseInt(process.env.TELEGRAM_TIMEOUT_MS ?? '15000', 10),
+    // Telegram throttles bursts to a channel at roughly 20 messages a minute.
+    backfillDelayMs: parseInt(
+      process.env.TELEGRAM_BACKFILL_DELAY_MS ?? '3000',
+      10,
+    ),
   },
 });

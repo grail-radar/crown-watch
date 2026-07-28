@@ -19,7 +19,8 @@
     "prisma:studio": "prisma studio",
     "ingest:rss": "ts-node --transpile-only src/scripts/poll-rss.ts",
     "extract": "ts-node --transpile-only src/scripts/extract.ts",
-    "extract:verify": "ts-node --transpile-only src/scripts/extract-verify.ts"
+    "extract:verify": "ts-node --transpile-only src/scripts/extract-verify.ts",
+    "backfill:telegram": "ts-node --transpile-only src/scripts/backfill-telegram.ts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.115.0",
