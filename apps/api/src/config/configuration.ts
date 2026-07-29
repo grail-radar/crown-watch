@@ -17,6 +17,8 @@ export interface AppConfig {
     requestTimeoutMs: number;
     pollCron: string;
     pollOnBoot: boolean;
+    /** Pause between stores within one run, so a poll is polite as a whole. */
+    pollDelayMs: number;
   };
   anthropic: {
     apiKey: string | undefined;
@@ -70,6 +72,7 @@ export default (): AppConfig => ({
     pollCron: process.env.SITE_WATCH_POLL_CRON ?? '0 5 * * * *',
     pollOnBoot:
       (process.env.SITE_WATCH_POLL_ON_BOOT ?? 'false').toLowerCase() === 'true',
+    pollDelayMs: parseInt(process.env.SITE_WATCH_POLL_DELAY_MS ?? '2000', 10),
   },
   anthropic: {
     apiKey: process.env.ANTHROPIC_API_KEY || undefined,

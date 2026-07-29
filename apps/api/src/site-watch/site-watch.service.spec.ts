@@ -79,7 +79,12 @@ describe('SiteWatchService', () => {
     telegram = new CapturingTelegram();
     const config = new ConfigService({
       digest: { publicWebUrl: 'https://crownswatch.org' },
-      siteWatch: { userAgent: 'CrownWatchBot/0.1 (+https://crownswatch.org)' },
+      siteWatch: {
+        userAgent: 'CrownWatchBot/0.1 (+https://crownswatch.org)',
+        // Pacing is asserted by one test that passes its own delay; every
+        // other test would otherwise wait two seconds per source.
+        pollDelayMs: 0,
+      },
       telegram: {
         botToken: 'test-token',
         channels: { uk: UK_CHANNEL, en: EN_CHANNEL },
@@ -93,6 +98,7 @@ describe('SiteWatchService', () => {
       new DropWriterService(prisma),
       alerts,
       robots,
+      config,
     );
     catalog = new CatalogService(prisma);
   });
@@ -459,6 +465,7 @@ describe('SiteWatchService', () => {
         })(),
       ),
       robots,
+      new ConfigService({ siteWatch: { pollDelayMs: 0 } }),
     );
 
     const { source, brandId } = await arrangeSource();
@@ -490,6 +497,7 @@ describe('SiteWatchService', () => {
         telegram,
       ),
       robots,
+      new ConfigService({ siteWatch: { pollDelayMs: 0 } }),
     );
 
     const { source, brandId } = await arrangeSource();
@@ -838,6 +846,39 @@ describe('SiteWatchService', () => {
 
     expect(result.status).toBe('ok');
     expect(fetcher.storeCalls).toHaveLength(1);
+  });
+
+  it('pauses between stores so one run does not hammer several at once', async () => {
+    // Four freshly registered stores answered 429 together on the first real
+    // run, because the loop walked them back to back. Different brands, one
+    // shared platform edge — being polite has to mean the whole run, not each
+    // request in isolation.
+    await arrangeSource();
+    await arrangeSource();
+    fetcher.serve([{ handle: 'diver', available: true }]);
+
+    const startedAt = Date.now();
+    await service.pollAll({ delayMs: 80 });
+
+    expect(Date.now() - startedAt).toBeGreaterThanOrEqual(80);
+  });
+
+  it('does not pause for a source it never contacted', async () => {
+    // A source in backoff costs the store no request, so it should cost the
+    // run no time either — otherwise a long list of resting sources would
+    // stretch every poll for no reason.
+    const { source } = await arrangeSource();
+    fetcher.next = { status: 500, body: 'boom' };
+    await service.pollSource(source.id); // puts it into backoff
+
+    const startedAt = Date.now();
+    const run = await service.pollAll({ delayMs: 0 });
+    const elapsed = Date.now() - startedAt;
+
+    expect(run.sources.find((s) => s.sourceId === source.id)?.status).toBe(
+      'skipped',
+    );
+    expect(elapsed).toBeLessThan(5000);
   });
 
   it('reports a run as successful with its failures itemised', async () => {

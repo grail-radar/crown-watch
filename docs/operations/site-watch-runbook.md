@@ -210,6 +210,12 @@ Running both is safe. Every alert is claimed per `(drop, channel)` before it is
 sent, so an overlapping or repeated run cannot post the same drop twice
 (ADR-0002). A poll that finds nothing changed writes nothing at all.
 
+**Stores are polled one at a time, with a pause between them**
+(`SITE_WATCH_POLL_DELAY_MS`, 2s). Several brands often sit behind one platform
+edge, and a back-to-back run reads to that edge as a single impatient crawler —
+four freshly registered stores once answered 429 together for exactly this
+reason. A source that is skipped costs no pause, since it made no request.
+
 **Scheduled runs are best-effort.** GitHub Actions delays cron jobs under load
 and can skip them entirely; delays of five to fifteen minutes are normal, and
 longer happens. Combined with a cold start of up to a minute, a drop detected

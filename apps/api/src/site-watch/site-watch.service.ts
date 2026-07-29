@@ -1,4 +1,5 @@
 import { Injectable, Logger } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import { DropType, Prisma, SourceHealth, SourceType } from '@prisma/client';
 import { createHash } from 'node:crypto';
 import { AlertDispatchService } from '../alerts/alert-dispatch.service';
@@ -32,6 +33,12 @@ class RateLimited extends Error {
     );
   }
 }
+
+/**
+ * Pause between stores in one run. Each poll is a request to somebody else's
+ * shop, and several brands often sit behind one platform edge.
+ */
+const DEFAULT_POLL_DELAY_MS = 2000;
 
 /** What a single detected change produced, for the poll report. */
 export interface SiteWatchChangeReport {
@@ -100,7 +107,12 @@ export class SiteWatchService {
     private readonly drops: DropWriterService,
     private readonly alerts: AlertDispatchService,
     private readonly robots: RobotsService,
+    private readonly config: ConfigService,
   ) {}
+
+  private pause(ms: number): Promise<void> {
+    return new Promise((resolve) => setTimeout(resolve, ms));
+  }
 
   /**
    * Poll every configured Tier 4 source.
@@ -110,8 +122,12 @@ export class SiteWatchService {
    * rather than throwing on the first one. A caller that treated any failure as
    * a failed run would page someone every time a single shop had a bad night.
    */
-  async pollAll(): Promise<SiteWatchRunResult> {
+  async pollAll(options: { delayMs?: number } = {}): Promise<SiteWatchRunResult> {
     const startedAt = new Date();
+    const delayMs =
+      options.delayMs ??
+      this.config.get<number>('siteWatch.pollDelayMs') ??
+      DEFAULT_POLL_DELAY_MS;
     const sources = await this.prisma.source.findMany({
       where: { type: SourceType.site_watch },
       orderBy: { createdAt: 'asc' },
@@ -119,8 +135,18 @@ export class SiteWatchService {
     });
 
     const results: SiteWatchSourceResult[] = [];
+    // Paced. Politeness has to mean the whole run, not each request in
+    // isolation: four freshly registered stores answered 429 together on the
+    // first real poll because this loop walked them back to back. Different
+    // brands, but a shared platform edge sees one impatient crawler.
+    let contactedAStore = false;
     for (const { id } of sources) {
-      results.push(await this.pollSource(id));
+      if (contactedAStore && delayMs > 0) await this.pause(delayMs);
+      const result = await this.pollSource(id);
+      results.push(result);
+      // A skipped source — backing off, or disallowed — made no request, so it
+      // should cost the run no time either.
+      contactedAStore = result.status !== 'skipped';
     }
 
     const run: SiteWatchRunResult = {
