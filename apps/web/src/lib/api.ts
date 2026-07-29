@@ -26,6 +26,21 @@ export interface BrandList {
   brands: BrandSummary[];
 }
 
+/**
+ * Where a reader can act on a drop.
+ *
+ * `store`      — the brand's own product page. They can buy this watch.
+ * `brand_site` — the brand's homepage. Honest, but they still have to find it.
+ *
+ * Decided by the API, never here. The same rule drives the Telegram channels,
+ * so the two cannot describe one drop differently — and the web app cannot
+ * drift from it, because it never sees what the decision was made from.
+ */
+export interface PurchaseLink {
+  url: string;
+  kind: 'store' | 'brand_site';
+}
+
 export interface DropSummary {
   id: string;
   title: string;
@@ -35,9 +50,12 @@ export interface DropSummary {
   currency: string | null;
   eventDate: string | null;
   imageUrl: string | null;
+  /** The publication's article, when the drop came from one. Attribution. */
   sourceUrl: string | null;
   publishedAt: string | null;
   sourceName: string | null;
+  /** null when there is nothing honest to offer. */
+  purchase: PurchaseLink | null;
 }
 
 export interface FeedDrop extends DropSummary {

@@ -3,6 +3,7 @@ import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { DropCard, TypeBadge } from '@/components/cards';
 import { DropImage } from '@/components/drop-image';
+import { PurchaseButton } from '@/components/purchase-button';
 import { getBrand, getDrop } from '@/lib/api';
 import { dropTypeLabel, formatPrice, monogram, relTime } from '@/lib/format';
 import { SITE_URL } from '@/lib/site';
@@ -145,12 +146,20 @@ export default async function DropPage({ params }: Props) {
           </div>
 
           <div className="mt-8 flex flex-wrap gap-3">
+            {/* Where to act comes first — it is what the reader came for. The
+                coverage follows as attribution, stepping down to a quieter
+                style once it is no longer the only thing on offer. */}
+            <PurchaseButton purchase={drop.purchase} brandName={drop.brand.name} />
             {drop.sourceUrl && (
               <a
                 href={drop.sourceUrl}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="rounded-xl bg-gold px-5 py-2.5 text-sm font-medium text-night transition hover:bg-gold-bright"
+                className={
+                  drop.purchase
+                    ? 'rounded-xl border border-line px-5 py-2.5 text-sm text-faint transition hover:border-gold/50 hover:text-ink'
+                    : 'rounded-xl bg-gold px-5 py-2.5 text-sm font-medium text-night transition hover:bg-gold-bright'
+                }
               >
                 Read the original coverage ↗
               </a>

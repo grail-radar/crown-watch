@@ -1,5 +1,6 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { ModerationStatus, Prisma } from '@prisma/client';
+import { purchaseLinkFor } from '../drops/purchase-link';
 import { PrismaService } from '../prisma/prisma.service';
 
 const PUBLISHED: Prisma.DropWhereInput = {
@@ -27,14 +28,52 @@ const DROP_SELECT = {
   imageUrl: true,
   sourceUrl: true,
   publishedAt: true,
-  sourceEvent: { select: { source: { select: { name: true } } } },
+  // `type` decides whether sourceUrl is a product page or an article; `name` is
+  // shown as the credit. Neither is exposed — see flattenDrop.
+  sourceEvent: {
+    select: { source: { select: { name: true, type: true } } },
+  },
+  brand: { select: { website: true } },
 } satisfies Prisma.DropSelect;
 
 type DropRow = Prisma.DropGetPayload<{ select: typeof DROP_SELECT }>;
 
+/**
+ * Shape a drop for the public API.
+ *
+ * The purchase link is resolved here rather than by whoever renders it. The
+ * website and the Telegram channels answer from the same rule, so they cannot
+ * classify one drop differently — a purchase label over a magazine article
+ * shipped once already, and it shipped because two callers each decided for
+ * themselves. Provenance is deliberately dropped from the response: the website
+ * has no business re-deriving this, and cannot if it never sees the inputs.
+ */
 function flattenDrop(row: DropRow) {
-  const { sourceEvent, ...drop } = row;
-  return { ...drop, sourceName: sourceEvent?.source?.name ?? null };
+  const { sourceEvent, brand, ...drop } = row;
+  return {
+    ...drop,
+    sourceName: sourceEvent?.source?.name ?? null,
+    purchase: purchaseLinkFor({
+      sourceType: sourceEvent?.source?.type,
+      sourceUrl: drop.sourceUrl,
+      brandWebsite: brand?.website,
+    }),
+  };
+}
+
+/**
+ * The same, for the paths that present the brand alongside the drop. The brand
+ * comes back as name and slug only: its website has already done its work
+ * deciding the purchase link, and passing it on would tempt a caller to build
+ * its own.
+ */
+function withBrand(
+  row: DropRow & {
+    brand: { name: string; slug: string; website: string | null };
+  },
+) {
+  const { name, slug } = row.brand;
+  return { ...flattenDrop(row), brand: { name, slug } };
 }
 
 /**
@@ -100,12 +139,11 @@ export class CatalogService {
       where: { id, ...PUBLISHED },
       select: {
         ...DROP_SELECT,
-        brand: { select: { name: true, slug: true } },
+        brand: { select: { name: true, slug: true, website: true } },
       },
     });
     if (!drop) throw new NotFoundException(`Drop not found: ${id}`);
-    const { brand, ...rest } = drop;
-    return { ...flattenDrop(rest), brand };
+    return withBrand(drop);
   }
 
   async listPublishedDrops(take = 50, skip = 0, type?: string) {
@@ -126,17 +164,14 @@ export class CatalogService {
         skip: safeSkip,
         select: {
           ...DROP_SELECT,
-          brand: { select: { name: true, slug: true } },
+          brand: { select: { name: true, slug: true, website: true } },
         },
       }),
     ]);
     return {
       total,
       count: drops.length,
-      drops: drops.map((row) => {
-        const { brand, ...rest } = row;
-        return { ...flattenDrop(rest), brand };
-      }),
+      drops: drops.map(withBrand),
     };
   }
 }

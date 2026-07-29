@@ -8,6 +8,7 @@ import {
   relTime,
 } from '@/lib/format';
 import { DropImage } from './drop-image';
+import { PurchaseTag } from './purchase-button';
 
 export function TypeBadge({ type }: { type: string }) {
   return (
@@ -66,9 +67,15 @@ export function DropCard({
           {drop.title}
         </Link>
 
-        <div className="mt-3 flex items-center justify-between text-xs text-faint">
+        <div className="mt-3 flex items-center justify-between gap-2 text-xs text-faint">
           <span>{price ?? dropTypeLabel(drop.type)}</span>
-          {added && <span>{added}</span>}
+          <span className="flex items-center gap-2">
+            {added && <span>{added}</span>}
+            {/* Lets a reader see which drops they can act on without opening
+                each one. Renders nothing when there is nowhere honest to send
+                them. */}
+            <PurchaseTag purchase={drop.purchase} brandName={brand.name} />
+          </span>
         </div>
 
         {drop.sourceName && (
