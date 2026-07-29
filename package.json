@@ -26,6 +26,9 @@
     "typescript": "^5.6.3"
   },
   "pnpm": {
+    "overrides": {
+      "postcss": "^8.5.12"
+    },
     "onlyBuiltDependencies": [
       "@prisma/client",
       "@prisma/engines",
