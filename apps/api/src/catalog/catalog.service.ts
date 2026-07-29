@@ -98,6 +98,9 @@ export class CatalogService {
           name: true,
           slug: true,
           country: true,
+          // Shown on the directory card, so a brand with no drops yet still
+          // says something about itself.
+          foundedYearEst: true,
           website: true,
           status: true,
           createdAt: true,

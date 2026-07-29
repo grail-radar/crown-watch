@@ -13,6 +13,7 @@ export interface BrandSummary {
   name: string;
   slug: string;
   country: string | null;
+  foundedYearEst: number | null;
   website: string | null;
   status: string;
   createdAt: string;

@@ -1,9 +1,9 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
+import { BrandAvatar, BrandBanner } from '@/components/brand-art';
 import { DropCard } from '@/components/cards';
 import { getBrand } from '@/lib/api';
-import { monogram } from '@/lib/format';
 import { SITE_URL } from '@/lib/site';
 
 export const dynamic = 'force-dynamic';
@@ -59,16 +59,23 @@ export default async function BrandPage({ params }: Props) {
         </Link>
       </div>
 
-      {/* Brand hero */}
-      <section className="flex flex-wrap items-center gap-6 py-10">
-        <span className="flex h-20 w-20 items-center justify-center rounded-full bg-gradient-to-br from-panel-2 to-night font-display text-2xl text-gold ring-1 ring-line">
-          {monogram(brand.name)}
-        </span>
-        <div className="min-w-0">
-          <h1 className="font-display text-4xl font-medium tracking-tight">
-            {brand.name}
-          </h1>
-          <div className="mt-3 flex flex-wrap items-center gap-2 text-xs text-faint">
+      {/* Brand hero. The banner is generated from the slug: no logo exists in
+          the data, and a publisher's photo behind a brand's name would be
+          borrowing their rights for decoration rather than attribution. */}
+      <section className="mt-4">
+        <BrandBanner slug={brand.slug} className="h-32 rounded-2xl sm:h-44" />
+
+        <div className="flex flex-wrap items-end gap-5 px-1 pb-10">
+          <BrandAvatar
+            name={brand.name}
+            slug={brand.slug}
+            className="-mt-10 h-20 w-20 text-2xl ring-4 ring-night sm:-mt-12 sm:h-24 sm:w-24"
+          />
+          <div className="min-w-0 flex-1 pb-1">
+            <h1 className="font-display text-4xl font-medium tracking-tight">
+              {brand.name}
+            </h1>
+            <div className="mt-3 flex flex-wrap items-center gap-2 text-xs text-faint">
             {brand.status === 'verified' ? (
               <span className="rounded-full bg-emerald-400/10 px-2.5 py-1 font-medium text-emerald-300 ring-1 ring-emerald-400/25">
                 Verified
@@ -88,16 +95,23 @@ export default async function BrandPage({ params }: Props) {
                 est. {brand.foundedYearEst}
               </span>
             )}
-            {brand.website && (
-              <a
-                href={brand.website}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="rounded-full border border-gold/40 px-2.5 py-1 text-gold transition hover:border-gold hover:text-gold-bright"
-              >
-                Website ↗
-              </a>
-            )}
+              {brand.website && (
+                <a
+                  href={brand.website}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  aria-label={`Visit ${brand.name}'s own site — opens in a new tab`}
+                  className="rounded-full border border-gold/40 px-2.5 py-1 text-gold transition hover:border-gold hover:text-gold-bright"
+                >
+                  Visit {brand.name} ↗
+                </a>
+              )}
+              <span className="rounded-full border border-line px-2.5 py-1">
+                {brand.drops.length > 0
+                  ? `${brand.drops.length} drop${brand.drops.length === 1 ? '' : 's'} tracked`
+                  : 'On the radar'}
+              </span>
+            </div>
           </div>
         </div>
       </section>

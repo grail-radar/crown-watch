@@ -7,6 +7,7 @@ import {
   monogram,
   relTime,
 } from '@/lib/format';
+import { BrandAvatar, BrandBanner } from './brand-art';
 import { DropImage } from './drop-image';
 import { PurchaseTag } from './purchase-button';
 
@@ -90,31 +91,47 @@ export function DropCard({
 
 export function BrandCard({ brand }: { brand: BrandSummary }) {
   const published = brand._count.drops;
+  // Only the facts we actually hold. A brand missing all of them falls back to
+  // its drop count rather than leaving an empty line where details should be.
+  const facts = [
+    brand.country,
+    brand.foundedYearEst ? `est. ${brand.foundedYearEst}` : null,
+    published > 0
+      ? `${published} drop${published === 1 ? '' : 's'}`
+      : 'No drops yet',
+  ].filter(Boolean);
+
   return (
     <Link
       href={`/brands/${brand.slug}`}
-      className="group flex items-center gap-4 rounded-2xl border border-line/80 bg-panel p-4 transition duration-300 hover:-translate-y-0.5 hover:border-gold/40"
+      className="group overflow-hidden rounded-2xl border border-line/80 bg-panel transition duration-300 hover:-translate-y-0.5 hover:border-gold/40"
     >
-      <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-panel-2 to-night font-display text-sm text-gold ring-1 ring-line">
-        {monogram(brand.name)}
-      </span>
-      <span className="min-w-0 flex-1">
-        <span className="flex items-center gap-2">
-          <span className="truncate font-medium">{brand.name}</span>
-          {brand.status === 'verified' && (
-            <span className="rounded-full bg-emerald-400/10 px-2 py-0.5 text-[10px] font-medium text-emerald-300 ring-1 ring-emerald-400/25">
-              Verified
-            </span>
-          )}
+      {/* Generated from the slug, so two brands with no drops are still told
+          apart at a glance — which a grid of identical lettermarks could not. */}
+      <BrandBanner slug={brand.slug} className="h-14" />
+
+      <span className="flex items-start gap-3 px-4 pb-4">
+        <BrandAvatar
+          name={brand.name}
+          slug={brand.slug}
+          className="-mt-5 h-11 w-11 text-sm ring-2 ring-panel"
+        />
+        <span className="min-w-0 flex-1 pt-0.5">
+          <span className="flex items-center gap-2">
+            <span className="truncate font-medium">{brand.name}</span>
+            {brand.status === 'verified' && (
+              <span className="rounded-full bg-emerald-400/10 px-2 py-0.5 text-[10px] font-medium text-emerald-300 ring-1 ring-emerald-400/25">
+                Verified
+              </span>
+            )}
+          </span>
+          <span className="mt-1 block truncate text-xs text-faint">
+            {facts.join(' · ')}
+          </span>
         </span>
-        <span className="mt-0.5 block text-xs text-faint">
-          {published > 0
-            ? `${published} published drop${published === 1 ? '' : 's'}`
-            : 'Tracked — no published drops yet'}
+        <span className="pt-0.5 text-faint transition group-hover:translate-x-0.5 group-hover:text-gold">
+          →
         </span>
-      </span>
-      <span className="text-faint transition group-hover:translate-x-0.5 group-hover:text-gold">
-        →
       </span>
     </Link>
   );
