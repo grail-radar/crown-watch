@@ -141,6 +141,14 @@ model Brand {
   status           BrandStatus @default(watchlist)
   // Phase 2 — brand reliability / delivery track-record (CONTEXT.md §2, §5).
   reliabilityScore Float?      @map("reliability_score")
+  // How many times the enrichment pass has asked a model about this brand.
+  // Most brands will never have all three details — an obscure microbrand often
+  // has no published founding year — so "still missing something" is not a
+  // usable work queue on its own: the pass would re-ask about the same oldest
+  // brands forever and never reach a newly discovered one. Counting attempts is
+  // what lets it give up and move on.
+  enrichmentAttempts  Int       @default(0) @map("enrichment_attempts")
+  enrichmentAskedAt   DateTime? @map("enrichment_asked_at")
   createdAt        DateTime    @default(now()) @map("created_at")
   updatedAt        DateTime    @updatedAt @map("updated_at")
 

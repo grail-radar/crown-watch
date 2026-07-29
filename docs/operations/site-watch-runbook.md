@@ -247,3 +247,41 @@ a source that failed is retried once its backoff window expires.
 - [ADR-0001](../adr/0001-tier-4-signals-publish-without-moderation.md) — why Tier 4 drops publish without moderation
 - [ADR-0002](../adr/0002-broadcasts-are-at-most-once.md) — why an alert is never sent twice, and never retried
 - [README](../../README.md#telegram-drop-broadcast-contextmd-2) — channel setup and backfilling
+
+---
+
+## Brands discovered by extraction
+
+Extraction creates a brand from whatever an article happened to mention, which is
+often just a name. **A brand with no website shows no purchase link at all** — on
+the site or in the channels — so the gap is filled automatically: the `rss-poll`
+workflow runs the enrichment pass in the same run that discovers the brand.
+
+The pass converges rather than grinding. Most brands will never have all three
+details — an obscure microbrand often has no published founding year — so "still
+incomplete" is not a usable work queue. Each brand is asked about at most three
+times; after that it stays incomplete and is counted as `exhausted` rather than
+re-billed for the same silence every twenty minutes. A missing website is always
+taken before a missing founding year, because only one of them costs a reader
+anything.
+
+Where it stands:
+
+```sql
+SELECT
+  count(*) FILTER (WHERE website IS NULL) AS no_website,
+  count(*) FILTER (WHERE website IS NULL AND enrichment_attempts >= 3) AS given_up_on,
+  count(*) FILTER (WHERE country IS NULL OR founded_year_est IS NULL) AS partial
+FROM brands;
+```
+
+`given_up_on` above zero is not a fault — those are brands nobody has written
+down. Fill them by hand if they matter; the pass will not ask again. A wrong URL
+sits behind a link labelled with that brand's name, so leaving a gap is the
+correct outcome rather than accepting a plausible guess.
+
+To make the pass retry one brand, reset its counter:
+
+```sql
+UPDATE brands SET enrichment_attempts = 0 WHERE slug = '<slug>';
+```

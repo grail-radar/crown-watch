@@ -37,3 +37,31 @@ jobs:
           curl -fsS --max-time 480 --retry 2 --retry-delay 20 --retry-all-errors \
             -X POST "$API_BASE_URL/extraction/run?limit=30" \
             || echo "extraction failed or skipped (non-fatal)"
+
+      # Extraction is what discovers a brand, usually from an article that
+      # mentioned only its name. A brand with no website shows no purchase link
+      # at all, on the site or in the channels — so the gap is filled in the same
+      # run that creates it, rather than waiting for someone to notice.
+      #
+      # Costs an Anthropic call per brand asked about, but the pass gives up on
+      # brands it cannot resolve after a few tries, so this converges instead of
+      # re-billing for the same silence every twenty minutes. Non-fatal: an
+      # incomplete brand must never fail the ingestion run that found it.
+      - name: Fill in details for newly discovered brands
+        env:
+          API_BASE_URL: ${{ secrets.API_BASE_URL }}
+          ADMIN_TOKEN: ${{ secrets.ADMIN_TOKEN }}
+        run: |
+          curl -fsS --max-time 300 --retry 2 --retry-delay 20 --retry-all-errors \
+            -X POST "$API_BASE_URL/extraction/enrich-brands?limit=10" \
+            -H "x-admin-token: $ADMIN_TOKEN" \
+            -o enrich.json || echo "enrichment failed or skipped (non-fatal)"
+
+          if [ -f enrich.json ]; then
+            cat enrich.json
+            jq -r '"- brands asked about: \(.considered)",
+                   "- filled in: \(.updated)",
+                   "- errors: \(.errors)",
+                   "- still incomplete, no longer asked: \(.exhausted)"' enrich.json \
+              >> "$GITHUB_STEP_SUMMARY" 2>/dev/null || true
+          fi

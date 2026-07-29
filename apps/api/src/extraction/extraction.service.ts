@@ -34,6 +34,18 @@ const DROP_TYPES = new Set<string>([
   'pre_order',
 ]);
 
+/**
+ * How many times a model is asked about one brand before the pass gives up.
+ *
+ * Three, because the answer does not improve with repetition: a brand the model
+ * cannot place after three attempts is one nobody has written down, and asking
+ * again costs money for the same silence. Such a brand stays incomplete and
+ * visible as `exhausted`, which is the honest outcome — filling it with
+ * something plausible would put a guess behind a link labelled with that
+ * brand's name.
+ */
+const MAX_ENRICHMENT_ATTEMPTS = 3;
+
 @Injectable()
 export class ExtractionService {
   private readonly logger = new Logger(ExtractionService.name);
@@ -244,38 +256,65 @@ export class ExtractionService {
   /**
    * Fill missing country / website / founded-year on existing brands via a
    * small tool-use lookup per brand. Only touches fields that are null.
+   *
+   * The work queue is *brands we have not exhausted*, not simply brands that
+   * are incomplete. Most brands will never have all three details — an obscure
+   * microbrand often has no published founding year — so selecting on "still
+   * missing something" would re-ask about the same long-standing brands on
+   * every run, spend money doing it, and never reach the brand extraction
+   * discovered this morning. Counting attempts is what lets the pass give up
+   * and move on.
+   *
+   * A missing website is taken first. It is the only gap that costs a reader
+   * anything: without it a drop has no purchase link at all, on the site or in
+   * the channels. A missing founding year costs a chip on a brand page.
    */
   async enrichBrands(limit = 40): Promise<{
     enabled: boolean;
     considered: number;
     updated: number;
     errors: number;
+    /** Brands still incomplete that we have stopped asking about. */
+    exhausted: number;
   }> {
     const out = {
       enabled: this.anthropic.isEnabled(),
       considered: 0,
       updated: 0,
       errors: 0,
+      exhausted: 0,
     };
-    if (!out.enabled) return out;
 
-    const brands = await this.prisma.brand.findMany({
+    const incomplete: Prisma.BrandWhereInput = {
+      OR: [{ country: null }, { website: null }, { foundedYearEst: null }],
+    };
+    out.exhausted = await this.prisma.brand.count({
       where: {
-        OR: [{ country: null }, { website: null }, { foundedYearEst: null }],
-      },
-      orderBy: { createdAt: 'asc' },
-      take: Math.min(Math.max(limit, 1), 100),
-      select: {
-        id: true,
-        name: true,
-        country: true,
-        website: true,
-        foundedYearEst: true,
+        ...incomplete,
+        enrichmentAttempts: { gte: MAX_ENRICHMENT_ATTEMPTS },
       },
     });
+
+    // Checked after the count so an operator can still see how much is
+    // incomplete while enrichment is switched off.
+    if (!out.enabled) return out;
+
+    const brands = await this.selectForEnrichment(
+      Math.min(Math.max(limit, 1), 100),
+    );
     out.considered = brands.length;
 
     for (const brand of brands) {
+      // Recorded before the ask, and whatever the answer: an attempt we forgot
+      // to count is an attempt repeated forever, including one that threw.
+      await this.prisma.brand.update({
+        where: { id: brand.id },
+        data: {
+          enrichmentAttempts: { increment: 1 },
+          enrichmentAskedAt: new Date(),
+        },
+      });
+
       try {
         const details = await this.anthropic.enrichBrand(brand.name);
         if (!details) continue;
@@ -297,6 +336,8 @@ export class ExtractionService {
           out.updated += 1;
         }
       } catch (err) {
+        // One brand the model choked on must not stop the batch. The attempt is
+        // already recorded, so this brand is not retried forever either.
         out.errors += 1;
         this.logger.error(
           `Brand enrichment failed for ${brand.name}: ${err instanceof Error ? err.message : err}`,
@@ -304,8 +345,55 @@ export class ExtractionService {
       }
     }
     this.logger.log(
-      `Brand enrichment: considered=${out.considered} updated=${out.updated} errors=${out.errors}`,
+      `Brand enrichment: considered=${out.considered} updated=${out.updated} ` +
+        `errors=${out.errors} exhausted=${out.exhausted}`,
     );
     return out;
+  }
+
+  /**
+   * Who to ask about, in priority order, filling the budget.
+   *
+   * Two passes rather than one clever query: a missing website is urgent and a
+   * missing founding year is cosmetic, and expressing that as a single ordering
+   * in Prisma would be less readable than saying it twice. Within each pass the
+   * least-asked brands come first, then the newest — so a brand discovered this
+   * morning is served before one that has already been asked about twice.
+   */
+  private async selectForEnrichment(limit: number) {
+    const select = {
+      id: true,
+      name: true,
+      country: true,
+      website: true,
+      foundedYearEst: true,
+    };
+    const notExhausted = {
+      enrichmentAttempts: { lt: MAX_ENRICHMENT_ATTEMPTS },
+    };
+    const order: Prisma.BrandOrderByWithRelationInput[] = [
+      { enrichmentAttempts: 'asc' },
+      { createdAt: 'desc' },
+    ];
+
+    const missingWebsite = await this.prisma.brand.findMany({
+      where: { ...notExhausted, website: null },
+      orderBy: order,
+      take: limit,
+      select,
+    });
+    if (missingWebsite.length >= limit) return missingWebsite;
+
+    const rest = await this.prisma.brand.findMany({
+      where: {
+        ...notExhausted,
+        website: { not: null },
+        OR: [{ country: null }, { foundedYearEst: null }],
+      },
+      orderBy: order,
+      take: limit - missingWebsite.length,
+      select,
+    });
+    return [...missingWebsite, ...rest];
   }
 }
