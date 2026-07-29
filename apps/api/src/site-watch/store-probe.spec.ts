@@ -63,7 +63,7 @@ describe('StoreProbe', () => {
       { handle: 'worldtime-gmt', title: 'Worldtime GMT' },
     ]);
 
-    const [result] = await probe.probe(['yema.com']);
+    const [result] = await probe.probe(['yema.com'], { delayMs: 0 });
 
     expect(result.outcome).toBe('structured_feed');
     expect(result.usable).toBe(true);
@@ -75,7 +75,7 @@ describe('StoreProbe', () => {
   it('reports a store with no product endpoint as needing selectors', async () => {
     fetcher.html('https://baltic-watches.com', 404, 'Not Found');
 
-    const [result] = await probe.probe(['baltic-watches.com']);
+    const [result] = await probe.probe(['baltic-watches.com'], { delayMs: 0 });
 
     expect(result.outcome).toBe('needs_selectors');
     expect(result.adapter).toBe('html_selectors');
@@ -91,7 +91,7 @@ describe('StoreProbe', () => {
       '<!DOCTYPE html><html><head><script>window.location.href="/lander"</script></head></html>',
     );
 
-    const [result] = await probe.probe(['lorier.com']);
+    const [result] = await probe.probe(['lorier.com'], { delayMs: 0 });
 
     expect(result.usable).toBe(false);
     expect(result.adapter).toBe('html_selectors');
@@ -104,7 +104,7 @@ describe('StoreProbe', () => {
     // guard would reject it on every poll anyway.
     fetcher.feed('https://empty.example', []);
 
-    const [result] = await probe.probe(['empty.example']);
+    const [result] = await probe.probe(['empty.example'], { delayMs: 0 });
 
     expect(result.usable).toBe(false);
     expect(result.productCount).toBe(0);
@@ -120,7 +120,7 @@ describe('StoreProbe', () => {
       retryAfterSeconds: 120,
     });
 
-    const [result] = await probe.probe(['serica.example']);
+    const [result] = await probe.probe(['serica.example'], { delayMs: 0 });
 
     expect(result.outcome).toBe('retry_later');
     expect(result.adapter).toBeNull();
@@ -133,7 +133,7 @@ describe('StoreProbe', () => {
     fetcher.feed('https://yema.com', [{ handle: 'a', title: 'A' }]);
     fetcher.unreachable.add('offline.example');
 
-    const results = await probe.probe(['offline.example', 'yema.com']);
+    const results = await probe.probe(['offline.example', 'yema.com'], { delayMs: 0 });
 
     expect(results).toHaveLength(2);
     const offline = results.find((r) => r.domain === 'offline.example')!;
@@ -148,7 +148,7 @@ describe('StoreProbe', () => {
     fetcher.html('https://b.example', 404);
     fetcher.feed('https://c.example', [{ handle: 'y', title: 'Y' }]);
 
-    const results = await probe.probe(['a.example', 'b.example', 'c.example']);
+    const results = await probe.probe(['a.example', 'b.example', 'c.example'], { delayMs: 0 });
 
     expect(results.map((r) => r.domain)).toEqual([
       'a.example',
@@ -162,7 +162,7 @@ describe('StoreProbe', () => {
     fetcher.feed('https://yema.com', [{ handle: 'a', title: 'A' }]);
 
     for (const written of ['yema.com', 'https://yema.com', 'https://yema.com/']) {
-      const [result] = await probe.probe([written]);
+      const [result] = await probe.probe([written], { delayMs: 0 });
       expect(result.usable).toBe(true);
     }
   });
@@ -174,7 +174,7 @@ describe('StoreProbe', () => {
     });
     fetcher.feed('https://polite.example', [{ handle: 'a', title: 'A' }]);
 
-    const [result] = await probe.probe(['polite.example']);
+    const [result] = await probe.probe(['polite.example'], { delayMs: 0 });
 
     expect(result.outcome).toBe('forbidden');
     expect(result.usable).toBe(false);
@@ -186,7 +186,7 @@ describe('StoreProbe', () => {
   it('reports the endpoint an operator should register', async () => {
     fetcher.feed('https://yema.com', [{ handle: 'a', title: 'A' }]);
 
-    const [result] = await probe.probe(['yema.com']);
+    const [result] = await probe.probe(['yema.com'], { delayMs: 0 });
 
     expect(result.endpoint).toBe('https://yema.com/products.json?limit=250');
   });

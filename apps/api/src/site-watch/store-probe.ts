@@ -6,6 +6,9 @@ import { SiteFetcher } from './site-fetcher';
 /** Where a structured product feed lives, when a store has one. */
 const FEED_PATH = '/products.json?limit=250';
 
+/** Pause between hosts, so a batch does not hammer a shared platform edge. */
+const DEFAULT_PROBE_DELAY_MS = 2000;
+
 /** Titles shown back to the operator as evidence the feed is real. */
 const SAMPLE_SIZE = 3;
 
@@ -71,10 +74,26 @@ export class StoreProbe {
     private readonly robots: RobotsService,
   ) {}
 
-  /** Probe each domain in turn. One failure never stops the batch. */
-  async probe(domains: string[]): Promise<StoreProbeResult[]> {
+  /**
+   * Probe each domain in turn. One failure never stops the batch.
+   *
+   * Paced between hosts. Probing a list as fast as the network allows is the
+   * same discourtesy the poller is careful to avoid, and it is self-defeating:
+   * an unpaced run of nine brands had four answer `429` in a row, which reads
+   * as "no feed" to anyone skimming the output. Slow enough to be polite is
+   * also the only way the answers are worth having.
+   */
+  async probe(
+    domains: string[],
+    options: { delayMs?: number } = {},
+  ): Promise<StoreProbeResult[]> {
+    const delayMs = options.delayMs ?? DEFAULT_PROBE_DELAY_MS;
     const results: StoreProbeResult[] = [];
-    for (const domain of domains) {
+
+    for (const [index, domain] of domains.entries()) {
+      if (index > 0 && delayMs > 0) {
+        await new Promise((resolve) => setTimeout(resolve, delayMs));
+      }
       results.push(await this.probeOne(domain));
     }
     return results;
