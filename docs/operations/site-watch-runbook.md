@@ -285,3 +285,64 @@ To make the pass retry one brand, reset its counter:
 ```sql
 UPDATE brands SET enrichment_attempts = 0 WHERE slug = '<slug>';
 ```
+
+---
+
+## Worked example: registering a selector-based store
+
+Baltic is the reference case for `html_selectors`. Its shop is Shopify Hydrogen
+— the same `/products/…` and `/collections/…` URL shapes as a classic Shopify
+store, but headless, so `products.json` 404s and there is no structured feed to
+fall back on.
+
+**Endpoint:** `https://baltic-watches.com/en/collections/watches`
+
+```json
+{
+  "adapter": "html_selectors",
+  "currency": "EUR",
+  "selectors": {
+    "item": "a[href*=\"/products/\"]",
+    "title": "p.uppercase",
+    "price": "p.mt-auto",
+    "soldOutText": "Out of stock"
+  }
+}
+```
+
+Why these, and what they cost to get right:
+
+- **`item` is the anchor itself.** The page is built from utility classes, so
+  there is no meaningful wrapper class to hang a selector on. The product URL
+  shape is the stable thing, and the adapter treats an `<a>` item as its own
+  link. The `?variant=…` decoration on some hrefs is stripped automatically, so
+  one watch stays one product across polls.
+- **`title` and `price` are told apart by their only distinguishing classes.**
+  Both are `<p>`; only the title carries `uppercase`, only the price carries
+  `mt-auto`. Fragile against a redesign — which is the standing trade-off of
+  this adapter, and why a redesign shows up as `Adapter produced no products`
+  rather than as silence.
+- **`soldOutText` is "Out of stock", not "Sold out".** This one matters more
+  than it looks. The first attempt used "Sold out", the phrase most stores use;
+  it matched nothing, and three genuinely sold-out watches were recorded as
+  available. Nothing would have looked wrong — until those watches came back and
+  produced **no restock alert**, because there was no false→true transition to
+  detect. Getting this wrong silently loses the thing Tier 4 exists for.
+
+### Verify the selectors before registering, not after
+
+Fetch the page and run the adapter over the saved HTML. What you are checking:
+
+- every product parsed has a title, a price and a `/products/` URL
+- the count is close to what the page claims
+- the number reported unavailable matches what the page actually shows
+- **fetching two or three times produces an identical snapshot hash**
+
+That last check is the one worth the effort. If the markup renders
+non-deterministically — a lazy-loaded row, a shuffled grid — products appear and
+vanish between polls, and every appearance is a new-release alert to both
+channels. Baltic returned an identical hash across three fetches and zero
+would-be alerts, which is what made it safe to register.
+
+For the record, its first real poll behaved: 59 products, a silent baseline, no
+drops; a second poll immediately after reported unchanged.
