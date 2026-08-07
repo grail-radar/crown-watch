@@ -217,6 +217,17 @@ real Prisma write path against Postgres. They share one database, so they run on
 a single worker and delete every row they create. CI runs the same suite against
 a Postgres service container.
 
+**The suite refuses to run against a non-local database.** Unless `DATABASE_URL`
+resolves to `localhost`, `127.0.0.1` or `::1`, the run aborts before a single
+test loads, naming the host it refused. The host is parsed, not pattern-matched,
+so a password or database name that happens to contain "localhost" will not get
+a remote database past it. This is not paranoia: the tests write,
+delete, and overwrite site-watch snapshots, and a run against production once
+caused 372 drops to be published to two public Telegram channels that cannot
+unsend. The main checkout legitimately holds production credentials for Prisma
+Studio and the Telegram tooling, so "don't point it at production" was never a
+control that could be relied on.
+
 ## Notes
 
 - Prisma is pinned to 6.x for stability; bump to 7.x later if desired.
