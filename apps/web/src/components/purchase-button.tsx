@@ -38,7 +38,7 @@ export function PurchaseButton({
       }
       className={`rounded-xl px-5 py-2.5 text-sm font-medium transition ${
         isStore
-          ? 'bg-gold text-night hover:bg-gold-bright'
+          ? 'bg-gold text-on-gold hover:bg-gold-bright'
           : 'border border-gold/40 text-gold hover:border-gold hover:text-gold-bright'
       } ${className}`}
     >

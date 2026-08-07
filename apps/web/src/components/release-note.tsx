@@ -74,7 +74,7 @@ export function ReleaseNote() {
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-end justify-center bg-night/80 p-4 backdrop-blur-sm sm:items-center"
+      className="fixed inset-0 z-50 flex items-end justify-center bg-scrim/80 p-4 backdrop-blur-sm sm:items-center"
       onClick={dismiss}
     >
       <div

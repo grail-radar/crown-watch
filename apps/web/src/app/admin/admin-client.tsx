@@ -114,7 +114,7 @@ export function AdminClient({ apiUrl }: { apiUrl: string }) {
           <button
             type="submit"
             disabled={loading || !token.trim()}
-            className="shrink-0 rounded-xl bg-gold px-4 py-2.5 text-sm font-medium text-night transition hover:bg-gold-bright disabled:opacity-50"
+            className="shrink-0 rounded-xl bg-gold px-4 py-2.5 text-sm font-medium text-on-gold transition hover:bg-gold-bright disabled:opacity-50"
           >
             {loading ? 'Checking…' : 'Unlock'}
           </button>
@@ -189,7 +189,7 @@ export function AdminClient({ apiUrl }: { apiUrl: string }) {
                     {dropTypeLabel(d.type)}
                   </span>
                   {d.confidenceScore !== null && (
-                    <span className="absolute right-3 top-3 rounded-full bg-night/80 px-2.5 py-1 text-[11px] text-faint">
+                    <span className="absolute right-3 top-3 rounded-full bg-scrim/80 px-2.5 py-1 text-[11px] text-faint">
                       conf {Math.round(d.confidenceScore * 100)}%
                     </span>
                   )}
@@ -229,7 +229,7 @@ export function AdminClient({ apiUrl }: { apiUrl: string }) {
                         <button
                           onClick={() => void act(d.id, 'approve')}
                           disabled={busy === d.id}
-                          className="flex-1 rounded-xl bg-gold px-3 py-2 text-sm font-medium text-night transition hover:bg-gold-bright disabled:opacity-50"
+                          className="flex-1 rounded-xl bg-gold px-3 py-2 text-sm font-medium text-on-gold transition hover:bg-gold-bright disabled:opacity-50"
                         >
                           {busy === d.id ? '…' : 'Approve & publish'}
                         </button>

@@ -49,32 +49,29 @@ function brandGeometry(slug: string): { angle: number; highlightX: number } {
 }
 
 /**
- * Banner background.
+ * The brand's own variables: hue and geometry, and nothing else.
  *
- * Three layers: a soft off-centre highlight, a diagonal base gradient, and a
- * faint pinstripe for texture. Lightness stays low throughout — this sits in a
- * dark editorial palette, and anything brighter would fight the gold accent and
- * the white text sitting on it.
+ * The gradients themselves live in `globals.css`, against `.brand-banner` and
+ * `.brand-avatar`. The split is deliberate — **hue belongs to the brand,
+ * lightness belongs to the theme**. Baked-in lightness was correct while the
+ * site was dark-only, and became a near-black band sitting on a white card the
+ * moment a light theme existed. An inline style cannot answer to `data-theme`;
+ * a custom property can.
  */
 export function brandBannerStyle(slug: string): React.CSSProperties {
   const h = brandHue(slug);
-  const h2 = (h + 35) % 360;
   const { angle, highlightX } = brandGeometry(slug);
 
   return {
-    backgroundImage: [
-      `radial-gradient(120% 120% at ${highlightX}% 0%, hsl(${h} 42% 24% / 0.95), transparent 62%)`,
-      `repeating-linear-gradient(${angle}deg, hsl(0 0% 100% / 0.028) 0 1px, transparent 1px 15px)`,
-      `linear-gradient(135deg, hsl(${h} 34% 16%), hsl(${h2} 28% 9%))`,
-    ].join(','),
-  };
+    '--brand-h': String(h),
+    // The second hue keeps the diagonal from reading as a flat wash.
+    '--brand-h2': String((h + 35) % 360),
+    '--brand-angle': `${angle}deg`,
+    '--brand-x': `${highlightX}%`,
+  } as React.CSSProperties;
 }
 
 /** Avatar that belongs to the same banner rather than sitting on it by accident. */
 export function brandAvatarStyle(slug: string): React.CSSProperties {
-  const h = brandHue(slug);
-  return {
-    backgroundImage: `linear-gradient(150deg, hsl(${h} 30% 18%), hsl(${h} 26% 10%))`,
-    boxShadow: `inset 0 0 0 1px hsl(${h} 38% 34% / 0.55)`,
-  };
+  return { '--brand-h': String(brandHue(slug)) } as React.CSSProperties;
 }

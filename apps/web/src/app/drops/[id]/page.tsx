@@ -158,7 +158,7 @@ export default async function DropPage({ params }: Props) {
                 className={
                   drop.purchase
                     ? 'rounded-xl border border-line px-5 py-2.5 text-sm text-faint transition hover:border-gold/50 hover:text-ink'
-                    : 'rounded-xl bg-gold px-5 py-2.5 text-sm font-medium text-night transition hover:bg-gold-bright'
+                    : 'rounded-xl bg-gold px-5 py-2.5 text-sm font-medium text-on-gold transition hover:bg-gold-bright'
                 }
               >
                 Read the original coverage ↗

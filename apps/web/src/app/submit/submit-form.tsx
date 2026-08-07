@@ -162,7 +162,7 @@ export function SubmitForm() {
         <button
           type="submit"
           disabled={status === 'busy'}
-          className="rounded-xl bg-gold px-6 py-2.5 text-sm font-medium text-night transition hover:bg-gold-bright disabled:opacity-50"
+          className="rounded-xl bg-gold px-6 py-2.5 text-sm font-medium text-on-gold transition hover:bg-gold-bright disabled:opacity-50"
         >
           {status === 'busy' ? 'Submitting…' : 'Submit drop'}
         </button>

@@ -16,7 +16,7 @@ export function BrandBanner({
     <div
       aria-hidden="true"
       style={brandBannerStyle(slug)}
-      className={`w-full ${className}`}
+      className={`brand-banner w-full ${className}`}
     />
   );
 }
@@ -38,7 +38,7 @@ export function BrandAvatar({
     <span
       aria-hidden="true"
       style={brandAvatarStyle(slug)}
-      className={`flex shrink-0 items-center justify-center rounded-full font-display text-gold ${className}`}
+      className={`brand-avatar flex shrink-0 items-center justify-center rounded-full font-display text-gold ${className}`}
     >
       {monogram(name)}
     </span>
