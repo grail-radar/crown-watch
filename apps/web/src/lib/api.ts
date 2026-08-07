@@ -127,6 +127,46 @@ export async function getDrop(id: string): Promise<FeedDrop | null> {
   }
 }
 
+/** One buyable configuration of a Watch — a bracelet option, a dial. */
+export interface WatchVariant {
+  id: string;
+  productUrl: string;
+  reference: string | null;
+  price: string | null;
+  currency: string | null;
+  imageUrl: string | null;
+  available: boolean;
+}
+
+/** One model a brand makes: the durable thing, as opposed to an event. */
+export interface WatchDetail {
+  id: string;
+  name: string;
+  slug: string;
+  firstSeenAt: string;
+  /** Borrowed from whichever variant has one; null when none does. */
+  imageUrl: string | null;
+  brand: { name: string; slug: string; website: string | null };
+  variants: WatchVariant[];
+}
+
+/** Fetch one watch, or null if not found/unreachable. */
+export async function getWatch(
+  brandSlug: string,
+  watchSlug: string,
+): Promise<WatchDetail | null> {
+  try {
+    const res = await fetch(
+      `${API_URL}/watches/${encodeURIComponent(brandSlug)}/${encodeURIComponent(watchSlug)}`,
+      { cache: 'no-store' },
+    );
+    if (!res.ok) return null;
+    return (await res.json()) as WatchDetail;
+  } catch {
+    return null;
+  }
+}
+
 /** Fetch a single brand + its published drops, or null if not found/unreachable. */
 export async function getBrand(slug: string): Promise<BrandDetail | null> {
   try {

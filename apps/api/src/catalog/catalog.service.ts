@@ -136,6 +136,47 @@ export class CatalogService {
     return { ...brand, drops: brand.drops.map(flattenDrop) };
   }
 
+  /**
+   * One Watch, by the brand that makes it and its own slug.
+   *
+   * Variants are ordered cheapest first, because the first thing a reader wants
+   * from a list of ways to buy the same watch is what the cheapest one costs.
+   * A Watch has no image column of its own — it borrows whichever of its
+   * variants has one, so a store that photographs only some references still
+   * shows a picture.
+   */
+  async getWatch(brandSlug: string, watchSlug: string) {
+    const watch = await this.prisma.watch.findFirst({
+      where: { slug: watchSlug, brand: { slug: brandSlug } },
+      select: {
+        id: true,
+        name: true,
+        slug: true,
+        firstSeenAt: true,
+        brand: { select: { name: true, slug: true, website: true } },
+        variants: {
+          orderBy: [{ price: 'asc' }, { productUrl: 'asc' }],
+          select: {
+            id: true,
+            productUrl: true,
+            reference: true,
+            price: true,
+            currency: true,
+            imageUrl: true,
+            available: true,
+          },
+        },
+      },
+    });
+    if (!watch) {
+      throw new NotFoundException(`Watch not found: ${brandSlug}/${watchSlug}`);
+    }
+    return {
+      ...watch,
+      imageUrl: watch.variants.find((v) => v.imageUrl)?.imageUrl ?? null,
+    };
+  }
+
   /** One published drop by id (404 for pending/rejected/unknown). */
   async getPublishedDrop(id: string) {
     const drop = await this.prisma.drop.findFirst({

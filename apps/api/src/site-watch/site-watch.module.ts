@@ -8,6 +8,7 @@ import { SiteWatchController } from './site-watch.controller';
 import { SiteWatchScheduler } from './site-watch.scheduler';
 import { SiteWatchService } from './site-watch.service';
 import { StoreProbe } from './store-probe';
+import { WatchWriterService } from './watch-writer.service';
 
 @Module({
   imports: [DropsModule, AlertsModule],
@@ -15,6 +16,7 @@ import { StoreProbe } from './store-probe';
   providers: [
     SiteWatchService,
     SiteWatchScheduler,
+    WatchWriterService,
     RobotsService,
     StoreProbe,
     AdminGuard,

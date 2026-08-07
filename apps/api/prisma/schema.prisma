@@ -155,9 +155,65 @@ model Brand {
   sources    Source[]
   drops      Drop[]
   watchlists Watchlist[]
+  watches    Watch[]
 
   @@index([status])
   @@map("brands")
+}
+
+// One model a brand makes — the durable object a reader searches for and lands
+// on, as opposed to a Drop, which is an event that happened to it.
+//
+// A store product is NOT a watch: YEMA lists the Superman Bronze CMM.10 as three
+// products, one per bracelet reference. Those are three Variants of one Watch,
+// and collapsing them is what stops the same watch being announced three times
+// (ADR-0003).
+model Watch {
+  id      String @id @default(cuid())
+  brandId String @map("brand_id")
+  // The grouping key from `site-watch/watch-identity.ts`. Stored rather than
+  // recomputed so a later change to the rule cannot silently re-partition a
+  // catalogue that is already published and linked to.
+  key     String
+  slug    String
+  name    String
+  // Spec columns — diameter, lug-to-lug, crystal, movement — are deliberately
+  // absent. The entity exists so they have somewhere to live, but extracting
+  // them costs real model credit and nobody has asked to filter yet.
+  firstSeenAt DateTime @default(now()) @map("first_seen_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  brand    Brand          @relation(fields: [brandId], references: [id], onDelete: Cascade)
+  variants WatchVariant[]
+
+  @@unique([brandId, key])
+  @@unique([brandId, slug])
+  @@index([brandId])
+  @@map("watches")
+}
+
+// One buyable configuration of a Watch — a bracelet option, a dial sold as its
+// own store product. A facet of the watch, never an event.
+model WatchVariant {
+  id      String @id @default(cuid())
+  watchId String @map("watch_id")
+  // Globally unique, not per-watch: a product URL identifies exactly one thing
+  // in the world, and keying on it is what lets a re-poll update a variant in
+  // place — and lets a retitled product move to a different Watch rather than
+  // being duplicated under both.
+  productUrl String  @unique @map("product_url")
+  reference  String?
+  price      Decimal? @db.Decimal(12, 2)
+  currency   String?  @db.VarChar(3)
+  imageUrl   String?  @map("image_url")
+  available  Boolean  @default(true)
+  firstSeenAt DateTime @default(now()) @map("first_seen_at")
+  lastSeenAt  DateTime @updatedAt @map("last_seen_at")
+
+  watch Watch @relation(fields: [watchId], references: [id], onDelete: Cascade)
+
+  @@index([watchId])
+  @@map("watch_variants")
 }
 
 model Drop {

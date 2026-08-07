@@ -9,6 +9,7 @@ import { getAdapter, parseWatchConfig } from './adapters';
 import { healthFor, isBackedOff, nextAttemptAt } from './backoff';
 import { RobotsService } from './robots.service';
 import { SiteFetcher } from './site-fetcher';
+import { WatchWriterService } from './watch-writer.service';
 import {
   diffSnapshots,
   hashSnapshot,
@@ -76,6 +77,12 @@ export interface SiteWatchSourceResult {
   /** true when this was the source's first ever snapshot */
   baseline: boolean;
   productCount: number;
+  /**
+   * Watches this poll recorded for the brand — the catalogue, not events. Kept
+   * apart from `dropsCreated` on purpose: a baseline poll records a whole
+   * catalogue and announces none of it.
+   */
+  watchesRecorded: number;
   dropsCreated: number;
   /** Telegram messages posted across all channels for this source's drops. */
   broadcastsSent: number;
@@ -105,6 +112,7 @@ export class SiteWatchService {
     private readonly prisma: PrismaService,
     private readonly fetcher: SiteFetcher,
     private readonly drops: DropWriterService,
+    private readonly watches: WatchWriterService,
     private readonly alerts: AlertDispatchService,
     private readonly robots: RobotsService,
     private readonly config: ConfigService,
@@ -191,6 +199,7 @@ export class SiteWatchService {
       changed: false,
       baseline: false,
       productCount: 0,
+      watchesRecorded: 0,
       dropsCreated: 0,
       broadcastsSent: 0,
       changes: [],
@@ -212,6 +221,13 @@ export class SiteWatchService {
           'Site-watch source has no brand attached; a store belongs to exactly one brand.',
         );
       }
+
+      // The brand's slug scopes watch identity, so two brands selling an
+      // "Aquascaphe" never collapse into one watch.
+      const brand = await this.prisma.brand.findUniqueOrThrow({
+        where: { id: source.brandId },
+        select: { slug: true },
+      });
 
       const config = parseWatchConfig(source.watchConfig);
       const adapter = getAdapter(config.adapter);
@@ -261,9 +277,34 @@ export class SiteWatchService {
       // returns to an earlier state — in stock, sold out, in stock again — and
       // that return is precisely the restock we exist to catch.
       if (previous && hashSnapshot(previous) === snapshotHash) {
+        // Nothing moved, so there is nothing new to record — unless this brand
+        // has no Watches at all, which is true of every source registered
+        // before Watches existed. One indexed count, and the catalogue heals
+        // itself on the next poll instead of waiting for the store to change.
+        const known = await this.prisma.watch.count({
+          where: { brandId: source.brandId },
+        });
+        if (known === 0) {
+          await this.watches.record(source.brandId, brand.slug, products);
+        }
         await this.recordSuccess(source.id, result);
         return result; // store unchanged since last poll
       }
+
+      // Catalogue, not events — so this runs on the baseline poll too. A store
+      // registered today has pages from the moment it is added, even though it
+      // deliberately announces nothing.
+      //
+      // Deliberately BEFORE the snapshot is stored. If this throws halfway, the
+      // poll fails with the old snapshot still in place, so the next one retries
+      // the whole thing; storing first would record the catalogue as seen and
+      // leave the half-written Watches unreachable until the store next changed.
+      const recorded = await this.watches.record(
+        source.brandId,
+        brand.slug,
+        products,
+      );
+      result.watchesRecorded = recorded.watches;
 
       const created = await this.storeSnapshot(source.id, products, snapshotHash);
       result.changed = true;

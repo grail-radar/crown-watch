@@ -18,6 +18,7 @@ import { PrismaService } from '../prisma/prisma.service';
 import { RobotsService } from './robots.service';
 import { FetchResult, SiteFetcher } from './site-fetcher';
 import { SiteWatchService } from './site-watch.service';
+import { WatchWriterService } from './watch-writer.service';
 
 /** Serves whatever the test says the store is showing right now. */
 class StubFetcher extends SiteFetcher {
@@ -96,6 +97,7 @@ describe('SiteWatchService', () => {
       prisma,
       fetcher,
       new DropWriterService(prisma),
+      new WatchWriterService(prisma),
       alerts,
       robots,
       config,
@@ -153,6 +155,88 @@ describe('SiteWatchService', () => {
 
   const dropsFor = (brandId: string) =>
     prisma.drop.findMany({ where: { brandId }, orderBy: { createdAt: 'asc' } });
+
+  const watchesFor = (brandId: string) =>
+    prisma.watch.findMany({
+      where: { brandId },
+      include: { variants: true },
+      orderBy: { name: 'asc' },
+    });
+
+  describe('the catalogue it builds alongside the drops', () => {
+    it('knows what a brand sells from the very first poll, while announcing nothing', async () => {
+      // A baseline is silent by design, but silence is not ignorance: a store
+      // registered today should have pages immediately.
+      const { source, brandId } = await arrangeSource();
+      fetcher.serve([
+        { handle: 'aquascaphe', title: 'Aquascaphe', available: true },
+        { handle: 'scalegraph', title: 'Scalegraph', available: true },
+      ]);
+
+      const result = await service.pollSource(source.id);
+
+      expect(result.baseline).toBe(true);
+      expect(result.dropsCreated).toBe(0);
+      expect(await dropsFor(brandId)).toHaveLength(0);
+      expect(result.watchesRecorded).toBe(2);
+      expect(await watchesFor(brandId)).toHaveLength(2);
+    });
+
+    it('treats the references a store lists for one model as one watch', async () => {
+      // Three products, one title — the YEMA case that motivated the entity.
+      const { source, brandId } = await arrangeSource();
+      fetcher.serve([
+        { handle: 'superman-u8', title: 'Superman Bronze CMM.10', available: true },
+        { handle: 'superman-u7', title: 'Superman Bronze CMM.10', available: true },
+        { handle: 'superman-u4', title: 'Superman Bronze CMM.10', available: true },
+      ]);
+
+      await service.pollSource(source.id);
+
+      const watches = await watchesFor(brandId);
+      expect(watches).toHaveLength(1);
+      expect(watches[0].variants).toHaveLength(3);
+    });
+
+    it('does not grow a second copy of the catalogue when nothing changed', async () => {
+      const { source, brandId } = await arrangeSource();
+      fetcher.serve([{ handle: 'aquascaphe', title: 'Aquascaphe', available: true }]);
+
+      await service.pollSource(source.id);
+      const first = await watchesFor(brandId);
+      await service.pollSource(source.id);
+      const second = await watchesFor(brandId);
+
+      expect(second).toHaveLength(1);
+      // The URL a reader may already hold must survive a re-poll untouched.
+      expect(second[0].slug).toBe(first[0].slug);
+      expect(second[0].id).toBe(first[0].id);
+      expect(second[0].variants).toHaveLength(1);
+    });
+
+    it('still announces one drop per product, exactly as before', async () => {
+      // This ticket introduces the catalogue and deliberately leaves alerting
+      // alone; collapsing the three announcements is the next one.
+      const { source, brandId } = await arrangeSource();
+      fetcher.serve([{ handle: 'first', title: 'First', available: true }]);
+      await service.pollSource(source.id);
+
+      fetcher.serve([
+        { handle: 'first', title: 'First', available: true },
+        { handle: 'superman-a', title: 'Superman Bronze', available: true },
+        { handle: 'superman-b', title: 'Superman Bronze', available: true },
+      ]);
+      const result = await service.pollSource(source.id);
+
+      expect(result.dropsCreated).toBe(2);
+      expect(await dropsFor(brandId)).toHaveLength(2);
+      // …even though those two products are one watch.
+      const superman = (await watchesFor(brandId)).find(
+        (w) => w.name === 'Superman Bronze',
+      );
+      expect(superman?.variants).toHaveLength(2);
+    });
+  });
 
   it('records a baseline on first sight and announces nothing', async () => {
     const { source, brandId } = await arrangeSource();
@@ -447,6 +531,7 @@ describe('SiteWatchService', () => {
       prisma,
       fetcher,
       new DropWriterService(prisma),
+      new WatchWriterService(prisma),
       new AlertDispatchService(
         prisma,
         new ConfigService({
@@ -488,6 +573,7 @@ describe('SiteWatchService', () => {
       prisma,
       fetcher,
       new DropWriterService(prisma),
+      new WatchWriterService(prisma),
       new AlertDispatchService(
         prisma,
         new ConfigService({
