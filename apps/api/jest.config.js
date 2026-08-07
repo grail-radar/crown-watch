@@ -17,6 +17,10 @@ module.exports = {
     '^.+\\.ts$': ['ts-jest', { tsconfig: '<rootDir>/../tsconfig.json' }],
   },
   setupFiles: ['<rootDir>/../test/setup.ts'],
+  // Refuses the whole run if DATABASE_URL is not local, before any spec loads.
+  // The suite writes, deletes and overwrites site-watch snapshots, so pointing
+  // it at a real deployment is not a slow test — it is an outage.
+  globalSetup: '<rootDir>/../test/global-setup.ts',
   // Persistence tests share one database; running files in parallel would let
   // them clash on the same rows.
   maxWorkers: 1,
