@@ -46,30 +46,49 @@ export default async function HomePage({
         type="application/ld+json"
         dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
       />
-      {/* Hero */}
+      {/*
+        Pitches discovery, per CONTEXT.md §1 and §2. What is absent is
+        load-bearing: the brand count, drop count and "refreshed every 20
+        minutes" that used to sit here are gone rather than restyled, because a
+        competitor tracks ten times the brands and detects restocks in minutes —
+        any number or speed claim invites the one comparison this site loses.
+      */}
       <section className="py-16 sm:py-20">
         <p className="text-xs font-medium uppercase tracking-[0.3em] text-faint">
-          Independent horology, tracked daily
+          Independent watchmaking, with an opinion
         </p>
-        <h1 className="mt-4 max-w-3xl font-display text-4xl font-medium leading-[1.08] tracking-tight sm:text-6xl">
-          The microbrand watch{' '}
-          <em className="italic text-gold">drop &amp; waitlist radar</em>
+        <h1 className="mt-4 max-w-4xl font-display text-4xl font-medium leading-[1.08] tracking-tight sm:text-6xl">
+          Which microbrands exist, and{' '}
+          <em className="italic text-gold">which are worth your attention</em>.
         </h1>
+        {/*
+          States the editorial stance (ADR-0004), not a stock of verdicts we do
+          not have yet: per-brand annotations are #22 and unbuilt, so "we say
+          when a brand isn't worth it" would be false on the day this ships.
+          What is true today is that nothing can be bought — worth saying plainly
+          now, and worth strengthening once #22 lands.
+        */}
         <p className="mt-5 max-w-2xl text-lg leading-relaxed text-faint">
-          New launches, Kickstarter campaigns, waitlist openings, and restocks
-          from independent watchmakers — all in one feed, so you never miss a
-          drop.
+          An independent directory of small watchmakers. Nothing here is paid for
+          or sponsored — no brand can buy a place or a good word. New releases and
+          restocks land on the same pages as they happen.
         </p>
-        <div className="mt-8 flex flex-wrap gap-2.5 text-xs text-faint">
-          <span className="rounded-full border border-line px-3 py-1.5">
-            {total} independent brand{total === 1 ? '' : 's'}
-          </span>
-          <span className="rounded-full border border-line px-3 py-1.5">
-            {feed.total} published drop{feed.total === 1 ? '' : 's'}
-          </span>
-          <span className="rounded-full border border-line px-3 py-1.5">
-            Refreshed every 20 minutes
-          </span>
+        {/* Into the catalogue, not a signup — the digest and the channels sit
+            further down, and a reader who arrived from one should not be sold it
+            again on the first screen. */}
+        <div className="mt-8 flex flex-wrap items-center gap-3">
+          <Link
+            href="/#brands"
+            className="rounded-full bg-gold px-5 py-2.5 text-sm font-medium text-on-gold transition hover:bg-gold-bright"
+          >
+            Browse the brands
+          </Link>
+          <Link
+            href="/#drops"
+            className="rounded-full border border-line px-5 py-2.5 text-sm text-faint transition hover:border-gold/50 hover:text-ink"
+          >
+            See what just landed
+          </Link>
         </div>
       </section>
 
