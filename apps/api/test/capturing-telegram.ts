@@ -1,3 +1,4 @@
+import { destinationKey } from '../src/alerts/destinations';
 import {
   TelegramClient,
   TelegramSendRequest,
@@ -15,7 +16,11 @@ import {
 export class CapturingTelegram extends TelegramClient {
   sent: TelegramSendRequest[] = [];
 
-  /** Channels that should throw instead of accepting a message. */
+  /**
+   * Channels that should throw instead of accepting a message, by key — the
+   * chat id, or `chat:topic` for one topic of a supergroup. Naming the topic
+   * lets a test break one room of a group without breaking the rest.
+   */
   broken = new Set<string>();
 
   /**
@@ -26,16 +31,22 @@ export class CapturingTelegram extends TelegramClient {
 
   async send(request: TelegramSendRequest): Promise<TelegramSendResult> {
     await this.onSend?.(request);
-    if (this.broken.has(request.chatId)) {
-      throw new Error(`channel ${request.chatId} is unavailable`);
+    const key = keyOf(request);
+    if (this.broken.has(key)) {
+      throw new Error(`channel ${key} is unavailable`);
     }
     this.sent.push(request);
     return { messageId: String(this.sent.length) };
   }
 
+  /** Every channel that received something, in the order they did. */
+  get keys(): string[] {
+    return this.sent.map(keyOf);
+  }
+
   /** The message a given channel received, if any. */
-  textFor(chatId: string): string | undefined {
-    return this.sent.find((s) => s.chatId === chatId)?.text;
+  textFor(key: string): string | undefined {
+    return this.sent.find((s) => keyOf(s) === key)?.text;
   }
 
   reset(): void {
@@ -43,4 +54,9 @@ export class CapturingTelegram extends TelegramClient {
     this.broken.clear();
     this.onSend = null;
   }
+}
+
+/** Same rule the dispatcher claims by, so a test names channels its way. */
+function keyOf(request: TelegramSendRequest): string {
+  return destinationKey(request.chatId, request.messageThreadId ?? undefined);
 }

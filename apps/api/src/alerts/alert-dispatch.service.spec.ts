@@ -15,10 +15,16 @@ import {
   BackfillCandidate,
   BackfillResult,
 } from './alert-dispatch.service';
+import { parseGroupDestinations } from './destinations';
 
 const UK_CHANNEL = '@crownwatch_ua';
 const EN_CHANNEL = '@crownwatch_en';
 const WEB = 'https://crownswatch.org';
+
+/** A partner community: someone else's supergroup, one topic of it ours. */
+const GROUP_CHAT = '-1001234567890';
+const GROUP_TOPIC = '42';
+const GROUP_KEY = `${GROUP_CHAT}:${GROUP_TOPIC}`;
 
 /** Config with both channels wired up, unless the test says otherwise. */
 function configure(
@@ -26,6 +32,8 @@ function configure(
     botToken?: string | undefined;
     uk?: string | undefined;
     en?: string | undefined;
+    /** As it is written in TELEGRAM_GROUPS, parsed by the real parser. */
+    groups?: string;
   } = {},
 ) {
   return new ConfigService({
@@ -36,9 +44,13 @@ function configure(
         uk: 'uk' in over ? over.uk : UK_CHANNEL,
         en: 'en' in over ? over.en : EN_CHANNEL,
       },
+      groups: parseGroupDestinations(over.groups),
     },
   });
 }
+
+/** The one partner group, written the way an operator writes it. */
+const WITH_GROUP = { groups: `uk:${GROUP_CHAT}:${GROUP_TOPIC}` };
 
 describe('AlertDispatchService', () => {
   let prisma: PrismaService;
@@ -420,6 +432,103 @@ describe('AlertDispatchService', () => {
     expect(result.status).toBe('error');
     expect(result.reason).toMatch(/not found/);
     expect(telegram.sent).toHaveLength(0);
+  });
+
+  describe('a partner group', () => {
+    it('posts into the agreed topic, not the group at large', async () => {
+      // Omitting the topic does not fail — it puts the alert in General, which
+      // in somebody else's community is the wrong room and cannot be unsent.
+      const { drop } = await arrangeDrop();
+
+      const result = await dispatcher(configure(WITH_GROUP)).broadcastDrop(
+        drop.id,
+      );
+
+      expect(result.sentCount).toBe(3);
+      const post = telegram.sent.find((s) => s.chatId === GROUP_CHAT)!;
+      expect(post.messageThreadId).toBe(GROUP_TOPIC);
+      // A Ukrainian community gets the Ukrainian alert, and only that one.
+      expect(post.text).toContain('Новий реліз');
+      expect(telegram.keys.filter((k) => k.startsWith(GROUP_CHAT))).toEqual([
+        GROUP_KEY,
+      ]);
+    });
+
+    it('announces to our own channels before a partner community', async () => {
+      // A group we do not own must never carry a drop our own followers have
+      // not seen yet.
+      const { drop } = await arrangeDrop();
+
+      await dispatcher(configure(WITH_GROUP)).broadcastDrop(drop.id);
+
+      expect(telegram.keys).toEqual([UK_CHANNEL, EN_CHANNEL, GROUP_KEY]);
+    });
+
+    it('claims a topic apart from the channel, and repeats neither', async () => {
+      const { drop } = await arrangeDrop();
+      const service = dispatcher(configure(WITH_GROUP));
+
+      await service.broadcastDrop(drop.id);
+      const second = await service.broadcastDrop(drop.id);
+
+      expect(second.channels.every((c) => c.outcome === 'skipped')).toBe(true);
+      expect(telegram.sent).toHaveLength(3);
+      const rows = await broadcastsFor(drop.id);
+      expect(rows.map((r) => r.chatId).sort()).toEqual(
+        [EN_CHANNEL, GROUP_KEY, UK_CHANNEL].sort(),
+      );
+    });
+
+    it('keeps two topics of one supergroup apart', async () => {
+      // They share a chat id. Claiming on the chat alone would let whichever
+      // topic posted first silence the other for good.
+      const { drop } = await arrangeDrop();
+
+      const result = await dispatcher(
+        configure({ groups: `uk:${GROUP_CHAT}:${GROUP_TOPIC},uk:${GROUP_CHAT}:9` }),
+      ).broadcastDrop(drop.id);
+
+      expect(result.sentCount).toBe(4);
+      expect(
+        telegram.sent
+          .filter((s) => s.chatId === GROUP_CHAT)
+          .map((s) => s.messageThreadId),
+      ).toEqual([GROUP_TOPIC, '9']);
+    });
+
+    it('does not let a partner group going down silence our channels', async () => {
+      const { drop } = await arrangeDrop();
+      telegram.broken.add(GROUP_KEY);
+
+      const result = await dispatcher(configure(WITH_GROUP)).broadcastDrop(
+        drop.id,
+      );
+
+      expect(result.channels.find((c) => c.key === GROUP_KEY)?.outcome).toBe(
+        'failed',
+      );
+      expect(telegram.keys.sort()).toEqual([EN_CHANNEL, UK_CHANNEL].sort());
+    });
+
+    it('catches a group added later up on the backlog alone', async () => {
+      // Agreeing to carry the feed happens long after the drops exist, so the
+      // group starts from the backlog while the channels stay quiet.
+      const { drop, brand } = await arrangeDrop();
+      await dispatcher().backfill({ limit: 50, confirm: true, delayMs: 0 });
+      telegram.sent = [];
+
+      const result = await dispatcher(configure(WITH_GROUP)).backfill({
+        limit: 50,
+        confirm: true,
+        delayMs: 0,
+      });
+
+      const candidate = result.candidates.find((c) => c.dropId === drop.id)!;
+      expect(candidate.messages.map((m) => m.channel)).toEqual([GROUP_KEY]);
+      // Other tests leave their own drops pending, so scope to this brand.
+      const ours = telegram.sent.filter((s) => s.text.includes(brand.name));
+      expect(ours.map((s) => s.messageThreadId)).toEqual([GROUP_TOPIC]);
+    });
   });
 
   describe('backfill', () => {

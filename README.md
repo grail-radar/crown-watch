@@ -138,6 +138,13 @@ Without a token — or with no channels configured — dispatch is skipped with 
 warning and the poll still publishes drops normally, matching how extraction and
 the digest sender degrade without their keys.
 
+The feed can also be carried by a **partner community** — someone else's group,
+posting into the one forum topic its admins agreed to. Set `TELEGRAM_GROUPS` to
+comma-separated `locale:chatId[:topicId]` entries, e.g.
+`uk:-1001234567890:42`; see the
+[Telegram destinations runbook](./docs/operations/telegram-destinations.md) for
+finding the ids and what to agree with the group's admins first.
+
 Drops reach the channels from two places: the site-watch poll announces a drop
 the moment it detects one, and approving a drop in the moderation queue announces
 it at the moment a reviewer makes it public. Approvals are queued and paced, so

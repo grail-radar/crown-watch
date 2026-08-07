@@ -69,6 +69,11 @@ and ingestion still works — dispatch just logs that it was skipped.
    - `TELEGRAM_BOT_TOKEN` = the BotFather token
    - `TELEGRAM_CHANNEL_UA` = `@your_ua_channel`
    - `TELEGRAM_CHANNEL_EN` = `@your_en_channel`
+4. Optional — partner communities carrying the feed:
+   `TELEGRAM_GROUPS` = comma-separated `locale:chatId[:topicId]`, e.g.
+   `uk:-1001234567890:42`. A malformed entry fails the boot rather than being
+   skipped. See the
+   [Telegram destinations runbook](./docs/operations/telegram-destinations.md).
 
 > Posts are at-most-once per channel and are never retried after a failure —
 > [ADR-0002](./docs/adr/0002-broadcasts-are-at-most-once.md). To force a

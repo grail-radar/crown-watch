@@ -50,3 +50,38 @@ describe('telegram channels', () => {
     expect(withEnv({ TELEGRAM_CHANNEL_UA: '' }).uk).toBeUndefined();
   });
 });
+
+describe('telegram partner groups', () => {
+  const saved = { ...process.env };
+
+  afterEach(() => {
+    process.env = { ...saved };
+  });
+
+  it('reads partner groups from TELEGRAM_GROUPS', () => {
+    process.env.TELEGRAM_GROUPS = 'uk:-1001234567890:42';
+
+    expect(configuration().telegram.groups).toEqual([
+      {
+        locale: 'uk',
+        chatId: '-1001234567890',
+        messageThreadId: '42',
+        key: '-1001234567890:42',
+      },
+    ]);
+  });
+
+  it('has no groups when the variable is unset', () => {
+    delete process.env.TELEGRAM_GROUPS;
+
+    expect(configuration().telegram.groups).toEqual([]);
+  });
+
+  it('refuses to start on an entry it cannot read', () => {
+    // Louder than the channels above deliberately: a channel we own that goes
+    // quiet is noticed within a day, a partner community's topic is not.
+    process.env.TELEGRAM_GROUPS = 'uk:-1001234567890:general';
+
+    expect(() => configuration()).toThrow(/TELEGRAM_GROUPS/);
+  });
+});

@@ -47,7 +47,7 @@ async function main(): Promise<void> {
       );
       if (!confirm) {
         for (const message of candidate.messages) {
-          process.stdout.write(`\n--- ${message.locale} (${message.chatId}) ---\n`);
+          process.stdout.write(`\n--- ${message.locale} (${message.channel}) ---\n`);
           process.stdout.write(`${message.text}\n`);
         }
         process.stdout.write('\n');

@@ -23,10 +23,15 @@ warning in the log.
 | `TELEGRAM_BOT_TOKEN` | any alert | `dispatch skipped`, drops still publish |
 | `TELEGRAM_CHANNEL_UA` | the Ukrainian channel | that channel is silently absent |
 | `TELEGRAM_CHANNEL_EN` | the English channel | that channel is silently absent |
+| `TELEGRAM_GROUPS` | partner communities carrying the feed | no group post; a *malformed* entry fails the boot |
 | `PUBLIC_WEB_URL` | the "Brand on Crown Watch" link | links point at the default domain |
 
 > The Ukrainian variable is `TELEGRAM_CHANNEL_UA`. `TELEGRAM_CHANNEL_UK` is also
 > accepted for compatibility, but `UK` reads as United Kingdom — prefer `UA`.
+
+> `TELEGRAM_GROUPS` is the one Telegram setting that refuses to degrade quietly.
+> See the [Telegram destinations runbook](./telegram-destinations.md) for adding
+> a partner group and for checking what the bot may actually post.
 
 Check what a running API actually sees:
 

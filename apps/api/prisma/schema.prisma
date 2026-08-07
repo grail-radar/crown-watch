@@ -282,6 +282,11 @@ model NotificationLog {
 model DropBroadcast {
   id        String          @id @default(cuid())
   dropId    String          @map("drop_id")
+  // The channel *key*, which for a plain chat is its chat id — every row
+  // written before partner groups existed, and every channel of ours still.
+  // A forum topic appends `:topic`, because two topics of one supergroup share
+  // a chat id and posting to one must not count as posting to the other. See
+  // `alerts/destinations.ts`.
   chatId    String          @map("chat_id")
   // Deliberately a string, not an enum, unlike every other closed set in this
   // schema. The point of the template design is that adding a language is a

@@ -1,3 +1,8 @@
+import {
+  BroadcastChannel,
+  parseGroupDestinations,
+} from '../alerts/destinations';
+
 export interface AppConfig {
   nodeEnv: string;
   port: number;
@@ -35,6 +40,12 @@ export interface AppConfig {
     botToken: string | undefined;
     /** One public broadcast channel per language. */
     channels: { uk: string | undefined; en: string | undefined };
+    /**
+     * Partner communities that carry the feed — someone else's group, usually
+     * one forum topic within it. Unlike the channels there is no natural limit
+     * on how many, and they come and go by agreement rather than by release.
+     */
+    groups: BroadcastChannel[];
     requestTimeoutMs: number;
     /** Pause between drops during a backfill, to stay under Telegram's limits. */
     backfillDelayMs: number;
@@ -113,6 +124,10 @@ export default (): AppConfig => ({
         undefined,
       en: process.env.TELEGRAM_CHANNEL_EN || undefined,
     },
+    // `locale:chatId[:topicId]`, comma-separated. Throws on a malformed entry
+    // rather than skipping it: an absent group is a supported state, but a
+    // mistyped one is a community that silently never receives a drop.
+    groups: parseGroupDestinations(process.env.TELEGRAM_GROUPS),
     requestTimeoutMs: parseInt(process.env.TELEGRAM_TIMEOUT_MS ?? '15000', 10),
     // Telegram throttles bursts to a channel at roughly 20 messages a minute.
     backfillDelayMs: parseInt(

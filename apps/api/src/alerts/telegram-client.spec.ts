@@ -67,4 +67,33 @@ describe('buildSendCall', () => {
 
     expect(call.method).toBe('sendPhoto');
   });
+
+  it('posts into the given forum topic, photo or text', () => {
+    // A partner group keeps watch news in one topic. Without this the alert
+    // lands in General instead, in a chat that cannot unsend.
+    const text = buildSendCall({
+      chatId: '-1001234567890',
+      text: 'hi',
+      messageThreadId: '42',
+    });
+    const photo = buildSendCall({
+      chatId: '-1001234567890',
+      text: 'hi',
+      imageUrl: 'https://cdn.example/a.jpg',
+      messageThreadId: '42',
+    });
+
+    expect(text.body.message_thread_id).toBe('42');
+    expect(photo.body.message_thread_id).toBe('42');
+  });
+
+  it('sends no thread at all to a chat that has no topics', () => {
+    // Telegram rejects message_thread_id outright on a plain channel, so an
+    // explicit null or undefined must not become a key with a falsy value.
+    for (const messageThreadId of [null, undefined, '']) {
+      const call = buildSendCall({ chatId: CHAT, text: 'hi', messageThreadId });
+
+      expect(call.body).not.toHaveProperty('message_thread_id');
+    }
+  });
 });
