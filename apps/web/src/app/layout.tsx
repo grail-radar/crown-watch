@@ -4,7 +4,9 @@ import { Fraunces, Instrument_Sans } from 'next/font/google';
 import { Analytics } from '@vercel/analytics/next';
 import { ReleaseNote } from '@/components/release-note';
 import { TelegramIcon } from '@/components/telegram-icon';
+import { ThemeSwitch } from '@/components/theme-switch';
 import { TELEGRAM_CHANNELS } from '@/lib/channels';
+import { themeBootScript } from '@/lib/theme';
 import { SITE_DESCRIPTION, SITE_NAME, SITE_TAGLINE, SITE_URL } from '@/lib/site';
 import './globals.css';
 
@@ -48,14 +50,32 @@ export default function RootLayout({
   children: React.ReactNode;
 }) {
   return (
-    <html lang="en" className={`${fraunces.variable} ${instrument.variable}`}>
+    <html
+      lang="en"
+      className={`${fraunces.variable} ${instrument.variable}`}
+      suppressHydrationWarning
+    >
+      <head>
+        {/*
+          Applies the reader's theme before the first paint. Inline and blocking
+          on purpose: anything deferred renders the default palette first, and
+          the correction is visible as a flash on every load.
+
+          It sets `data-theme` on <html>, which React did not render — hence
+          suppressHydrationWarning above, scoped to this one element.
+        */}
+        <script dangerouslySetInnerHTML={{ __html: themeBootScript }} />
+      </head>
       <body className="flex min-h-screen flex-col">
         <header className="border-b border-line/70">
-          <div className="mx-auto flex w-full max-w-6xl items-center justify-between px-6 py-4">
-            <Link href="/" className="font-display text-lg tracking-tight">
+          <div className="mx-auto flex w-full max-w-6xl items-center justify-between gap-3 px-6 py-4">
+            <Link
+              href="/"
+              className="whitespace-nowrap font-display text-lg tracking-tight"
+            >
               <span className="text-gold">Crown</span> Watch
             </Link>
-            <nav className="flex items-center gap-5 text-sm text-faint sm:gap-6">
+            <nav className="flex items-center gap-3.5 text-sm text-faint sm:gap-6">
               <Link href="/drops" className="transition hover:text-ink">
                 Drops
               </Link>
@@ -77,12 +97,17 @@ export default function RootLayout({
                 <TelegramIcon className="h-4 w-4" />
                 <span className="hidden sm:inline">Telegram</span>
               </a>
+              {/* The theme switch costs about 80px of header. Below `sm` the
+                  CTA gives back roughly that much rather than the row wrapping
+                  onto three lines. */}
               <Link
                 href="/#digest"
-                className="rounded-full border border-gold/40 px-3.5 py-1.5 text-gold transition hover:border-gold hover:text-gold-bright"
+                className="whitespace-nowrap rounded-full border border-gold/40 px-3.5 py-1.5 text-gold transition hover:border-gold hover:text-gold-bright"
               >
-                Get the digest
+                <span className="sm:hidden">Digest</span>
+                <span className="hidden sm:inline">Get the digest</span>
               </Link>
+              <ThemeSwitch />
             </nav>
           </div>
         </header>

@@ -6,21 +6,125 @@
   --font-display: var(--font-fraunces), Georgia, "Times New Roman", serif;
 }
 
-/* Dark-first editorial palette: layered surfaces (never true black), warm ink,
-   champagne-gold accent. */
-@theme {
-  --color-night: #101014;
-  --color-panel: #17171c;
-  --color-panel-2: #1e1e24;
-  --color-line: #26262e;
-  --color-ink: #ece9e2;
-  --color-faint: #918e86;
-  --color-gold: #c9a96a;
-  --color-gold-bright: #e0c690;
+/*
+ * The palette is indirected through `--cw-*` so a theme can swap it wholesale.
+ * `@theme inline` makes Tailwind's utilities reference the variable rather than
+ * bake in a value, which is what lets `bg-night` mean two different colours.
+ *
+ * Every colour in the app comes from these nine tokens — no component carries a
+ * hex value or a `dark:` variant, so a palette change is this file and nothing
+ * else.
+ */
+@theme inline {
+  --color-night: var(--cw-night);
+  --color-panel: var(--cw-panel);
+  --color-panel-2: var(--cw-panel-2);
+  --color-line: var(--cw-line);
+  --color-ink: var(--cw-ink);
+  --color-faint: var(--cw-faint);
+  --color-gold: var(--cw-gold);
+  --color-gold-bright: var(--cw-gold-bright);
+  /*
+   * Text sitting ON a gold fill, which is not the page background even though
+   * the two happened to be the same colour while the site was dark-only. They
+   * diverge in light, where gold is a deep bronze carrying near-white text —
+   * reusing the page colour here is what makes an inverted palette illegible.
+   */
+  --color-on-gold: var(--cw-on-gold);
+  /*
+   * Modal backdrops and badges laid over photographs. Deliberately dark in both
+   * themes: a scrim exists to sink what is behind it, and a light scrim over a
+   * light page does nothing.
+   */
+  --color-scrim: var(--cw-scrim);
 }
 
+/*
+ * Both palettes, declared once.
+ *
+ * `light-dark()` picks by the *used* `color-scheme`, so the three states below
+ * are the whole switch: the default follows the operating system — which is
+ * also what a reader with no JavaScript gets — and `data-theme` overrides it.
+ * Writing it this way means neither palette is repeated for the no-JS case.
+ *
+ * Dark is the considered one: layered surfaces (never true black), warm ink,
+ * champagne-gold accent. Light is not its inverse — a champagne accent on paper
+ * reads at about 1.9:1 and disappears, so gold becomes an antique bronze at
+ * 5.31:1, and paper and ink stay warm for the same reason the dark surfaces
+ * never reach true black.
+ */
 :root {
+  color-scheme: light dark;
+
+  --cw-night: light-dark(#f5f2ec, #101014);
+  --cw-panel: light-dark(#fbf9f6, #17171c);
+  --cw-panel-2: light-dark(#ffffff, #1e1e24);
+  --cw-line: light-dark(#e0d9cc, #26262e);
+  --cw-ink: light-dark(#22201b, #ece9e2);
+  --cw-faint: light-dark(#5f5a50, #918e86);
+  --cw-gold: light-dark(#7d5f27, #c9a96a);
+  --cw-gold-bright: light-dark(#5f4718, #e0c690);
+  --cw-on-gold: light-dark(#fffcf5, #101014);
+  --cw-scrim: #101014;
+
+  /*
+   * Generated brand art. Hue arrives per element from `lib/brand-art.ts`; how
+   * light it is is the theme's business and lives here. Dark wants deep and
+   * saturated so the gold monogram carries; light wants a tint, because a
+   * near-black band on a white card reads as a hole punched in it.
+   */
+  --art-glow-s: light-dark(58%, 42%);
+  --art-glow-l: light-dark(94%, 24%);
+  --art-base-s: light-dark(42%, 34%);
+  --art-base-l: light-dark(88%, 16%);
+  --art-base2-s: light-dark(34%, 28%);
+  --art-base2-l: light-dark(78%, 9%);
+  --art-avatar-l: light-dark(90%, 18%);
+  --art-ring-s: light-dark(40%, 38%);
+  --art-ring-l: light-dark(45%, 34%);
+  --art-ring-a: light-dark(0.4, 0.55);
+  --art-stripe: light-dark(hsl(0 0% 0% / 0.035), hsl(0 0% 100% / 0.028));
+}
+
+:root[data-theme="light"] {
+  color-scheme: light;
+}
+
+:root[data-theme="dark"] {
   color-scheme: dark;
+}
+
+/*
+ * Three layers: a soft off-centre highlight, a diagonal base gradient, and a
+ * faint pinstripe for texture.
+ */
+.brand-banner {
+  background-image:
+    radial-gradient(
+      120% 120% at var(--brand-x) 0%,
+      hsl(var(--brand-h) var(--art-glow-s) var(--art-glow-l) / 0.95),
+      transparent 62%
+    ),
+    repeating-linear-gradient(
+      var(--brand-angle),
+      var(--art-stripe) 0 1px,
+      transparent 1px 15px
+    ),
+    linear-gradient(
+      135deg,
+      hsl(var(--brand-h) var(--art-base-s) var(--art-base-l)),
+      hsl(var(--brand-h2) var(--art-base2-s) var(--art-base2-l))
+    );
+}
+
+.brand-avatar {
+  background-image: linear-gradient(
+    150deg,
+    hsl(var(--brand-h) var(--art-base-s) var(--art-avatar-l)),
+    hsl(var(--brand-h) var(--art-base2-s) var(--art-base2-l))
+  );
+  box-shadow: inset 0 0 0 1px
+    hsl(var(--brand-h) var(--art-ring-s) var(--art-ring-l) / var(--art-ring-a));
 }
 
 body {

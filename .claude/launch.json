@@ -6,6 +6,13 @@
       "runtimeExecutable": "pnpm",
       "runtimeArgs": ["--filter", "@crown-watch/web", "dev"],
       "port": 3000
+    },
+    {
+      "name": "web-live-data",
+      "runtimeExecutable": "pnpm",
+      "runtimeArgs": ["--filter", "@crown-watch/web", "dev"],
+      "port": 3000,
+      "env": { "API_URL": "https://crown-watch-api.onrender.com" }
     }
   ]
 }

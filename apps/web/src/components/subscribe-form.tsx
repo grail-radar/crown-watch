@@ -56,7 +56,7 @@ export function SubscribeForm() {
       <button
         type="submit"
         disabled={status === 'busy'}
-        className="shrink-0 rounded-xl bg-gold px-5 py-2.5 text-sm font-medium text-night transition hover:bg-gold-bright disabled:opacity-50"
+        className="shrink-0 rounded-xl bg-gold px-5 py-2.5 text-sm font-medium text-on-gold transition hover:bg-gold-bright disabled:opacity-50"
       >
         {status === 'busy' ? 'Joining…' : 'Join the digest'}
       </button>
