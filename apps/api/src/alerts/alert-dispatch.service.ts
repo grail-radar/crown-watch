@@ -8,6 +8,7 @@ import {
 } from '@prisma/client';
 import { purchaseLinkFor } from '../drops/purchase-link';
 import { PrismaService } from '../prisma/prisma.service';
+import { BroadcastChannel, destinationKey } from './destinations';
 import {
   ALERT_LOCALES,
   AlertLocale,
@@ -53,11 +54,8 @@ const DEFAULT_DISPATCH_GAP_MS = 3000;
 
 export type BroadcastOutcome = 'sent' | 'skipped' | 'failed';
 
-/** One configured destination: a language and the channel it posts to. */
-export interface BroadcastChannel {
-  locale: AlertLocale;
-  chatId: string;
-}
+/** Re-exported so callers of the dispatcher need only one import. */
+export type { BroadcastChannel };
 
 /** Everything one drop contributes to a post, shared across its channels. */
 interface BroadcastPayload {
@@ -111,9 +109,19 @@ export interface BackfillCandidate {
   brandName: string;
   title: string;
   publishedAt: string | null;
+  /**
+   * Languages still owed this drop — a summary line, deliberately deduplicated.
+   * Two Ukrainian destinations are still one language to a reader skimming a
+   * dry run; `messages` below says which channels precisely.
+   */
   pendingLocales: AlertLocale[];
   /** The exact messages, so a dry run can be read before anything is sent. */
-  messages: Array<{ locale: AlertLocale; chatId: string; text: string }>;
+  messages: Array<{
+    locale: AlertLocale;
+    /** The channel key, so a dry run names the topic and not just the group. */
+    channel: string;
+    text: string;
+  }>;
 }
 
 export interface BackfillResult {
@@ -170,12 +178,25 @@ export class AlertDispatchService implements OnApplicationShutdown {
     private readonly telegram: TelegramClient,
   ) {}
 
-  /** The configured channel per locale, omitting any that is not set. */
+  /**
+   * Everywhere a drop is announced: our own channel per language, plus any
+   * partner community configured through `TELEGRAM_GROUPS`.
+   *
+   * Ours come first, so the channel we control is the first to have a drop and
+   * a partner group never carries something our own followers have not seen.
+   */
   private channels(): BroadcastChannel[] {
-    return ALERT_LOCALES.flatMap((locale) => {
+    const own = ALERT_LOCALES.flatMap((locale) => {
       const chatId = this.config.get<string>(`telegram.channels.${locale}`);
-      return chatId ? [{ locale, chatId }] : [];
+      // The key is the bare chat id, which is what every claim written before
+      // partner groups existed used — those channels keep their own history.
+      return chatId ? [{ locale, chatId, key: destinationKey(chatId) }] : [];
     });
+
+    const groups =
+      this.config.get<BroadcastChannel[]>('telegram.groups') ?? [];
+
+    return [...own, ...groups];
   }
 
   /**
@@ -311,7 +332,12 @@ export class AlertDispatchService implements OnApplicationShutdown {
     channel: BroadcastChannel,
     payload: BroadcastPayload,
   ): Promise<ChannelBroadcastResult> {
-    const base = { locale: channel.locale, chatId: channel.chatId };
+    const base = {
+      locale: channel.locale,
+      chatId: channel.chatId,
+      messageThreadId: channel.messageThreadId,
+      key: channel.key,
+    };
 
     // Claim first. Whoever wins the insert owns the send; everyone else — a
     // concurrent run, a re-run, a retry after a restart — sees the row and
@@ -320,8 +346,11 @@ export class AlertDispatchService implements OnApplicationShutdown {
     try {
       const claim = await this.prisma.dropBroadcast.create({
         data: {
+          // `chat_id` holds the channel *key*, not always a bare chat id: two
+          // topics of one supergroup share a chat and must still be claimed
+          // separately. For a channel the two are the same string.
+          chatId: channel.key,
           dropId,
-          chatId: channel.chatId,
           locale: channel.locale,
           status: BroadcastStatus.pending,
         },
@@ -345,6 +374,7 @@ export class AlertDispatchService implements OnApplicationShutdown {
     try {
       const { messageId } = await this.telegram.send({
         chatId: channel.chatId,
+        messageThreadId: channel.messageThreadId,
         text,
         imageUrl: payload.imageUrl,
       });
@@ -370,7 +400,7 @@ export class AlertDispatchService implements OnApplicationShutdown {
         })
         .catch(() => undefined);
       this.logger.error(
-        `Broadcast to ${channel.locale} channel failed for drop ${dropId}: ${message}`,
+        `Broadcast to ${channel.locale} channel ${channel.key} failed for drop ${dropId}: ${message}`,
       );
       return { ...base, outcome: 'failed', reason: message };
     }
@@ -423,17 +453,17 @@ export class AlertDispatchService implements OnApplicationShutdown {
       result.candidateCount = pending.length;
       const webUrl = this.webUrl();
 
-      for (const { drop, locales } of pending) {
+      for (const { drop, channels: pendingChannels } of pending) {
         const alert = this.toAlert(drop);
         result.candidates.push({
           dropId: drop.id,
           brandName: drop.brand.name,
           title: drop.title,
           publishedAt: drop.publishedAt?.toISOString() ?? null,
-          pendingLocales: locales.map((c) => c.locale),
-          messages: locales.map((c) => ({
+          pendingLocales: [...new Set(pendingChannels.map((c) => c.locale))],
+          messages: pendingChannels.map((c) => ({
             locale: c.locale,
-            chatId: c.chatId,
+            channel: c.key,
             text: renderDropAlert(c.locale, alert, webUrl),
           })),
         });
@@ -480,7 +510,7 @@ export class AlertDispatchService implements OnApplicationShutdown {
   private async backfillCandidates(channels: BroadcastChannel[], limit: number) {
     const byDrop = new Map<
       string,
-      { drop: DropRecord; locales: BroadcastChannel[] }
+      { drop: DropRecord; channels: BroadcastChannel[] }
     >();
 
     for (const channel of channels) {
@@ -488,15 +518,15 @@ export class AlertDispatchService implements OnApplicationShutdown {
         where: {
           moderationStatus: ModerationStatus.approved,
           publishedAt: { not: null },
-          broadcasts: { none: { chatId: channel.chatId } },
+          broadcasts: { none: { chatId: channel.key } },
         },
         orderBy: { publishedAt: 'asc' },
         take: limit,
         select: DROP_FIELDS,
       });
       for (const drop of drops) {
-        const entry = byDrop.get(drop.id) ?? { drop, locales: [] };
-        entry.locales.push(channel);
+        const entry = byDrop.get(drop.id) ?? { drop, channels: [] };
+        entry.channels.push(channel);
         byDrop.set(drop.id, entry);
       }
     }

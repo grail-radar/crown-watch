@@ -8,6 +8,14 @@ export interface TelegramSendRequest {
   text: string;
   /** Drop photo, when we have one. Posted as an image with the text beneath. */
   imageUrl?: string | null;
+  /**
+   * Forum topic to post into, for a supergroup that has topics.
+   *
+   * Omitting it in a forum does not fail — the message lands in General, which
+   * in a partner community is somebody else's front room and cannot be unsent.
+   * Passing one to a chat *without* topics is the error Telegram does reject.
+   */
+  messageThreadId?: string | null;
 }
 
 export interface TelegramSendResult {
@@ -52,12 +60,18 @@ export function buildSendCall({
   chatId,
   text,
   imageUrl,
+  messageThreadId,
 }: TelegramSendRequest): TelegramCall {
+  // Spread rather than always present: Telegram rejects `message_thread_id` on
+  // a chat with no topics, so a channel post must carry no such key at all.
+  const thread = messageThreadId ? { message_thread_id: messageThreadId } : {};
+
   if (imageUrl && text.length <= CAPTION_LIMIT) {
     return {
       method: 'sendPhoto',
       body: {
         chat_id: chatId,
+        ...thread,
         photo: imageUrl,
         caption: text,
         parse_mode: 'HTML',
@@ -69,6 +83,7 @@ export function buildSendCall({
     method: 'sendMessage',
     body: {
       chat_id: chatId,
+      ...thread,
       text,
       parse_mode: 'HTML',
       // The alert is the link; Telegram's own preview card would double it up

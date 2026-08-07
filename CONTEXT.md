@@ -10,8 +10,14 @@ An aggregation platform for independent/microbrand watchmakers: new launches, Ki
 campaigns, waitlist openings, and restocks — all in one feed, instead of an enthusiast having
 to follow dozens of individual brand newsletters and Instagram accounts.
 
-**Who it's for:** watch enthusiasts who follow multiple microbrands and don't want to miss
-drops; secondarily, the microbrands themselves, who want visibility to a pre-qualified audience.
+**Who it's for:** primarily people discovering the microbrand scene — they want to learn which
+brands exist and which are worth attention. Secondarily, enthusiasts already following brands
+who don't want to miss a drop. One system serves both: curated judgement is the product, and
+the drop radar is what keeps it current.
+
+**Languages:** `en` and `uk`. Ukrainian exists because nothing serves that scene; it is a
+locale, not a separate product. No shipping, customs or logistics data is carried — this
+platform sells nothing physical.
 
 **Why now:** the microbrand scene is large and growing, mostly funded via Kickstarter/Indiegogo,
 but there's no dedicated aggregator — enthusiasts currently rely on scattered Instagram
@@ -21,15 +27,24 @@ Prefinery, GetWaitlist) exists but is not watch-specific and has no cross-brand 
 ## 2. Business model
 
 - **Free tier:** public feed, brand directory, browsing. This drives SEO/organic growth —
-  every brand and drop gets its own indexable page.
+  every brand and every **watch** gets its own indexable page. A drop is an *event*, so it is
+  an entry on a watch page rather than a destination of its own: people search for
+  "Baltic Aquascaphe MK2", never for "Baltic restock, August".
 - **Paid tier ($5–12/mo):** personalized alerts (keyword/brand watchlists) pushed to email,
   Telegram, or Discord the moment a drop or restock goes live.
-- **B2B (later, once there's traffic):** brands pay for "verified drop" placement/featured
-  visibility — similar to Product Hunt.
-- **Real differentiator to build toward:** a brand reliability/delivery-track-record score
-  (how often a brand's promised ship dates slip, sourced from community reports over time).
-  Pure aggregation is a weak reason to pay when brand newsletters are free and instant — the
-  track-record data is what turns this into a decision-support tool instead of just a feed.
+- **Affiliate only, never paid placement.** Where a brand runs an affiliate programme,
+  purchase links carry the tag. Placement, ordering and annotations are **not purchasable** —
+  the moment a brand can pay for what we say about it, every annotation on the site is
+  worthless. This is a permanent no (ADR-0004).
+- **Real differentiator:** curated brand judgement — one honest sentence per brand, including
+  the unflattering ones. It cannot be scraped, and competitors' far larger databases do not
+  have it. Pure aggregation is a weak reason to pay when brand newsletters are free and
+  instant; the judgement is what turns a feed into a way to decide.
+
+  *This section previously named a brand reliability/delivery-track-record score (how often a
+  brand's promised ship dates slip). It is retired rather than deleted, so the next reader
+  knows it was tried: `drops.promised_ship_date` is populated on 0 of 14 drops, because
+  articles almost never state a ship date. Revisit if a real source of ship-date data appears.*
 
 ## 3. Tech stack
 
@@ -46,7 +61,9 @@ Prefinery, GetWaitlist) exists but is not watch-specific and has no cross-brand 
 - **Search:** Meilisearch or Typesense (self-hosted) for the public feed/directory search.
 - **Notifications:** Postmark or Resend (email), a Telegram bot library (e.g. grammY or
   node-telegram-bot-api), Discord webhooks.
-- **Payments:** Stripe (subscriptions now, invoicing for B2B later).
+- **Payments:** Stripe is the destination. Crypto-only in the interim — Ukrainian cards cannot
+  open a Stripe account. Revisit once an EU card is available; `subscriptions.stripe_customer_id`
+  stays in the model because that is where this is going.
 - **Hosting:** Vercel (Next.js) + Railway or Fly.io (NestJS API, Postgres, Redis).
 
 ## 4. Data ingestion strategy — tiered by reliability, not one crawler
@@ -77,10 +94,27 @@ raw_ingestion_events    — id, source_id, fetched_at, raw_payload (jsonb/text),
                           // extraction prompts improve
 
 brands                  — id, name, slug, website, instagram_handle, country,
-                          founded_year_est, status (watchlist|verified),
-                          reliability_score (nullable, phase 2)
+                          founded_year_est, status (listed|curated),
+                          annotation (nullable), annotated_at,
+                          reliability_score (nullable, someday — see §2)
+                          // `curated` means a human approved the annotation.
+                          // Same gate as moderation_status on drops: judgement
+                          // is the product, so nothing publishes unreviewed.
 
-drops                   — id, brand_id, title,
+watches                 — id, brand_id, slug, name (normalised title),
+                          first_seen_at
+                          // The durable object: what people search for and land
+                          // on. Spec columns (diameter, lug-to-lug, crystal,
+                          // movement…) are deliberately deferred until someone
+                          // actually filters.
+
+watch_variants          — id, watch_id, product_url, reference, price, currency,
+                          available, last_seen_at
+                          // One buyable configuration. A facet of the watch,
+                          // never an event — so three bracelet options are one
+                          // watch and one alert, not three (ADR-0003).
+
+drops                   — id, brand_id, watch_id, title,
                           type (kickstarter_launch|waitlist_open|restock|pre_order),
                           price_low, price_high, currency, event_date,
                           source_event_id → raw_ingestion_events,
@@ -131,8 +165,9 @@ confidence in a given source's extraction accuracy.
   seed ~300–500 brands from existing published lists before launch (a weekend of reading, not
   automation).
 - **Weak monetization if it's "just aggregation"** — brand newsletters are already free and
-  instant. The reliability/track-record data is the real differentiator worth paying for;
-  plan to build toward it, don't treat it as optional polish.
+  instant, and a competitor (chronoscout.co) already tracks ~330 brands with restock alerts,
+  sell-out speed and projected restock. Breadth and speed are therefore not available as a
+  differentiator. Curated judgement is (§2); treat the annotation as the product, not polish.
 - **Copyright** — extraction must output short factual fields (brand, model, price, date) in
   your own structure, never reproduce source marketing copy or article text.
 - **Cost creep** — start entirely on free/self-hosted tiers (changedetection.io, RSS parsing,
@@ -158,3 +193,47 @@ the core feed has real users and you know which sources actually matter to them.
 - Post in 2–3 relevant communities (r/watches, a microbrand Discord, Watchuseek) and see if
   people actually leave an email for "tell me when Brand X restocks."
 - Talk to ~20 target users before investing in Tier 2–5 ingestion.
+
+## 9. Language
+
+The words this project uses, and the ones it deliberately doesn't. When output names a domain
+concept — an issue title, a test name, a column, a UI label — use the term as defined here.
+
+**Brand**:
+An independent watchmaker we track. Carries the Annotation.
+_Avoid_: maker, manufacturer, label.
+
+**Watch**:
+One model from a Brand — the durable thing a person searches for and lands on. Owns its
+Variants and, one day, its specs.
+_Avoid_: product, model, reference, SKU.
+
+**Variant**:
+One buyable configuration of a Watch: a bracelet option, a dial colour sold as its own store
+product. A facet of the Watch, never an event of its own.
+_Avoid_: SKU, option, version.
+
+**Drop**:
+One event about a Watch — it launched, restocked, opened a waitlist, went live on Kickstarter.
+An entry on a watch page, never a page of its own.
+_Avoid_: release, listing, post.
+
+**Annotation**:
+The one-sentence human judgement about a Brand, including the unflattering ones. The
+differentiator, and never purchasable (ADR-0004).
+_Avoid_: description, bio, summary, blurb.
+
+**Curated**:
+A Brand whose Annotation a human has approved. The other state is **Listed** — present and
+honest about being unreviewed.
+_Avoid_: verified, approved, featured.
+
+**Watchlist**:
+A *user's* list of Brands or keywords they follow. Never a state a Brand is in — that is
+Listed or Curated.
+_Avoid_: using this word for anything on the Brand side.
+
+**Channel**:
+Somewhere a Drop is announced and claimed against, at most once (ADR-0002). Covers both a
+Telegram channel we own and one forum topic of a partner community.
+_Avoid_: destination, feed, target.
