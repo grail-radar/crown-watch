@@ -16,6 +16,14 @@ export class CatalogController {
     return this.catalog.getBrandBySlug(slug);
   }
 
+  @Get('watches/:brandSlug/:watchSlug')
+  watch(
+    @Param('brandSlug') brandSlug: string,
+    @Param('watchSlug') watchSlug: string,
+  ) {
+    return this.catalog.getWatch(brandSlug, watchSlug);
+  }
+
   @Get('drops')
   drops(
     @Query('take') take?: string,
