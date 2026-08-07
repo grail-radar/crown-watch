@@ -1,6 +1,7 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
 import { Fraunces, Instrument_Sans } from 'next/font/google';
+import { Analytics } from '@vercel/analytics/next';
 import { ReleaseNote } from '@/components/release-note';
 import { TelegramIcon } from '@/components/telegram-icon';
 import { TELEGRAM_CHANNELS } from '@/lib/channels';
@@ -131,6 +132,7 @@ export default function RootLayout({
         </footer>
 
         <ReleaseNote />
+        <Analytics />
       </body>
     </html>
   );
