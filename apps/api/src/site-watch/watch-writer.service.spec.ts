@@ -219,7 +219,9 @@ describe('WatchWriterService', () => {
           note: 'Store appends the reference to one bracelet only',
         },
       });
-      await writer.record(brand.id, brand.slug, catalogue, await load(brand.id));
+      await writer.record(brand.id, brand.slug, catalogue, {
+        overrides: await load(brand.id),
+      });
 
       const watches = await watchesFor(brand.id);
       const populated = watches.filter((w) => w.variants.length > 0);
@@ -245,7 +247,9 @@ describe('WatchWriterService', () => {
           watchName: 'Aquascaphe Limited Edition',
         },
       });
-      await writer.record(brand.id, brand.slug, catalogue, await load(brand.id));
+      await writer.record(brand.id, brand.slug, catalogue, {
+        overrides: await load(brand.id),
+      });
 
       const populated = (await watchesFor(brand.id)).filter(
         (w) => w.variants.length > 0,
@@ -276,7 +280,9 @@ describe('WatchWriterService', () => {
       });
 
       for (let poll = 0; poll < 3; poll += 1) {
-        await writer.record(brand.id, brand.slug, catalogue, await load(brand.id));
+        await writer.record(brand.id, brand.slug, catalogue, {
+        overrides: await load(brand.id),
+      });
       }
 
       const populated = (await watchesFor(brand.id)).filter(
@@ -300,10 +306,14 @@ describe('WatchWriterService', () => {
           watchName: 'Aquascaphe GMT',
         },
       });
-      await writer.record(brand.id, brand.slug, catalogue, await load(brand.id));
+      await writer.record(brand.id, brand.slug, catalogue, {
+        overrides: await load(brand.id),
+      });
 
       await prisma.watchGroupingOverride.delete({ where: { id: override.id } });
-      await writer.record(brand.id, brand.slug, catalogue, await load(brand.id));
+      await writer.record(brand.id, brand.slug, catalogue, {
+        overrides: await load(brand.id),
+      });
 
       const populated = (await watchesFor(brand.id)).filter(
         (w) => w.variants.length > 0,
@@ -333,7 +343,7 @@ describe('WatchWriterService', () => {
         brand.id,
         brand.slug,
         [product({ url: url(brand.slug, 'here') })],
-        await load(brand.id),
+        { overrides: await load(brand.id) },
       );
 
       expect(result.overridesApplied).toBe(1);

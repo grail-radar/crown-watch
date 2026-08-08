@@ -16,9 +16,10 @@
  * selling out, a new bracelet for a model that launched last year. A Channel
  * that fires on noise gets muted just as surely as one that repeats itself.
  */
+import { WatchKind } from '@prisma/client';
 import { ProductSnapshot } from './snapshot';
 import { WatchIdentity } from './watch-identity';
-import { GroupingOverride, groupByWatch } from './watch-grouping';
+import { GroupingRules, groupByWatch } from './watch-grouping';
 
 export type WatchEventKind = 'new_watch' | 'restock';
 
@@ -65,23 +66,27 @@ function priceSpan(products: ProductSnapshot[]): {
 }
 
 /**
- * `overrides` are the operator's corrections to the grouping rule, and they
- * have to be the same ones the catalogue was built with — otherwise a poll
- * announces a Watch the brand page does not have.
+ * `rules` are the operator's corrections, and they have to be the same ones the
+ * catalogue was built with — otherwise a poll announces a Watch the brand page
+ * does not have.
  */
 export function diffWatches(
   brandSlug: string,
   previous: ProductSnapshot[],
   current: ProductSnapshot[],
-  overrides: GroupingOverride[] = [],
+  rules: GroupingRules = {},
 ): WatchEvent[] {
   const before = new Map(previous.map((p) => [p.url, p]));
   // The previous poll grouped the same way, so this is how the Watch looked
   // last time — including references the store has since delisted.
-  const groupedBefore = groupByWatch(brandSlug, previous, overrides).groups;
+  const groupedBefore = groupByWatch(brandSlug, previous, rules).groups;
   const events: WatchEvent[] = [];
 
-  for (const group of groupByWatch(brandSlug, current, overrides).groups.values()) {
+  for (const group of groupByWatch(brandSlug, current, rules).groups.values()) {
+    // A strap is a real thing the brand sells and it is recorded in full, but
+    // it is not a watch landing, and the feed promises nothing else (ADR-0006).
+    if (group.kind !== WatchKind.watch) continue;
+
     // Novelty is decided by product URL, never by the grouping key. A store
     // tidying a title changes the key, and a key comparison would read that
     // rename as a brand-new watch and announce a release that never happened.

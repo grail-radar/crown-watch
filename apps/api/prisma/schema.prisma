@@ -35,6 +35,13 @@ enum SourceHealth {
   held
 }
 
+// What a store product turned out to be. A brand's feed returns everything the
+// shop sells, and a strap is not a watch release — see ADR-0006.
+enum WatchKind {
+  watch
+  accessory
+}
+
 enum BrandStatus {
   watchlist
   verified
@@ -184,6 +191,13 @@ model Watch {
   key     String
   slug    String
   name    String
+  /// A watch, or something the shop sells alongside them. Only a watch raises
+  /// a Drop. Stored rather than derived so it can be queried (ADR-0006), and
+  /// rewritten by every poll unless `kindOverride` says otherwise.
+  kind         WatchKind  @default(watch)
+  /// An operator's correction; null means "trust the rule". Never written by a
+  /// poll — the rule does not get to overturn a human.
+  kindOverride WatchKind? @map("kind_override")
   // Spec columns — diameter, lug-to-lug, crystal, movement — are deliberately
   // absent. The entity exists so they have somewhere to live, but extracting
   // them costs real model credit and nobody has asked to filter yet.

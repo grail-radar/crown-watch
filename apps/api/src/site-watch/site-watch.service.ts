@@ -1,6 +1,12 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { DropType, Prisma, SourceHealth, SourceType } from '@prisma/client';
+import {
+  DropType,
+  Prisma,
+  SourceHealth,
+  SourceType,
+  WatchKind,
+} from '@prisma/client';
 import { createHash } from 'node:crypto';
 import { AlertDispatchService } from '../alerts/alert-dispatch.service';
 import { DropWriterService } from '../drops/drop-writer.service';
@@ -16,6 +22,7 @@ import {
   ProductSnapshot,
 } from './snapshot';
 import { diffWatches, WatchEvent, WatchEventKind } from './watch-events';
+import { GroupingRules } from './watch-grouping';
 
 /**
  * A store telling us to slow down. Distinct from a generic failure because it
@@ -105,6 +112,19 @@ export interface SiteWatchSourceResult {
    * catalogue and announces none of it.
    */
   watchesRecorded: number;
+  /**
+   * Straps, boxes, gift cards. Recorded in full and announced to nobody
+   * (ADR-0006). Counted apart from `watchesRecorded`, not inside it.
+   */
+  accessoriesRecorded: number;
+  /**
+   * Accessories seen for the first time on this poll, by name.
+   *
+   * Named rather than merely counted because this is where a wrongly-silenced
+   * watch shows up — the expensive misclassification. Standing accessories are
+   * left out; they would drown the report every hour.
+   */
+  newAccessories: string[];
   /** Grouping corrections that re-homed a product on this poll (ADR-0003). */
   groupingOverridesApplied: number;
   /**
@@ -240,6 +260,8 @@ export class SiteWatchService {
       baseline: false,
       productCount: 0,
       watchesRecorded: 0,
+      accessoriesRecorded: 0,
+      newAccessories: [],
       groupingOverridesApplied: 0,
       groupingOverridesUnmatched: [],
       dropsCreated: 0,
@@ -320,6 +342,19 @@ export class SiteWatchService {
         where: { brandId: source.brandId },
         select: { productUrl: true, watchKey: true, watchName: true },
       });
+      // Corrections to what a product *is*, kept on the Watch row an operator
+      // is already looking at rather than in a table of their own. Only rows
+      // they have actually corrected are read; the rest follow the rule.
+      const corrected = await this.prisma.watch.findMany({
+        where: { brandId: source.brandId, kindOverride: { not: null } },
+        select: { key: true, kindOverride: true },
+      });
+      const rules: GroupingRules = {
+        overrides,
+        kindOverrides: new Map(
+          corrected.map((w) => [w.key, w.kindOverride as WatchKind]),
+        ),
+      };
 
       const previous = await this.previousSnapshot(source.id);
       const snapshotHash = hashSnapshot(products);
@@ -345,14 +380,16 @@ export class SiteWatchService {
         const known = await this.prisma.watch.count({
           where: { brandId: source.brandId },
         });
-        if (known === 0 || overrides.length > 0) {
+        if (known === 0 || overrides.length > 0 || corrected.length > 0) {
           const recorded = await this.watches.record(
             source.brandId,
             brand.slug,
             products,
-            overrides,
+            rules,
           );
           result.watchesRecorded = recorded.watches;
+          result.accessoriesRecorded = recorded.accessories;
+          result.newAccessories = recorded.newAccessories;
           result.groupingOverridesApplied = recorded.overridesApplied;
           result.groupingOverridesUnmatched = recorded.overridesUnmatched;
         }
@@ -364,7 +401,7 @@ export class SiteWatchService {
       // written down. A first sight of a store announces nothing by definition,
       // so it has no changes to weigh.
       const changes = previous
-        ? diffWatches(brand.slug, previous, products, overrides)
+        ? diffWatches(brand.slug, previous, products, rules)
         : [];
       const limit = this.maxChangesPerPoll();
       // A source already held stays held whatever this poll's diff looks like.
@@ -392,9 +429,11 @@ export class SiteWatchService {
         source.brandId,
         brand.slug,
         products,
-        overrides,
+        rules,
       );
       result.watchesRecorded = recorded.watches;
+      result.accessoriesRecorded = recorded.accessories;
+      result.newAccessories = recorded.newAccessories;
       result.groupingOverridesApplied = recorded.overridesApplied;
       result.groupingOverridesUnmatched = recorded.overridesUnmatched;
 

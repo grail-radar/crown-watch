@@ -97,9 +97,15 @@ channel, not three ([ADR-0003](./docs/adr/0003-watch-identity-is-normalised-titl
 A Watch nothing was known of is a new release; a Watch with nothing buyable that
 has something again is a restock. Price edits, copy tweaks, photo swaps, a watch
 selling out and a new bracelet for last year's model all produce nothing.
+
 Because no language model reads prose on this path, these drops publish
 immediately rather than queueing for moderation
 ([ADR-0001](./docs/adr/0001-tier-4-signals-publish-without-moderation.md)).
+
+A shop's feed also returns straps, buckles, gift cards and warranty products.
+Those are classified and recorded in full, and they never raise a Drop — the
+feed promises to tell you when a *watch* lands
+([ADR-0006](./docs/adr/0006-accessories-are-classified-not-excluded.md)).
 
 Two adapters, chosen per source as data:
 
