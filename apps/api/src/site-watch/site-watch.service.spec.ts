@@ -245,9 +245,7 @@ describe('SiteWatchService', () => {
       expect(second[0].variants).toHaveLength(1);
     });
 
-    it('still announces one drop per product, exactly as before', async () => {
-      // This ticket introduces the catalogue and deliberately leaves alerting
-      // alone; collapsing the three announcements is the next one.
+    it('announces one drop for the several products of one watch', async () => {
       const { source, brandId } = await arrangeSource();
       fetcher.serve([{ handle: 'first', title: 'First', available: true }]);
       await service.pollSource(source.id);
@@ -259,13 +257,178 @@ describe('SiteWatchService', () => {
       ]);
       const result = await service.pollSource(source.id);
 
-      expect(result.dropsCreated).toBe(2);
-      expect(await dropsFor(brandId)).toHaveLength(2);
-      // …even though those two products are one watch.
+      expect(result.dropsCreated).toBe(1);
+      const drops = await dropsFor(brandId);
+      expect(drops).toHaveLength(1);
+      expect(drops[0].title).toBe('Superman Bronze');
       const superman = (await watchesFor(brandId)).find(
         (w) => w.name === 'Superman Bronze',
       );
       expect(superman?.variants).toHaveLength(2);
+      expect(drops[0].watchId).toBe(superman?.id);
+    });
+  });
+
+  describe('one event is one alert', () => {
+    // 2026-08-06: three near-identical "New release — YEMA Superman Bronze
+    // CMM.10" messages reached both Channels within a second, because YEMA
+    // lists one model as three products. ADR-0002 says a Channel that repeats
+    // itself gets muted, so this is the blocker on carrying the feed into
+    // anybody else's community.
+
+    it('puts one message on each channel for a watch listed as three products', async () => {
+      const { source, brandId } = await arrangeSource();
+      fetcher.serve([{ handle: 'other', title: 'Other', available: true }]);
+      await service.pollSource(source.id);
+
+      fetcher.serve([
+        { handle: 'other', title: 'Other', available: true },
+        { handle: 'superman-u8', title: 'Superman Bronze CMM.10', price: '2190.00', available: true },
+        { handle: 'superman-u7', title: 'Superman Bronze CMM.10', price: '2190.00', available: true },
+        { handle: 'superman-u4', title: 'Superman Bronze CMM.10', price: '2190.00', available: true },
+      ]);
+      const result = await service.pollSource(source.id);
+
+      expect(result.dropsCreated).toBe(1);
+      expect(result.broadcastsSent).toBe(2); // one per channel, not six
+      expect(telegram.sent).toHaveLength(2);
+      expect(await dropsFor(brandId)).toHaveLength(1);
+      // The report says the one event covered three references.
+      expect(result.changes[0].products).toBe(3);
+    });
+
+    it('records which watch the drop is about', async () => {
+      const { source, brandId } = await arrangeSource();
+      fetcher.serve([{ handle: 'other', title: 'Other', available: true }]);
+      await service.pollSource(source.id);
+
+      fetcher.serve([
+        { handle: 'other', title: 'Other', available: true },
+        { handle: 'diver-a', title: 'Harbour Diver', available: true },
+        { handle: 'diver-b', title: 'Harbour Diver', available: true },
+      ]);
+      await service.pollSource(source.id);
+
+      const [drop] = await dropsFor(brandId);
+      const watch = (await watchesFor(brandId)).find(
+        (w) => w.name === 'Harbour Diver',
+      );
+      expect(drop.watchId).toBe(watch!.id);
+      expect(watch!.variants).toHaveLength(2);
+    });
+
+    it('links the reference a reader can actually buy', async () => {
+      const { source, brandId } = await arrangeSource();
+      fetcher.serve([{ handle: 'other', title: 'Other', available: true }]);
+      await service.pollSource(source.id);
+
+      fetcher.serve([
+        { handle: 'other', title: 'Other', available: true },
+        { handle: 'gone', title: 'Meridian GMT', price: '900.00', available: false },
+        { handle: 'here', title: 'Meridian GMT', price: '950.00', available: true },
+      ]);
+      await service.pollSource(source.id);
+
+      const [drop] = await dropsFor(brandId);
+      expect(drop.sourceUrl).toBe('https://brand.example/products/here');
+      for (const message of telegram.sent) {
+        expect(message.text).toContain('https://brand.example/products/here');
+      }
+    });
+
+    it('carries the span of prices its references are sold at', async () => {
+      const { source, brandId } = await arrangeSource();
+      fetcher.serve([{ handle: 'other', title: 'Other', available: true }]);
+      await service.pollSource(source.id);
+
+      fetcher.serve([
+        { handle: 'other', title: 'Other', available: true },
+        { handle: 'steel', title: 'Field Watch', price: '650.00', available: true },
+        { handle: 'gold', title: 'Field Watch', price: '850.00', available: true },
+      ]);
+      await service.pollSource(source.id);
+
+      const [drop] = await dropsFor(brandId);
+      expect(Number(drop.priceLow)).toBe(650);
+      expect(Number(drop.priceHigh)).toBe(850);
+      // The template renders priceLow only, and is deliberately untouched.
+      for (const message of telegram.sent) {
+        expect(message.text).toContain('650 EUR');
+      }
+    });
+
+    it('announces a restock once when a sold-out watch returns', async () => {
+      const { source, brandId } = await arrangeSource();
+      fetcher.serve([
+        { handle: 'superman-u8', title: 'Superman Bronze', available: false },
+        { handle: 'superman-u7', title: 'Superman Bronze', available: false },
+      ]);
+      await service.pollSource(source.id);
+
+      fetcher.serve([
+        { handle: 'superman-u8', title: 'Superman Bronze', available: true },
+        { handle: 'superman-u7', title: 'Superman Bronze', available: true },
+      ]);
+      const result = await service.pollSource(source.id);
+
+      expect(result.dropsCreated).toBe(1);
+      const drops = await dropsFor(brandId);
+      expect(drops).toHaveLength(1);
+      expect(drops[0].type).toBe('restock');
+      expect(telegram.sent).toHaveLength(2);
+    });
+
+    it('says nothing when a watch that never sold out gains a reference back', async () => {
+      // This is where #26 departs from ADR-0003's original reading. The watch
+      // was buyable throughout, so "back in stock" would be false.
+      const { source, brandId } = await arrangeSource();
+      fetcher.serve([
+        { handle: 'diver-a', title: 'Harbour Diver', available: true },
+        { handle: 'diver-b', title: 'Harbour Diver', available: false },
+      ]);
+      await service.pollSource(source.id);
+
+      fetcher.serve([
+        { handle: 'diver-a', title: 'Harbour Diver', available: true },
+        { handle: 'diver-b', title: 'Harbour Diver', available: true },
+      ]);
+      const result = await service.pollSource(source.id);
+
+      expect(result.dropsCreated).toBe(0);
+      expect(await dropsFor(brandId)).toHaveLength(0);
+      expect(telegram.sent).toHaveLength(0);
+    });
+
+    it('says nothing when a store merely retitles a product', async () => {
+      // The grouping key changes; the thing in the world does not.
+      const { source, brandId } = await arrangeSource();
+      fetcher.serve([{ handle: 'diver', title: 'Harbour Diver', available: true }]);
+      await service.pollSource(source.id);
+
+      fetcher.serve([
+        { handle: 'diver', title: 'Harbour Diver Automatic', available: true },
+      ]);
+      const result = await service.pollSource(source.id);
+
+      expect(result.changed).toBe(true); // the snapshot moved…
+      expect(result.dropsCreated).toBe(0); // …and nobody was interrupted
+      expect(await dropsFor(brandId)).toHaveLength(0);
+      expect(telegram.sent).toHaveLength(0);
+    });
+
+    it('does not re-announce a watch when the store adds a buying option', async () => {
+      const { source, brandId } = await arrangeSource();
+      fetcher.serve([{ handle: 'diver-a', title: 'Harbour Diver', available: true }]);
+      await service.pollSource(source.id);
+
+      fetcher.serve([
+        { handle: 'diver-a', title: 'Harbour Diver', available: true },
+        { handle: 'diver-b', title: 'Harbour Diver', available: true },
+      ]);
+      const result = await service.pollSource(source.id);
+
+      expect(result.dropsCreated).toBe(0);
+      expect(await dropsFor(brandId)).toHaveLength(0);
     });
   });
 
@@ -447,7 +610,7 @@ describe('SiteWatchService', () => {
     expect(detail.drops.map((d) => d.title)).toContain('Field Watch');
   });
 
-  it('reports which products changed, not just how many', async () => {
+  it('reports which watches changed, not just how many', async () => {
     const { source } = await arrangeSource();
     fetcher.serve([{ handle: 'diver', title: 'Diver', available: false }]);
     await service.pollSource(source.id);
@@ -463,10 +626,11 @@ describe('SiteWatchService', () => {
       expect.arrayContaining([
         expect.objectContaining({ kind: 'restock', type: 'restock', title: 'Diver' }),
         expect.objectContaining({
-          kind: 'new_product',
+          kind: 'new_watch',
           type: 'pre_order',
           title: 'Field Watch',
           url: 'https://brand.example/products/field',
+          products: 1,
         }),
       ]),
     );

@@ -1,7 +1,21 @@
 import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { ProductSnapshot } from './snapshot';
-import { WatchIdentity, watchIdentity } from './watch-identity';
+import { groupByWatch } from './watch-grouping';
+import { WatchIdentity } from './watch-identity';
+
+export interface RecordedCatalogue {
+  watches: number;
+  variants: number;
+  /**
+   * Which Watch row each identity key ended up as.
+   *
+   * Returned rather than looked up again by the caller: a Drop has to point at
+   * the same Watch the page shows, and re-deriving that from the key would miss
+   * the retitle case, where the products kept their row under a new key.
+   */
+  watchIdByKey: Map<string, string>;
+}
 
 /**
  * Records what a brand currently sells as **Watches** with **Variants**
@@ -24,34 +38,23 @@ export class WatchWriterService {
     brandId: string,
     brandSlug: string,
     products: ProductSnapshot[],
-  ): Promise<{ watches: number; variants: number }> {
-    const groups = new Map<
-      string,
-      { identity: WatchIdentity; entries: Array<{ product: ProductSnapshot; identity: WatchIdentity }> }
-    >();
-
-    for (const product of products) {
-      // Computed once and carried: the rule is pure, but it is also the hot
-      // path for a store with two hundred products.
-      const identity = watchIdentity(brandSlug, product.title);
-      const group = groups.get(identity.key) ?? { identity, entries: [] };
-      group.entries.push({ product, identity });
-      groups.set(identity.key, group);
-    }
-
+  ): Promise<RecordedCatalogue> {
+    const groups = groupByWatch(brandSlug, products);
+    const watchIdByKey = new Map<string, string>();
     let variants = 0;
 
-    for (const { identity, entries } of groups.values()) {
+    for (const group of groups.values()) {
       const watch = await this.watchFor(
         brandId,
-        identity,
-        entries.map((e) => e.product.url),
+        group.identity,
+        group.products.map((p) => p.url),
       );
+      watchIdByKey.set(group.identity.key, watch.id);
 
-      for (const { product, identity: own } of entries) {
+      for (const [index, product] of group.products.entries()) {
         const fields = {
           watchId: watch.id,
-          reference: own.reference,
+          reference: group.identities[index].reference,
           price: product.price,
           currency: product.currency,
           imageUrl: product.imageUrl,
@@ -69,7 +72,7 @@ export class WatchWriterService {
       }
     }
 
-    return { watches: groups.size, variants };
+    return { watches: groups.size, variants, watchIdByKey };
   }
 
   /**

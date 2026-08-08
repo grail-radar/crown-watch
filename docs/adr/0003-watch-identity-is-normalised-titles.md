@@ -48,9 +48,22 @@ it, and one event produces one message without that table changing at all.
 
 ## Consequences
 
-- **Availability is per Variant, so a restock fires when *any* Variant returns.**
-  This is the right reading — the Watch is buyable again — but a follower can be
-  told about a restock when only the configuration they don't want came back.
+- ~~**Availability is per Variant, so a restock fires when *any* Variant
+  returns.** This is the right reading — the Watch is buyable again — but a
+  follower can be told about a restock when only the configuration they don't
+  want came back.~~
+
+  **Superseded by [#26](https://github.com/grail-radar/crown-watch/issues/26)
+  (2026-08-08).** Availability is now read at the Watch: a restock fires only
+  when the Watch had *nothing* buyable and now has something. A configuration
+  returning to a Watch that was on sale throughout is silent.
+
+  The original reading was wrong about which mistake is cheaper. "Back in stock"
+  about a watch that never left is not a near-miss, it is a false statement, and
+  a Channel that makes them gets muted exactly as ADR-0002 describes. The cost of
+  the new rule is a genuinely missed signal — a follower waiting for one specific
+  bracelet is not told when only that bracelet returns — and that is the bounded
+  failure of the two.
 - **The override table is load-bearing and must be easy to reach.** The rule is
   deliberately simple, so it will be wrong sometimes; an override that requires a
   deploy would mean living with the error.
@@ -59,3 +72,13 @@ it, and one event produces one message without that table changing at all.
   rows, destroying the only evidence those messages were sent and risking a
   re-broadcast of a watch followers have already seen twice. The three posts stay
   wrong forever, because a channel cannot unsend — the fix is prospective.
+
+  Implemented by `backfill:drop-watches`, which is dry-run by default and
+  re-counts `drop_broadcasts` before and after.
+- **A new buying option for a Watch already on sale is silent.** A third
+  bracelet for a model that launched last year is not a release, so it raises no
+  Drop. Only a Watch we have never seen any product of, or one that was
+  unbuyable and is not any more, is an event.
+- **Novelty is decided by product URL, not by the grouping key.** A store
+  tidying a title changes the key, and a rule comparing keys would read that
+  rename as a brand-new watch and announce a release that never happened.

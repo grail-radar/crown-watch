@@ -90,10 +90,14 @@ Copyright-safe: only short factual fields are stored, never source prose.
 
 ## Tier 4 site-watch (CONTEXT.md §4)
 
-Watches brands' **own stores** and turns structural changes into published drops
-— a product URL that was not there before is a new release, an availability flag
-flipping to true is a restock. Price edits, copy tweaks and photo swaps produce
-nothing. Because no language model reads prose on this path, these drops publish
+Watches brands' **own stores** and turns structural changes into published drops.
+Changes are read as events about a **Watch**, not about a store product: YEMA
+lists one model as three references, and that is one release and one message per
+channel, not three ([ADR-0003](./docs/adr/0003-watch-identity-is-normalised-titles.md)).
+A Watch nothing was known of is a new release; a Watch with nothing buyable that
+has something again is a restock. Price edits, copy tweaks, photo swaps, a watch
+selling out and a new bracelet for last year's model all produce nothing.
+Because no language model reads prose on this path, these drops publish
 immediately rather than queueing for moderation
 ([ADR-0001](./docs/adr/0001-tier-4-signals-publish-without-moderation.md)).
 

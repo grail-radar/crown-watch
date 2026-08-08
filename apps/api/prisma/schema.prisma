@@ -191,6 +191,7 @@ model Watch {
 
   brand    Brand          @relation(fields: [brandId], references: [id], onDelete: Cascade)
   variants WatchVariant[]
+  drops    Drop[]
 
   @@unique([brandId, key])
   @@unique([brandId, slug])
@@ -225,6 +226,16 @@ model WatchVariant {
 model Drop {
   id               String           @id @default(cuid())
   brandId          String           @map("brand_id")
+  /// Which Watch this event is about. One release is one Drop however many
+  /// references the store lists for it (ADR-0003).
+  ///
+  /// Nullable, and permanently so: a Drop extracted from a publication's RSS
+  /// names a watch in prose and has no store product to tie it to, and the
+  /// three YEMA Drops from 2026-08-06 predate Watches existing. History is
+  /// assigned where it can be derived and left alone where it cannot — never
+  /// merged, because deleting a Drop cascades the `drop_broadcasts` rows that
+  /// are the only evidence its messages were sent (ADR-0002).
+  watchId          String?          @map("watch_id")
   title            String
   type             DropType
   priceLow         Decimal?         @map("price_low") @db.Decimal(12, 2)
@@ -250,12 +261,17 @@ model Drop {
   updatedAt        DateTime         @updatedAt @map("updated_at")
 
   brand         Brand              @relation(fields: [brandId], references: [id], onDelete: Cascade)
+  // SetNull, never Cascade: a Watch is a grouping we derived and may regroup,
+  // and losing the announcement because we changed our mind about which model
+  // it belonged to would destroy broadcast evidence along with it.
+  watch         Watch?             @relation(fields: [watchId], references: [id], onDelete: SetNull)
   sourceEvent   RawIngestionEvent? @relation(fields: [sourceEventId], references: [id], onDelete: SetNull)
   reviewer      User?              @relation("DropReviewer", fields: [reviewerId], references: [id], onDelete: SetNull)
   notifications NotificationLog[]
   broadcasts    DropBroadcast[]
 
   @@index([brandId])
+  @@index([watchId])
   @@index([moderationStatus])
   @@index([publishedAt])
   @@map("drops")

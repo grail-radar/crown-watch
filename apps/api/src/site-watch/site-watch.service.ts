@@ -11,13 +11,11 @@ import { RobotsService } from './robots.service';
 import { SiteFetcher } from './site-fetcher';
 import { WatchWriterService } from './watch-writer.service';
 import {
-  diffSnapshots,
   hashSnapshot,
   normalizeSnapshot,
   ProductSnapshot,
-  SnapshotChange,
-  SnapshotChangeKind,
 } from './snapshot';
+import { diffWatches, WatchEvent, WatchEventKind } from './watch-events';
 
 /**
  * A store telling us to slow down. Distinct from a generic failure because it
@@ -58,10 +56,15 @@ const DEFAULT_MAX_CHANGES_PER_POLL = 10;
 
 /** What a single detected change produced, for the poll report. */
 export interface SiteWatchChangeReport {
-  kind: SnapshotChangeKind;
+  kind: WatchEventKind;
   type: DropType;
   title: string;
   url: string;
+  /**
+   * How many store products this one event covered. Above one, that is the
+   * whole point of the Watch: three references, one message.
+   */
+  products: number;
   /** Channels this drop was posted to, for the operator running the poll. */
   broadcasts: number;
 }
@@ -323,7 +326,9 @@ export class SiteWatchService {
       // What this poll would announce, worked out before anything at all is
       // written down. A first sight of a store announces nothing by definition,
       // so it has no changes to weigh.
-      const changes = previous ? diffSnapshots(previous, products) : [];
+      const changes = previous
+        ? diffWatches(brand.slug, previous, products)
+        : [];
       const limit = this.maxChangesPerPoll();
       // A source already held stays held whatever this poll's diff looks like.
       // Without that, a flood could walk through in instalments: a store that
@@ -370,12 +375,20 @@ export class SiteWatchService {
         const type = this.dropType(change);
         const drop = await this.drops.create({
           brandId: source.brandId,
-          title: change.product.title,
+          // The Watch's tidied name, not one reference's raw title: the three
+          // products behind one event may not spell it identically, and the
+          // message is about the model.
+          title: change.identity.name,
+          watchId: recorded.watchIdByKey.get(change.identity.key) ?? null,
           type,
-          priceLow: change.product.price,
-          currency: change.product.currency,
-          imageUrl: change.product.imageUrl,
-          sourceUrl: change.product.url,
+          priceLow: change.priceLow,
+          // A span only when the references genuinely differ; the template
+          // renders `priceLow`, so an equal pair would read no differently.
+          priceHigh:
+            change.priceHigh !== change.priceLow ? change.priceHigh : null,
+          currency: change.lead.currency,
+          imageUrl: change.lead.imageUrl,
+          sourceUrl: change.lead.url,
           sourceEventId: created.id,
           // A structural diff of the brand's own store — nothing was inferred.
           confidenceScore: 1,
@@ -392,8 +405,9 @@ export class SiteWatchService {
         result.changes.push({
           kind: change.kind,
           type,
-          title: change.product.title,
-          url: change.product.url,
+          title: change.identity.name,
+          url: change.lead.url,
+          products: change.products.length,
           broadcasts: broadcast.sentCount,
         });
       }
@@ -470,7 +484,7 @@ export class SiteWatchService {
   private async refuse(
     source: { id: string; name: string | null; endpoint: string },
     result: SiteWatchSourceResult,
-    changes: SnapshotChange[],
+    changes: WatchEvent[],
     limit: number,
     alreadyHeld: boolean,
   ): Promise<SiteWatchSourceResult> {
@@ -491,8 +505,9 @@ export class SiteWatchService {
     result.changes = changes.map((change) => ({
       kind: change.kind,
       type: this.dropType(change),
-      title: change.product.title,
-      url: change.product.url,
+      title: change.identity.name,
+      url: change.lead.url,
+      products: change.products.length,
       broadcasts: 0,
     }));
 
@@ -568,7 +583,7 @@ export class SiteWatchService {
     });
   }
 
-  private dropType(change: SnapshotChange): DropType {
+  private dropType(change: WatchEvent): DropType {
     return change.kind === 'restock' ? DropType.restock : DropType.pre_order;
   }
 

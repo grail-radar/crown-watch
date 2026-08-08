@@ -334,6 +334,45 @@ a source that failed is retried once its backoff window expires.
 
 ---
 
+## Giving old Drops the Watch they are about
+
+A Drop records which **Watch** it is an event about, so one release is one alert
+however many references a store lists
+([ADR-0003](../adr/0003-watch-identity-is-normalised-titles.md)). Drops that
+predate Watches, and any created while a store's products were not yet indexed,
+carry a null `watch_id` until this is run.
+
+Dry run first — it changes nothing and prints what it would assign:
+
+```bash
+pnpm --filter @crown-watch/api backfill:drop-watches
+```
+
+```bash
+pnpm --filter @crown-watch/api backfill:drop-watches -- --confirm
+```
+
+It matches a Drop's `source_url` to a Variant's `product_url` and nothing else.
+A title is never used to guess: a wrong `watch_id` puts an announcement on some
+other model's page, silently.
+
+**It assigns; it never merges and never deletes.** The three YEMA Drops from
+6 August stay three rows sharing one `watch_id` — collapsing them would cascade
+the `drop_broadcasts` rows that are the only evidence those messages were sent.
+The script re-counts those rows before and after and fails loudly if the number
+moved.
+
+Left with a null `watch_id`, as expected rather than as a failure:
+
+- Drops read out of a publication's RSS — they name a watch in prose and have no
+  store product to match
+- Drops whose store product has since been delisted
+
+Read the per-Watch counts in the output. A Watch claiming dozens of Drops is a
+grouping that has gone wrong, not a busy model.
+
+---
+
 ## Taking drops off the feed that should never have been announced
 
 When a poll publishes something it should not have, the fix is to **retract**,
