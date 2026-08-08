@@ -55,6 +55,16 @@ export class CapturingTelegram extends TelegramClient {
   /** Channels whose deletions should fail, by chat id. */
   undeletable = new Set<string>();
 
+  /**
+   * Individual message ids Telegram will refuse.
+   *
+   * Modelled on the real thing rather than on the documentation: an id it
+   * cannot *find* is skipped, but one it can find and refuses to delete fails
+   * the whole call. That is what took 99 real posts down with one bad id in
+   * production, so the double has to reproduce it.
+   */
+  undeletableIds = new Set<string>();
+
   async deleteMany({
     chatId,
     messageIds,
@@ -64,6 +74,9 @@ export class CapturingTelegram extends TelegramClient {
   }): Promise<{ ok: boolean; detail?: string }> {
     if (this.undeletable.has(chatId)) {
       return { ok: false, detail: `cannot delete in ${chatId}` };
+    }
+    if (messageIds.some((id) => this.undeletableIds.has(id))) {
+      return { ok: false, detail: 'Bad Request: message can\'t be deleted' };
     }
     this.deleted.push({ chatId, messageIds });
     return { ok: true };
@@ -79,6 +92,7 @@ export class CapturingTelegram extends TelegramClient {
     this.deleted = [];
     this.broken.clear();
     this.undeletable.clear();
+    this.undeletableIds.clear();
     this.onSend = null;
   }
 }
