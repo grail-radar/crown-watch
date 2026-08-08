@@ -65,6 +65,11 @@ async function main(): Promise<void> {
         ? `${channel.posts} to delete`
         : `${channel.deleted} deleted, ${channel.failed} failed${channel.error ? ` — ${channel.error}` : ''}`;
       process.stdout.write(`  ${channel.chatId.padEnd(24)} ${outcome}\n`);
+      if (channel.failedIds.length > 0) {
+        process.stdout.write(
+          `      message ids that would not delete: ${channel.failedIds.join(', ')}${channel.failed > channel.failedIds.length ? ', …' : ''}\n`,
+        );
+      }
     }
 
     if (result.dryRun) {

@@ -36,9 +36,14 @@ export interface PurgeChannelReport {
   posts: number;
   deleted: number;
   failed: number;
-  /** Why a batch failed, first occurrence only — they share a cause. */
+  /** Why a post could not be deleted, first occurrence only. */
   error?: string;
+  /** A few of the ids that would not delete, so they can be looked up. */
+  failedIds: string[];
 }
+
+/** Enough failing ids to recognise a pattern, not enough to flood a terminal. */
+const FAILED_ID_SAMPLE = 5;
 
 export interface PurgeResult {
   dryRun: boolean;
@@ -100,6 +105,7 @@ export class BroadcastPurgeService {
         posts: ids.length,
         deleted: 0,
         failed: 0,
+        failedIds: [],
       })),
     };
 
@@ -122,12 +128,32 @@ export class BroadcastPurgeService {
 
         if (outcome.ok) {
           report.deleted += batch.length;
-        } else {
-          report.failed += batch.length;
-          report.error ??= outcome.detail;
-          this.logger.error(
-            `Deleting ${batch.length} post(s) from ${report.chatId} failed: ${outcome.detail}`,
-          );
+          continue;
+        }
+
+        // Telegram's documentation says unusable ids are skipped, and that is
+        // true only of ids it cannot *find*. One id it can find but refuses to
+        // delete fails the entire call — so a single bad id would otherwise
+        // take 99 real posts down with it. Retry the batch one at a time.
+        this.logger.warn(
+          `Batch of ${batch.length} in ${report.chatId} refused (${outcome.detail}); retrying individually.`,
+        );
+
+        for (const messageId of batch) {
+          const single = await this.telegram.deleteMany({
+            chatId: report.chatId,
+            messageIds: [messageId],
+          });
+
+          if (single.ok) {
+            report.deleted += 1;
+          } else {
+            report.failed += 1;
+            report.error ??= single.detail;
+            if (report.failedIds.length < FAILED_ID_SAMPLE) {
+              report.failedIds.push(messageId);
+            }
+          }
         }
       }
 

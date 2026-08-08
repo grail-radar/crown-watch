@@ -155,6 +155,31 @@ describe('BroadcastPurgeService', () => {
     expect(ukBatches.length).toBeGreaterThan(1);
   });
 
+  it('does not let one undeletable post take the rest of its batch with it', async () => {
+    // What happened in production. Test runs had written broadcast rows whose
+    // message ids came from a capturing double — 1, 2, 3 — which are not real
+    // posts. Telegram refuses the whole call when it finds an id it will not
+    // delete, so one fake id cost 99 genuine posts their deletion.
+    const bad = await arrangeBroadcastDrop({
+      retracted: true,
+      messageIds: ['1', '2'],
+    });
+    const good = await arrangeBroadcastDrop({ retracted: true });
+    telegram.undeletableIds.add('1');
+    telegram.undeletableIds.add('2');
+
+    const result = await purge.purge({ confirm: true });
+
+    // The real posts still go.
+    expect(telegram.deletedIds).toContain(good.uk);
+    expect(telegram.deletedIds).toContain(good.en);
+    // And the impossible ones are reported rather than silently swallowed.
+    const uk = result.channels.find((c) => c.chatId === UK)!;
+    expect(uk.failed).toBe(1);
+    expect(uk.failedIds).toContain(bad.uk);
+    expect(uk.error).toMatch(/can't be deleted/);
+  });
+
   it('reports a channel it could not delete from instead of failing the run', async () => {
     // One channel refusing must not leave the other untouched — and 48 hours
     // after the fact, every channel will refuse.
