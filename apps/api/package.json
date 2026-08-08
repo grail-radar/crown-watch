@@ -21,6 +21,7 @@
     "extract": "ts-node --transpile-only src/scripts/extract.ts",
     "extract:verify": "ts-node --transpile-only src/scripts/extract-verify.ts",
     "backfill:telegram": "ts-node --transpile-only src/scripts/backfill-telegram.ts",
+    "purge:broadcasts": "ts-node --transpile-only src/scripts/purge-broadcasts.ts",
     "probe:stores": "ts-node --transpile-only src/scripts/probe-stores.ts",
     "telegram:destinations": "ts-node --transpile-only src/scripts/telegram-destinations.ts"
   },

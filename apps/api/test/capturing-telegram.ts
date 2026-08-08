@@ -49,9 +49,36 @@ export class CapturingTelegram extends TelegramClient {
     return this.sent.find((s) => keyOf(s) === key)?.text;
   }
 
+  /** Batches passed to deleteMany, in order, so a test can assert on pacing. */
+  deleted: Array<{ chatId: string; messageIds: string[] }> = [];
+
+  /** Channels whose deletions should fail, by chat id. */
+  undeletable = new Set<string>();
+
+  async deleteMany({
+    chatId,
+    messageIds,
+  }: {
+    chatId: string;
+    messageIds: string[];
+  }): Promise<{ ok: boolean; detail?: string }> {
+    if (this.undeletable.has(chatId)) {
+      return { ok: false, detail: `cannot delete in ${chatId}` };
+    }
+    this.deleted.push({ chatId, messageIds });
+    return { ok: true };
+  }
+
+  /** Every message id this double was asked to delete, across batches. */
+  get deletedIds(): string[] {
+    return this.deleted.flatMap((d) => d.messageIds);
+  }
+
   reset(): void {
     this.sent = [];
+    this.deleted = [];
     this.broken.clear();
+    this.undeletable.clear();
     this.onSend = null;
   }
 }
