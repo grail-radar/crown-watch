@@ -247,6 +247,55 @@ a source that failed is retried once its backoff window expires.
 
 ---
 
+## Taking drops off the feed that should never have been announced
+
+When a poll publishes something it should not have, the fix is to **retract**,
+never to delete.
+
+Deleting a drop cascades its `drop_broadcasts` rows, and those rows are the only
+record that a message was sent. Destroying them removes the evidence that makes
+"at most once, ever" true ([ADR-0002](../adr/0002-broadcasts-are-at-most-once.md))
+— and a drop recreated later would then be a backfill candidate all over again.
+Retraction unpublishes instead: the drop leaves the feed, leaves the API, and
+stops being a backfill candidate, while every broadcast row survives.
+
+Dry run first — it changes nothing and prints what it would touch:
+
+```bash
+pnpm --filter @crown-watch/api retract:drops -- --from=<ISO> --to=<ISO>
+```
+
+```bash
+pnpm --filter @crown-watch/api retract:drops -- --from=<ISO> --to=<ISO> --confirm
+```
+
+It refuses a backwards window, and refuses a window matching **no** drops rather
+than reporting a cheerful zero — a mistyped timestamp is far likelier than a
+genuinely empty window. After applying, it re-counts the broadcast rows and
+fails loudly if any went missing.
+
+The script prints which database host it is about to change. Read that line.
+
+### The 2026-08-07 incident
+
+The window used, recorded so the same set can be re-derived and audited:
+
+```
+--from=2026-08-07T12:31:00Z --to=2026-08-07T13:39:00Z
+```
+
+372 drops, all `pre_order`, from exactly four store hosts — `yema.com` (182),
+`cronusartwatches.com` (129), `serica-watches.com` (49), `haimwatchco.com` (12).
+No RSS-sourced drop falls inside it, and the three genuine YEMA store drops from
+6 August sit safely outside, as do both Baltic restocks from 4 August.
+
+Cause: a test run against production overwrote four stores' stored snapshots with
+fixture data; the next scheduled poll read every real product as new. The
+recurrence guard is in the test harness — see the
+[README](../../README.md#tests).
+
+---
+
 ## Related
 
 - [ADR-0001](../adr/0001-tier-4-signals-publish-without-moderation.md) — why Tier 4 drops publish without moderation
