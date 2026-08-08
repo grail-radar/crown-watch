@@ -125,6 +125,51 @@ topics of one supergroup from claiming each other's posts.
 
 ---
 
+## Deleting posts that should never have gone out
+
+Retracting a drop takes it off the site. It does **not** take it out of a
+channel — a channel is somebody else's copy of what we said. This closes that
+gap, for the one window Telegram allows.
+
+> ### ⏱ 48 hours, and not a minute more
+>
+> Telegram refuses to delete a message older than 48 hours. After that the post
+> is in the channel permanently, whatever we do. If you are reading this because
+> something was announced by mistake, **check the clock before anything else.**
+
+It works because a retraction keeps the `drop_broadcasts` rows, and each row
+carries Telegram's own `message_id`. Deleting the drops instead would have taken
+those ids with them, leaving no way to find the posts except by hand.
+
+```bash
+pnpm --filter @crown-watch/api purge:broadcasts
+```
+
+Dry run by default: reports how many posts belong to retracted drops, per
+channel, and touches nothing. Then:
+
+```bash
+pnpm --filter @crown-watch/api purge:broadcasts -- --confirm
+```
+
+Narrow it with `--since=<ISO>` / `--until=<ISO>` when only one incident's posts
+should go.
+
+**What it will and will not do**
+
+- Only posts whose drop has been **retracted** — a live drop's post is never touched.
+- Deletes in batches of 100, which is Telegram's own cap on `deleteMessages`.
+- **Never removes the `drop_broadcasts` rows.** They are what makes "at most
+  once, ever" true ([ADR-0002](../adr/0002-broadcasts-are-at-most-once.md)), and
+  keeping them is also what makes this safe to run twice.
+- One channel refusing does not stop the others; each is reported separately.
+
+**It does not unsend anything.** Every follower who was going to be notified has
+been. This only stops the post sitting in the channel's history — which is worth
+doing, and is not the same as undoing it.
+
+---
+
 ## Removing a group
 
 Delete its entry from `TELEGRAM_GROUPS` and redeploy. Nothing else is needed:

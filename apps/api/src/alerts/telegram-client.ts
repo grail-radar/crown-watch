@@ -31,8 +31,40 @@ export interface TelegramSendResult {
  * capturing double, with no network access. Mirrors `SiteFetcher` on the
  * inbound side.
  */
+/**
+ * Removing posts, in batches.
+ *
+ * Telegram will only delete a message for up to 48 hours after it was sent, so
+ * this is a narrow window for correcting a mistake — not a general edit
+ * facility. And it removes the post, never the notification: anyone who already
+ * saw it has seen it (ADR-0002).
+ */
+export interface TelegramDeleteRequest {
+  chatId: string;
+  /** Telegram's own ids. The API takes at most 100 per call. */
+  messageIds: string[];
+}
+
+export interface TelegramDeleteResult {
+  ok: boolean;
+  /** Why the call failed, when it did. */
+  detail?: string;
+}
+
+/** Telegram's own cap on `deleteMessages`. */
+export const DELETE_BATCH_LIMIT = 100;
+
 export abstract class TelegramClient {
   abstract send(request: TelegramSendRequest): Promise<TelegramSendResult>;
+
+  /**
+   * Delete up to `DELETE_BATCH_LIMIT` messages in one call. Messages that
+   * cannot be found or deleted are skipped by Telegram rather than failing the
+   * batch, so a re-run is safe.
+   */
+  abstract deleteMany(
+    request: TelegramDeleteRequest,
+  ): Promise<TelegramDeleteResult>;
 }
 
 const TELEGRAM_API = 'https://api.telegram.org';
@@ -46,7 +78,7 @@ const TELEGRAM_API = 'https://api.telegram.org';
 const CAPTION_LIMIT = 1024;
 
 export interface TelegramCall {
-  method: 'sendMessage' | 'sendPhoto';
+  method: 'sendMessage' | 'sendPhoto' | 'deleteMessages';
   body: Record<string, unknown>;
 }
 
@@ -140,6 +172,38 @@ export class HttpTelegramClient extends TelegramClient {
     }
 
     throw new Error(`Telegram ${call.method} failed: ${attempt.detail}`);
+  }
+
+  async deleteMany({
+    chatId,
+    messageIds,
+  }: TelegramDeleteRequest): Promise<TelegramDeleteResult> {
+    const token = this.config.get<string>('telegram.botToken');
+    if (!token) throw new Error('TELEGRAM_BOT_TOKEN is not configured');
+    if (messageIds.length === 0) return { ok: true };
+    if (messageIds.length > DELETE_BATCH_LIMIT) {
+      // Batching is the caller's job, and silently truncating would leave posts
+      // behind while reporting success.
+      throw new Error(
+        `deleteMany takes at most ${DELETE_BATCH_LIMIT} ids, got ${messageIds.length}`,
+      );
+    }
+
+    const timeoutMs = this.config.get<number>('telegram.requestTimeoutMs') ?? 15000;
+    const result = await this.post(
+      token,
+      {
+        method: 'deleteMessages',
+        body: {
+          chat_id: chatId,
+          // Telegram wants numbers here; ours are stored as strings.
+          message_ids: messageIds.map((id) => Number(id)),
+        },
+      },
+      timeoutMs,
+    );
+
+    return result.ok ? { ok: true } : { ok: false, detail: result.detail };
   }
 
   private async post(
