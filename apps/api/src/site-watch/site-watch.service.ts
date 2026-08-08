@@ -105,6 +105,14 @@ export interface SiteWatchSourceResult {
    * catalogue and announces none of it.
    */
   watchesRecorded: number;
+  /** Grouping corrections that re-homed a product on this poll (ADR-0003). */
+  groupingOverridesApplied: number;
+  /**
+   * Corrections pointing at a product this store no longer lists. Reported so
+   * an override that has quietly stopped applying is visible to whoever reads
+   * the run, rather than only to whoever queries the table.
+   */
+  groupingOverridesUnmatched: string[];
   dropsCreated: number;
   /** Telegram messages posted across all channels for this source's drops. */
   broadcastsSent: number;
@@ -232,6 +240,8 @@ export class SiteWatchService {
       baseline: false,
       productCount: 0,
       watchesRecorded: 0,
+      groupingOverridesApplied: 0,
+      groupingOverridesUnmatched: [],
       dropsCreated: 0,
       broadcastsSent: 0,
       changes: [],
@@ -302,6 +312,15 @@ export class SiteWatchService {
         throw new Error('Adapter produced no products; refusing to snapshot');
       }
 
+      // Read fresh every poll, and handed to both the catalogue writer and the
+      // diff below. An operator's correction has to take effect on the next run
+      // rather than on the next deploy (ADR-0003), and the two must group
+      // identically or a Drop points at a Watch the brand page does not show.
+      const overrides = await this.prisma.watchGroupingOverride.findMany({
+        where: { brandId: source.brandId },
+        select: { productUrl: true, watchKey: true, watchName: true },
+      });
+
       const previous = await this.previousSnapshot(source.id);
       const snapshotHash = hashSnapshot(products);
 
@@ -309,15 +328,33 @@ export class SiteWatchService {
       // returns to an earlier state — in stock, sold out, in stock again — and
       // that return is precisely the restock we exist to catch.
       if (previous && hashSnapshot(previous) === snapshotHash) {
-        // Nothing moved, so there is nothing new to record — unless this brand
-        // has no Watches at all, which is true of every source registered
-        // before Watches existed. One indexed count, and the catalogue heals
-        // itself on the next poll instead of waiting for the store to change.
+        // Nothing moved, so there is normally nothing to record. Two cases
+        // still need the catalogue rebuilt, and both are about *our* state
+        // changing rather than the store's:
+        //
+        //  - the brand has no Watches at all, which is true of every source
+        //    registered before Watches existed
+        //  - this brand has grouping overrides, which an operator may have just
+        //    written. A correction is nearly always made about a store that has
+        //    no reason to change, so waiting for the catalogue to move would
+        //    leave it unapplied indefinitely (ADR-0003 requires no deploy *and*
+        //    no waiting).
+        //
+        // Recording is idempotent and announces nothing, so doing it on an
+        // unchanged store costs upserts and interrupts nobody.
         const known = await this.prisma.watch.count({
           where: { brandId: source.brandId },
         });
-        if (known === 0) {
-          await this.watches.record(source.brandId, brand.slug, products);
+        if (known === 0 || overrides.length > 0) {
+          const recorded = await this.watches.record(
+            source.brandId,
+            brand.slug,
+            products,
+            overrides,
+          );
+          result.watchesRecorded = recorded.watches;
+          result.groupingOverridesApplied = recorded.overridesApplied;
+          result.groupingOverridesUnmatched = recorded.overridesUnmatched;
         }
         await this.recordSuccess(source.id, result);
         return result; // store unchanged since last poll
@@ -327,7 +364,7 @@ export class SiteWatchService {
       // written down. A first sight of a store announces nothing by definition,
       // so it has no changes to weigh.
       const changes = previous
-        ? diffWatches(brand.slug, previous, products)
+        ? diffWatches(brand.slug, previous, products, overrides)
         : [];
       const limit = this.maxChangesPerPoll();
       // A source already held stays held whatever this poll's diff looks like.
@@ -355,8 +392,11 @@ export class SiteWatchService {
         source.brandId,
         brand.slug,
         products,
+        overrides,
       );
       result.watchesRecorded = recorded.watches;
+      result.groupingOverridesApplied = recorded.overridesApplied;
+      result.groupingOverridesUnmatched = recorded.overridesUnmatched;
 
       const created = await this.storeSnapshot(source.id, products, snapshotHash);
       result.changed = true;

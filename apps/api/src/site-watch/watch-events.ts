@@ -18,7 +18,7 @@
  */
 import { ProductSnapshot } from './snapshot';
 import { WatchIdentity } from './watch-identity';
-import { groupByWatch } from './watch-grouping';
+import { GroupingOverride, groupByWatch } from './watch-grouping';
 
 export type WatchEventKind = 'new_watch' | 'restock';
 
@@ -64,27 +64,37 @@ function priceSpan(products: ProductSnapshot[]): {
   return { priceLow: Math.min(...prices), priceHigh: Math.max(...prices) };
 }
 
+/**
+ * `overrides` are the operator's corrections to the grouping rule, and they
+ * have to be the same ones the catalogue was built with — otherwise a poll
+ * announces a Watch the brand page does not have.
+ */
 export function diffWatches(
   brandSlug: string,
   previous: ProductSnapshot[],
   current: ProductSnapshot[],
+  overrides: GroupingOverride[] = [],
 ): WatchEvent[] {
   const before = new Map(previous.map((p) => [p.url, p]));
+  // The previous poll grouped the same way, so this is how the Watch looked
+  // last time — including references the store has since delisted.
+  const groupedBefore = groupByWatch(brandSlug, previous, overrides).groups;
   const events: WatchEvent[] = [];
 
-  for (const group of groupByWatch(brandSlug, current).values()) {
+  for (const group of groupByWatch(brandSlug, current, overrides).groups.values()) {
     // Novelty is decided by product URL, never by the grouping key. A store
     // tidying a title changes the key, and a key comparison would read that
     // rename as a brand-new watch and announce a release that never happened.
-    const known = group.products
+    const products = group.entries.map((e) => e.product);
+    const known = products
       .map((p) => before.get(p.url))
       .filter((p): p is ProductSnapshot => p !== undefined);
 
-    const lead = pickLead(group.products);
-    const span = priceSpan(group.products);
+    const lead = pickLead(products);
+    const span = priceSpan(products);
 
     if (known.length === 0) {
-      events.push({ kind: 'new_watch', identity: group.identity, products: group.products, lead, ...span });
+      events.push({ kind: 'new_watch', identity: group.identity, products, lead, ...span });
       continue;
     }
 
@@ -92,10 +102,20 @@ export function diffWatches(
     // originally fired on any Variant returning and named the cost: a follower
     // told "back in stock" about a watch that never left. #26 chose the other
     // side — the Watch has to have been genuinely unbuyable.
-    const wasBuyable = known.some((p) => p.available);
-    const isBuyable = group.products.some((p) => p.available);
+    //
+    // Judged over everything the Watch had last poll, not only the references
+    // that survived into this one. A store that delists its in-stock reference
+    // while a sold-out sibling returns leaves the Watch on sale throughout, and
+    // looking only at the survivors would announce that as a restock.
+    const previousProducts = [
+      ...(groupedBefore.get(group.identity.key)?.entries.map((e) => e.product) ??
+        []),
+      ...known,
+    ];
+    const wasBuyable = previousProducts.some((p) => p.available);
+    const isBuyable = products.some((p) => p.available);
     if (!wasBuyable && isBuyable) {
-      events.push({ kind: 'restock', identity: group.identity, products: group.products, lead, ...span });
+      events.push({ kind: 'restock', identity: group.identity, products, lead, ...span });
     }
   }
 

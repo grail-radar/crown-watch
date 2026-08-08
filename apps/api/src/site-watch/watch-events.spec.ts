@@ -92,6 +92,19 @@ describe('diffWatches', () => {
       expect(events).toHaveLength(1);
     });
 
+    it('stays silent when the buyable reference is delisted and a sold-out one returns', () => {
+      // The Watch was on sale throughout — one reference left the catalogue and
+      // another came back. Judging availability only from the references that
+      // survived both polls would read that as the Watch returning.
+      const events = diffWatches(
+        BRAND,
+        [product({ url: u8, available: true }), product({ url: u7, available: false })],
+        [product({ url: u7, available: true })],
+      );
+
+      expect(events).toEqual([]);
+    });
+
     it('says nothing when a Watch sells out', () => {
       const events = diffWatches(
         BRAND,

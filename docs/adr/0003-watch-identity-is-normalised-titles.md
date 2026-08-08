@@ -3,6 +3,12 @@
 **Status:** accepted
 **Date:** 2026-08-07
 
+> **Amended 2026-08-08.** Restock is now judged at the Watch rather than at the
+> Variant — see the struck consequence below. The override table this ADR's
+> trade-off depends on was delivered by
+> [#27](https://github.com/grail-radar/crown-watch/issues/27); until then the
+> trade was one-sided.
+
 ## Context
 
 A store product is not a watch. On 2026-08-06 the YEMA watcher found three
@@ -67,6 +73,21 @@ it, and one event produces one message without that table changing at all.
 - **The override table is load-bearing and must be easy to reach.** The rule is
   deliberately simple, so it will be wrong sometimes; an override that requires a
   deploy would mean living with the error.
+
+  Delivered by [#27](https://github.com/grail-radar/crown-watch/issues/27) as
+  `watch_grouping_overrides`. One row re-homes one store product, and both
+  directions fall out of that: two products sharing a `watch_key` merge, a
+  product given its own key splits off. The overrides are read on every poll and
+  handed to the catalogue writer and the diff together, so a correction takes
+  effect on the next run and the two can never group differently. Overrides are
+  applied even when the store has not changed, because a correction is nearly
+  always written about a catalogue that has no reason to move.
+
+  An override the store no longer matches is listed in the poll report and
+  logged, and its `last_matched_at` stops advancing — so a correction that has
+  quietly stopped applying is visible rather than sitting in the table looking
+  effective. See the
+  [runbook](../operations/site-watch-runbook.md#correcting-a-wrong-grouping).
 - **History is not rewritten.** Existing drops gain a `watch_id` and nothing is
   deleted. Merging the three YEMA drops would cascade their `drop_broadcasts`
   rows, destroying the only evidence those messages were sent and risking a

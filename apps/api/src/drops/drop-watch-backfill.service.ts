@@ -13,7 +13,11 @@ export interface DropWatchAssignment {
 
 export interface DropWatchBackfillResult {
   dryRun: boolean;
-  /** Published Drops that still have no Watch, whether or not one is derivable. */
+  /**
+   * Every Drop with no Watch, whether or not one is derivable — pending and
+   * rejected ones included. A Drop sitting in the moderation queue is one an
+   * operator may still approve, and it should be correct when they do.
+   */
   withoutWatch: number;
   /** Of those, the ones a Variant URL identifies a Watch for. */
   assignments: DropWatchAssignment[];

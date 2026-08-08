@@ -8,7 +8,11 @@
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { AdapterError, getAdapter, htmlSelectors, parseWatchConfig, WatchConfig } from './adapters';
-import { diffSnapshots, hashSnapshot, normalizeSnapshot } from './snapshot';
+import { hashSnapshot, normalizeSnapshot } from './snapshot';
+import { diffWatches } from './watch-events';
+
+/** These pages are one brand's store; grouping is scoped to the brand. */
+const BRAND = 'northlake';
 
 const PAGE = readFileSync(
   join(__dirname, '__fixtures__', 'store-listing.html'),
@@ -129,7 +133,7 @@ describe('htmlSelectors adapter', () => {
       );
 
       expect(hashSnapshot(snapshotOf(edited))).toBe(hashSnapshot(baseline()));
-      expect(diffSnapshots(baseline(), snapshotOf(edited))).toHaveLength(0);
+      expect(diffWatches(BRAND, baseline(), snapshotOf(edited))).toHaveLength(0);
     });
 
     it('says nothing when body copy is rewritten', () => {
@@ -138,7 +142,7 @@ describe('htmlSelectors adapter', () => {
         'Assembled by hand in Glashütte. Each reference is a run of 250.',
       );
 
-      expect(diffSnapshots(baseline(), snapshotOf(edited))).toHaveLength(0);
+      expect(diffWatches(BRAND, baseline(), snapshotOf(edited))).toHaveLength(0);
     });
 
     it('says nothing when scripts or styles change', () => {
@@ -158,13 +162,13 @@ describe('htmlSelectors adapter', () => {
       );
 
       expect(hashSnapshot(snapshotOf(reversed))).toBe(hashSnapshot(baseline()));
-      expect(diffSnapshots(baseline(), snapshotOf(reversed))).toHaveLength(0);
+      expect(diffWatches(BRAND, baseline(), snapshotOf(reversed))).toHaveLength(0);
     });
 
     it('says nothing when only a price moves', () => {
       const edited = PAGE.replace('€ 640.00', '€ 690.00');
 
-      expect(diffSnapshots(baseline(), snapshotOf(edited))).toHaveLength(0);
+      expect(diffWatches(BRAND, baseline(), snapshotOf(edited))).toHaveLength(0);
     });
 
     it('says nothing when a product sells out', () => {
@@ -173,7 +177,7 @@ describe('htmlSelectors adapter', () => {
         '<span class="price">€ 640.00</span>\n          <span class="badge badge--sold-out">Sold out</span>',
       );
 
-      expect(diffSnapshots(baseline(), snapshotOf(edited))).toHaveLength(0);
+      expect(diffWatches(BRAND, baseline(), snapshotOf(edited))).toHaveLength(0);
     });
   });
 
@@ -189,12 +193,12 @@ describe('htmlSelectors adapter', () => {
        </li></ul>`,
     );
 
-    const changes = diffSnapshots(run(), run(edited));
+    const changes = diffWatches(BRAND, run(), run(edited));
 
     expect(changes).toHaveLength(1);
-    expect(changes[0].kind).toBe('new_product');
-    expect(changes[0].product).toMatchObject({
-      title: 'Northlake Chronograph',
+    expect(changes[0].kind).toBe('new_watch');
+    expect(changes[0].identity.name).toBe('Northlake Chronograph');
+    expect(changes[0].lead).toMatchObject({
       url: 'https://northlake.example/products/northlake-chronograph',
       price: 1890,
     });
@@ -206,11 +210,11 @@ describe('htmlSelectors adapter', () => {
       PAGE.replace('<span class="badge badge--sold-out">Sold out</span>', ''),
     );
 
-    const changes = diffSnapshots(soldOut, backInStock);
+    const changes = diffWatches(BRAND, soldOut, backInStock);
 
     expect(changes).toHaveLength(1);
     expect(changes[0].kind).toBe('restock');
-    expect(changes[0].product.title).toBe('Meridian GMT');
+    expect(changes[0].identity.name).toBe('Meridian GMT');
   });
 
   it('returns nothing when the page structure changes under it', () => {

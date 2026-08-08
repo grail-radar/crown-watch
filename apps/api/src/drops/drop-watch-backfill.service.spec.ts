@@ -175,6 +175,12 @@ describe('DropWatchBackfillService', () => {
   it('leaves the broadcast path with nothing left to send', async () => {
     // The criterion that matters most: a backfilled drop must not look fresh to
     // the dispatcher, or a follower is told twice about the same watch.
+    //
+    // Driven through `AlertDispatchService.backfill`, not `broadcastDrop`:
+    // backfill is the path an operator would actually re-run afterwards, and it
+    // is the one that *chooses* which drops to offer. Handing a known drop
+    // straight to `broadcastDrop` would only re-prove ADR-0002's claim, which
+    // holds whether or not this backfill ran.
     const brand = await arrangeBrand();
     await arrangeWatch(brand.id, 'Meridian', ['https://yema.example/products/meridian']);
     const drop = await arrangeDrop(brand.id, {
@@ -183,10 +189,13 @@ describe('DropWatchBackfillService', () => {
     });
 
     await backfill.backfill({ confirm: true });
-    const again = await alerts.broadcastDrop(drop.id);
+    const offered = await alerts.backfill({ confirm: true, limit: 100 });
 
-    expect(again.sentCount).toBe(0);
-    expect(telegram.sent).toHaveLength(0);
+    expect(offered.candidates.map((c) => c.dropId)).not.toContain(drop.id);
+    expect(telegram.sent.map((s) => s.text).join('\n')).not.toContain('Meridian');
+    // And the direct path is still closed too, by the claim.
+    const direct = await alerts.broadcastDrop(drop.id);
+    expect(direct.sentCount).toBe(0);
   });
 
   it('leaves a drop alone when nothing identifies its watch', async () => {

@@ -416,6 +416,112 @@ describe('SiteWatchService', () => {
       expect(telegram.sent).toHaveLength(0);
     });
 
+    it('honours a grouping correction on the very next poll, with no restart', async () => {
+      // ADR-0003's condition, end to end and against the long-lived service
+      // this suite shares: an operator writes a row, and the next scheduled
+      // poll groups differently. Nothing is deployed and nothing is restarted.
+      const { source, brandId } = await arrangeSource();
+      fetcher.serve([{ handle: 'other', title: 'Other', available: true }]);
+      await service.pollSource(source.id);
+
+      const brand = await prisma.brand.findUniqueOrThrow({
+        where: { id: brandId },
+      });
+      await prisma.watchGroupingOverride.create({
+        data: {
+          brandId,
+          // The store appends the reference to one bracelet and not the other,
+          // so the rule would split one model into two watches — and announce
+          // it twice.
+          productUrl: 'https://brand.example/products/superman-u7',
+          watchKey: `${brand.slug}:superman bronze`,
+          note: 'Reference is appended to the U7 bracelet only',
+        },
+      });
+
+      fetcher.serve([
+        { handle: 'other', title: 'Other', available: true },
+        { handle: 'superman-u8', title: 'Superman Bronze', available: true },
+        { handle: 'superman-u7', title: 'Superman Bronze Ref. CMM.10', available: true },
+      ]);
+      const result = await service.pollSource(source.id);
+
+      expect(result.groupingOverridesApplied).toBe(1);
+      expect(result.dropsCreated).toBe(1); // one model, one alert
+      expect(result.broadcastsSent).toBe(2);
+      const [drop] = await dropsFor(brandId);
+      const watch = (await watchesFor(brandId)).find(
+        (w) => w.variants.length === 2,
+      );
+      // The Drop points at the watch the brand page actually shows.
+      expect(drop.watchId).toBe(watch!.id);
+    });
+
+    it('regroups a store that has not changed at all since the correction', async () => {
+      // The case an operator actually hits: they notice a brand page listing
+      // one watch twice, write the override, and wait. The store has no reason
+      // to change, so a poll that only regroups on a changed catalogue would
+      // leave the correction unapplied indefinitely.
+      const { source, brandId } = await arrangeSource();
+      fetcher.serve([
+        { handle: 'twin-a', title: 'Twin Diver', available: true },
+        { handle: 'twin-b', title: 'Twin Diver Ref. 002', available: true },
+      ]);
+      await service.pollSource(source.id);
+      expect(await watchesFor(brandId)).toHaveLength(2);
+
+      const brand = await prisma.brand.findUniqueOrThrow({
+        where: { id: brandId },
+      });
+      await prisma.watchGroupingOverride.create({
+        data: {
+          brandId,
+          productUrl: 'https://brand.example/products/twin-b',
+          watchKey: `${brand.slug}:twin diver`,
+        },
+      });
+
+      // Same catalogue, byte for byte.
+      const result = await service.pollSource(source.id);
+
+      expect(result.changed).toBe(false);
+      expect(result.groupingOverridesApplied).toBe(1);
+      const populated = (await watchesFor(brandId)).filter(
+        (w) => w.variants.length > 0,
+      );
+      expect(populated).toHaveLength(1);
+      expect(populated[0].variants).toHaveLength(2);
+      // Regrouping the catalogue is not an event; nobody is interrupted.
+      expect(result.dropsCreated).toBe(0);
+      expect(telegram.sent).toHaveLength(0);
+    });
+
+    it('reports an override the store has moved out from under', async () => {
+      const { source, brandId } = await arrangeSource();
+      fetcher.serve([{ handle: 'diver', title: 'Diver', available: true }]);
+      await service.pollSource(source.id);
+
+      await prisma.watchGroupingOverride.create({
+        data: {
+          brandId,
+          productUrl: 'https://brand.example/products/long-gone',
+          watchKey: 'whatever:it-was',
+        },
+      });
+
+      fetcher.serve([
+        { handle: 'diver', title: 'Diver', available: true },
+        { handle: 'field', title: 'Field Watch', available: true },
+      ]);
+      const result = await service.pollSource(source.id);
+
+      // Harmless — the poll worked — but not silent.
+      expect(result.status).toBe('ok');
+      expect(result.groupingOverridesUnmatched).toEqual([
+        'https://brand.example/products/long-gone',
+      ]);
+    });
+
     it('does not re-announce a watch when the store adds a buying option', async () => {
       const { source, brandId } = await arrangeSource();
       fetcher.serve([{ handle: 'diver-a', title: 'Harbour Diver', available: true }]);

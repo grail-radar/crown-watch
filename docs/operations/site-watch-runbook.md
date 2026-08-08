@@ -334,6 +334,124 @@ a source that failed is retried once its backoff window expires.
 
 ---
 
+## Correcting a wrong grouping
+
+The rule that decides which store products are the same **Watch** is brand plus
+a normalised title, and it is deliberately simple
+([ADR-0003](../adr/0003-watch-identity-is-normalised-titles.md)). It will be
+wrong sometimes. When it is, you fix it by inserting a row — **no deploy, no
+restart**. The next poll picks it up.
+
+That cheapness is not a convenience, it is the condition the simple rule was
+accepted under. If corrections needed a release, the honest choice would have
+been the expensive rule the project rejected.
+
+### What wrong looks like
+
+| Symptom | The rule did | You want |
+|---|---|---|
+| One model announced twice within a second | split | a merge |
+| A brand page listing the same watch twice | split | a merge |
+| Two genuinely different models sharing one page | merged | a split |
+| A limited edition folded into the standard model | merged | a split |
+
+The usual cause of a wrong split is a store that appends a reference to some
+products and not their siblings. The usual cause of a wrong merge is two models
+a store happens to title identically.
+
+### Look at the grouping first
+
+```sql
+SELECT w.name, w.key, count(v.id) AS variants, min(v.product_url) AS example
+FROM watches w
+LEFT JOIN watch_variants v ON v.watch_id = w.id
+WHERE w.brand_id = '<brand_id>'
+GROUP BY w.id ORDER BY variants DESC, w.name;
+```
+
+A Watch with one variant next to a near-identical Watch with one variant is a
+wrong split. A Watch with variants whose product URLs read like different models
+is a wrong merge.
+
+### Force a merge
+
+Point the stray product at the key of the Watch it belongs to. Copy that key
+from `watches.key` rather than typing it — it is `<brand-slug>:<lowercased
+name>`, and a near-miss silently creates a third Watch instead.
+
+```sql
+INSERT INTO watch_grouping_overrides (id, brand_id, product_url, watch_key, note, created_at, updated_at)
+VALUES (
+  gen_random_uuid()::text, '<brand_id>',
+  'https://thebrand.example/products/superman-u7',
+  'yema:superman bronze',
+  'Store appends the reference to the U7 bracelet only',
+  now(), now()
+);
+```
+
+### Force a split
+
+Give the product a key nothing else uses, and a name — without one it inherits
+whatever the rule derived, which is the name it is being separated from.
+
+```sql
+INSERT INTO watch_grouping_overrides (id, brand_id, product_url, watch_key, watch_name, note, created_at, updated_at)
+VALUES (
+  gen_random_uuid()::text, '<brand_id>',
+  'https://thebrand.example/products/aquascaphe-limited',
+  'baltic:aquascaphe limited',
+  'Aquascaphe Limited Edition',
+  'A separate model, not a dial option',
+  now(), now()
+);
+```
+
+### Then poll, and check
+
+```bash
+curl -fsS -X POST "$API_BASE_URL/ingestion/site-watch/poll?sourceId=<source_id>&force=true" -H "x-admin-token: $ADMIN_TOKEN" | jq '{groupingOverridesApplied, groupingOverridesUnmatched, watchesRecorded}'
+```
+
+`groupingOverridesApplied` counts the rows that re-homed a product. A zero when
+you expected one means the `product_url` does not match the store exactly.
+
+**Undoing is deleting the row.** The next poll re-groups those products by the
+rule, and no trace of the override is kept.
+
+> **The Watch rows themselves are not undone.** A forced split creates a second
+> Watch; deleting the override moves its products back but leaves that Watch
+> behind, empty, at a URL somebody may already hold. The same is true of any
+> Watch an override empties. Tidy them by hand once you are sure:
+>
+> ```sql
+> DELETE FROM watches w
+> WHERE w.brand_id = '<brand_id>'
+>   AND NOT EXISTS (SELECT 1 FROM watch_variants v WHERE v.watch_id = w.id);
+> ```
+>
+> Drops that pointed at a deleted Watch keep their rows and lose their
+> `watch_id` — nothing is announced again, and no broadcast record is touched.
+
+### Overrides that have stopped doing anything
+
+A store that delists a product, or changes its URL, leaves the override matching
+nothing. It is harmless — nothing is regrouped — but it is not silent: the poll
+reports it in `groupingOverridesUnmatched` and logs a warning.
+
+```sql
+SELECT product_url, watch_key, note, created_at, last_matched_at
+FROM watch_grouping_overrides
+WHERE last_matched_at IS NULL OR last_matched_at < now() - interval '7 days'
+ORDER BY created_at;
+```
+
+`last_matched_at` is stamped on every poll the override actually applies to. A
+null one has never matched — usually a typo in the URL. One that stopped days
+ago means the store moved on. Delete either once you have confirmed it.
+
+---
+
 ## Giving old Drops the Watch they are about
 
 A Drop records which **Watch** it is an event about, so one release is one alert
@@ -369,7 +487,8 @@ Left with a null `watch_id`, as expected rather than as a failure:
 - Drops whose store product has since been delisted
 
 Read the per-Watch counts in the output. A Watch claiming dozens of Drops is a
-grouping that has gone wrong, not a busy model.
+grouping that has gone wrong, not a busy model — see
+[Correcting a wrong grouping](#correcting-a-wrong-grouping).
 
 ---
 
@@ -433,6 +552,7 @@ Two guards came out of it, deliberately at different levels:
 
 - [ADR-0001](../adr/0001-tier-4-signals-publish-without-moderation.md) — why Tier 4 drops publish without moderation
 - [ADR-0002](../adr/0002-broadcasts-are-at-most-once.md) — why an alert is never sent twice, and never retried
+- [ADR-0003](../adr/0003-watch-identity-is-normalised-titles.md) — how products become Watches, and why the override table is load-bearing
 - [ADR-0005](../adr/0005-an-implausible-poll-is-refused-not-published.md) — why an implausible poll is refused, and why its snapshot is not kept
 - [README](../../README.md#telegram-drop-broadcast-contextmd-2) — channel setup and backfilling
 
