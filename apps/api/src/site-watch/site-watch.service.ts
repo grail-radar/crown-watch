@@ -41,6 +41,21 @@ class RateLimited extends Error {
  */
 const DEFAULT_POLL_DELAY_MS = 2000;
 
+/**
+ * How many changes one poll of one store may announce before it is refused.
+ *
+ * No microbrand releases eleven watches in an hour. When a poll says they did,
+ * the likeliest explanations are all upstream faults — a lost snapshot, a moved
+ * endpoint, a redesigned store, an adapter that started reading the page
+ * differently — and a Channel cannot unsend (ADR-0002), so the cost of being
+ * wrong scales with every message that goes out before a human notices.
+ *
+ * Ten is deliberately above anything the feed has genuinely produced (three at
+ * once is the record) and well below the smallest store in the 2026-08-07
+ * incident, which announced twelve.
+ */
+const DEFAULT_MAX_CHANGES_PER_POLL = 10;
+
 /** What a single detected change produced, for the poll report. */
 export interface SiteWatchChangeReport {
   kind: SnapshotChangeKind;
@@ -56,8 +71,10 @@ export interface SiteWatchChangeReport {
  * `skipped` — inside a backoff window, or robots.txt forbids the path. Not a
  *             failure: doing nothing was the correct behaviour.
  * `error`   — the poll was attempted and failed.
+ * `refused` — the store answered and the poll worked, but what it found was too
+ *             big to announce. Nothing was published; the source is held.
  */
-export type SiteWatchSourceStatus = 'ok' | 'skipped' | 'error';
+export type SiteWatchSourceStatus = 'ok' | 'skipped' | 'error' | 'refused';
 
 export interface SiteWatchSourceResult {
   sourceId: string;
@@ -72,6 +89,8 @@ export interface SiteWatchSourceResult {
   nextAttemptAt: string | null;
   /** Why it was skipped — backoff or a robots.txt directive. */
   skippedReason?: string;
+  /** Why the poll was refused, and how far over the threshold it was. */
+  refusedReason?: string;
   /** true when the store differs from what it showed at the previous poll */
   changed: boolean;
   /** true when this was the source's first ever snapshot */
@@ -86,7 +105,10 @@ export interface SiteWatchSourceResult {
   dropsCreated: number;
   /** Telegram messages posted across all channels for this source's drops. */
   broadcastsSent: number;
-  /** The specific changes this poll turned into drops. */
+  /**
+   * The specific changes this poll turned into drops — or, when it was
+   * `refused`, the ones it would have and did not.
+   */
   changes: SiteWatchChangeReport[];
   error?: string;
 }
@@ -101,6 +123,8 @@ export interface SiteWatchRunResult {
   failureCount: number;
   /** Sources deliberately left alone this run — backoff or robots.txt. */
   skippedCount: number;
+  /** Sources held back: they changed too much at once to be announced. */
+  refusedCount: number;
   sources: SiteWatchSourceResult[];
 }
 
@@ -165,13 +189,14 @@ export class SiteWatchService {
       totalBroadcastsSent: results.reduce((n, r) => n + r.broadcastsSent, 0),
       failureCount: results.filter((r) => r.status === 'error').length,
       skippedCount: results.filter((r) => r.status === 'skipped').length,
+      refusedCount: results.filter((r) => r.status === 'refused').length,
       sources: results,
     };
 
     this.logger.log(
       `Site-watch run: ${run.sourceCount} source(s), ${run.totalDropsCreated} drop(s), ` +
         `${run.totalBroadcastsSent} broadcast(s), ${run.failureCount} failure(s), ` +
-        `${run.skippedCount} skipped`,
+        `${run.skippedCount} skipped, ${run.refusedCount} refused`,
     );
     return run;
   }
@@ -180,10 +205,14 @@ export class SiteWatchService {
    * Poll one store: fetch, normalise, and turn genuine catalogue changes into
    * published drops. Never throws — failures are recorded on the source's
    * health and returned in the result.
+   *
+   * `force` ignores an active backoff window. `release` waives the flood guard
+   * for this one poll, which is how an operator publishes a change big enough
+   * to have been refused once they have checked the store themselves.
    */
   async pollSource(
     sourceId: string,
-    options: { force?: boolean } = {},
+    options: { force?: boolean; release?: boolean } = {},
   ): Promise<SiteWatchSourceResult> {
     const source = await this.prisma.source.findUniqueOrThrow({
       where: { id: sourceId },
@@ -291,6 +320,24 @@ export class SiteWatchService {
         return result; // store unchanged since last poll
       }
 
+      // What this poll would announce, worked out before anything at all is
+      // written down. A first sight of a store announces nothing by definition,
+      // so it has no changes to weigh.
+      const changes = previous ? diffSnapshots(previous, products) : [];
+      const limit = this.maxChangesPerPoll();
+      // A source already held stays held whatever this poll's diff looks like.
+      // Without that, a flood could walk through in instalments: a store that
+      // drops a few products between polls presents a diff under the wall, and
+      // the rest of the same flood is announced as if it had been reviewed.
+      //
+      // `previous` gates the whole guard, so a baseline poll is never refused —
+      // it announces nothing by definition, and clearing the stored snapshot is
+      // how an operator re-baselines a source whose flood was an artefact.
+      const alreadyHeld = source.healthStatus === SourceHealth.held;
+      if (previous && !options.release && (alreadyHeld || changes.length > limit)) {
+        return this.refuse(source, result, changes, limit, alreadyHeld);
+      }
+
       // Catalogue, not events — so this runs on the baseline poll too. A store
       // registered today has pages from the moment it is added, even though it
       // deliberately announces nothing.
@@ -319,7 +366,6 @@ export class SiteWatchService {
         return result;
       }
 
-      const changes = diffSnapshots(previous, products);
       for (const change of changes) {
         const type = this.dropType(change);
         const drop = await this.drops.create({
@@ -375,6 +421,93 @@ export class SiteWatchService {
       );
     }
 
+    return result;
+  }
+
+  /**
+   * The most changes one poll may announce.
+   *
+   * Configuration rather than a constant, so a brand that genuinely publishes a
+   * whole collection at once can be accommodated without a deploy. There is no
+   * way to switch the wall off: a value that is absent, unparsable or
+   * nonsensical falls back to the default rather than opening the gate, because
+   * a mistyped environment variable must not be the thing that lets 372 drops
+   * through.
+   */
+  private maxChangesPerPoll(): number {
+    const configured = this.config.get<number>('siteWatch.maxChangesPerPoll');
+    return typeof configured === 'number' &&
+      Number.isFinite(configured) &&
+      configured > 0
+      ? Math.floor(configured)
+      : DEFAULT_MAX_CHANGES_PER_POLL;
+  }
+
+  /**
+   * Stop before publishing, and leave the source exactly where a human can pick
+   * it up.
+   *
+   * **Nothing is written.** Not the Drops, not the alerts, not the snapshot, and
+   * not the Watches — the catalogue would be built from the very payload this
+   * poll just declined to believe. The snapshot is the load-bearing part:
+   * storing it would make the next poll diff against the flood, find nothing,
+   * and report a healthy store. The refusal would clear itself, and any genuine
+   * Drop hiding inside the flood would be lost with it. Holding the old
+   * snapshot instead makes the refusal repeatable — every poll re-derives the
+   * same list from the live store, so an operator can see what is waiting at
+   * any time, and `release` publishes it.
+   *
+   * The source is `held`, not failing: the store answered, so no failure streak
+   * is running and no backoff window opens. That leaves the ordinary hourly
+   * poll to keep re-checking, which is what an operator reads the report of.
+   * Only a release, a re-baseline, or the store returning to the catalogue we
+   * already hold ends this — see ADR-0005.
+   *
+   * `alreadyHeld` distinguishes the poll that raised the wall from the ones
+   * that keep it up afterwards. The second kind may be under the threshold, so
+   * saying it exceeded one would be a lie an operator has to unpick.
+   */
+  private async refuse(
+    source: { id: string; name: string | null; endpoint: string },
+    result: SiteWatchSourceResult,
+    changes: SnapshotChange[],
+    limit: number,
+    alreadyHeld: boolean,
+  ): Promise<SiteWatchSourceResult> {
+    const reason = alreadyHeld
+      ? `Still held, with ${changes.length} change(s) waiting. Nothing was announced. ` +
+        `Check the store, then re-poll with release=true to publish them.`
+      : `Refused to publish ${changes.length} changes from one poll (limit ${limit}). ` +
+        `Nothing was announced. Check the store, then re-poll with release=true to publish them.`;
+
+    result.status = 'refused';
+    result.refusedReason = reason;
+    result.health = SourceHealth.held;
+    result.consecutiveFailures = 0;
+    result.nextAttemptAt = null;
+    // The store did move — we simply refused to act on it. Reporting otherwise
+    // would read as "nothing happened here".
+    result.changed = true;
+    result.changes = changes.map((change) => ({
+      kind: change.kind,
+      type: this.dropType(change),
+      title: change.product.title,
+      url: change.product.url,
+      broadcasts: 0,
+    }));
+
+    await this.prisma.source.update({
+      where: { id: source.id },
+      data: {
+        lastPolledAt: new Date(),
+        healthStatus: SourceHealth.held,
+        consecutiveFailures: 0,
+        nextAttemptAt: null,
+        lastError: reason.slice(0, 500),
+      },
+    });
+
+    this.logger.warn(`[${source.name ?? source.endpoint}] ${reason}`);
     return result;
   }
 

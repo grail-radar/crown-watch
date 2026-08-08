@@ -27,6 +27,12 @@ enum SourceHealth {
   healthy
   degraded
   error
+  // The store answered fine, but the poll refused to publish what it found —
+  // an implausible number of changes at once means something upstream is wrong,
+  // and a Channel cannot unsend. Deliberately not `error`: nothing is broken,
+  // the source is held until a human looks at it. See `lastError` for why, and
+  // docs/operations/site-watch-runbook.md for how to release it.
+  held
 }
 
 enum BrandStatus {

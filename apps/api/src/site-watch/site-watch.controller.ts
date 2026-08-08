@@ -1,4 +1,11 @@
-import { Controller, HttpCode, Post, Query, UseGuards } from '@nestjs/common';
+import {
+  BadRequestException,
+  Controller,
+  HttpCode,
+  Post,
+  Query,
+  UseGuards,
+} from '@nestjs/common';
 import { AdminGuard } from '../moderation/admin.guard';
 import { SiteWatchService } from './site-watch.service';
 
@@ -20,12 +27,32 @@ export class SiteWatchController {
    * `?force=true` ignores an active backoff window for that one source — how an
    * operator retries straight after fixing a broken selector, rather than
    * waiting out a window the old configuration earned.
+   *
+   * `?release=true` publishes a change big enough to have been refused. It is
+   * deliberately per-source and never applies to a whole run: releasing a flood
+   * is a decision about one store, taken after looking at that store.
    */
   @Post('poll')
   @HttpCode(200)
-  poll(@Query('sourceId') sourceId?: string, @Query('force') force?: string) {
-    return sourceId
-      ? this.siteWatch.pollSource(sourceId, { force: force === 'true' })
-      : this.siteWatch.pollAll();
+  poll(
+    @Query('sourceId') sourceId?: string,
+    @Query('force') force?: string,
+    @Query('release') release?: string,
+  ) {
+    if (!sourceId) {
+      if (release === 'true') {
+        // Refusing beats quietly dropping the parameter: an operator who thinks
+        // they have released a held store, and has not, learns it here rather
+        // than from a channel that stayed silent.
+        throw new BadRequestException(
+          'release=true needs a sourceId — a held poll is released one store at a time.',
+        );
+      }
+      return this.siteWatch.pollAll();
+    }
+    return this.siteWatch.pollSource(sourceId, {
+      force: force === 'true',
+      release: release === 'true',
+    });
   }
 }

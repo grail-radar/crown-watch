@@ -110,6 +110,13 @@ pushes back — doubling from 15 minutes to a one-day cap, honouring `Retry-Afte
 One brand's broken selector never blinds the rest of a run; failures are
 itemised per source, with health on the source row.
 
+It also refuses to be the cause of a second flood. A poll that finds more than
+`SITE_WATCH_MAX_CHANGES_PER_POLL` changes at one store publishes nothing at all
+and holds that source for a human — no legitimate hour at one microbrand
+produces eleven Drops, so a poll that says so has something wrong upstream of
+it, and a channel cannot unsend
+([ADR-0005](./docs/adr/0005-an-implausible-poll-is-refused-not-published.md)).
+
 It runs unattended, hourly, via `.github/workflows/site-watch-poll.yml` (which
 also wakes free-tier hosting) and the API's own cron. Running both is safe:
 alerts are claimed per `(drop, channel)`, so overlapping runs cannot double-post.

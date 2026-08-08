@@ -51,6 +51,26 @@ describe('telegram channels', () => {
   });
 });
 
+describe('the site-watch flood threshold', () => {
+  const saved = { ...process.env };
+
+  afterEach(() => {
+    process.env = { ...saved };
+  });
+
+  it('reads SITE_WATCH_MAX_CHANGES_PER_POLL', () => {
+    process.env.SITE_WATCH_MAX_CHANGES_PER_POLL = '40';
+
+    expect(configuration().siteWatch.maxChangesPerPoll).toBe(40);
+  });
+
+  it('has a default, so the wall stands in a deployment that never set it', () => {
+    delete process.env.SITE_WATCH_MAX_CHANGES_PER_POLL;
+
+    expect(configuration().siteWatch.maxChangesPerPoll).toBeGreaterThan(0);
+  });
+});
+
 describe('telegram partner groups', () => {
   const saved = { ...process.env };
 

@@ -16,6 +16,7 @@ const emptyRun = (): SiteWatchRunResult => ({
   totalBroadcastsSent: 0,
   failureCount: 0,
   skippedCount: 0,
+  refusedCount: 0,
   sources: [],
 });
 
