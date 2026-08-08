@@ -172,6 +172,7 @@ ORDER BY health_status DESC, consecutive_failures DESC;
 | `healthy` | last poll succeeded | nothing |
 | `degraded` | 1–2 failures in a row | wait — usually transient |
 | `error` | 3+ failures in a row | investigate; read `last_error` |
+| `held` | a poll found too much to announce and published nothing | see [Held sources](#a-held-source-a-poll-that-refused-to-publish) — only a human clears this |
 | `unknown` | never polled | run a baseline poll |
 
 `next_attempt_at` in the future means the source is deliberately being left
@@ -198,7 +199,93 @@ curl -fsS -X POST "$API_BASE_URL/ingestion/site-watch/poll?sourceId=<source_id>&
 ```
 
 `force` applies to one source and ignores only the backoff window. It does not
-bypass robots.txt, and it does not let an alert be sent twice.
+bypass robots.txt, and it does not let an alert be sent twice. It is **not** the
+lever for a held source — see the next section.
+
+---
+
+## A held source: a poll that refused to publish
+
+`health_status = 'held'` means the store answered, the adapter parsed it, and the
+poll then **refused to announce what it found**. Nothing was published: no Drops,
+no Telegram posts, no Watches, and no snapshot. Above
+`SITE_WATCH_MAX_CHANGES_PER_POLL` changes in one poll (default 10), the poll
+stops rather than tells both Channels, because a Channel cannot unsend and no
+legitimate hour at one microbrand produces eleven Drops. The reasoning is
+[ADR-0005](../adr/0005-an-implausible-poll-is-refused-not-published.md).
+
+A held source is **not** broken and **not** backing off, so `force` does nothing
+for it. It keeps being polled hourly and keeps refusing — including when the
+store loses a few products and the diff falls back under the threshold, so the
+flood cannot walk through in instalments. Three things end a hold: releasing it
+(3a), re-baselining it (3b), or the store returning to exactly the catalogue we
+already hold, which publishes nothing by definition and so needs nobody's
+ruling.
+
+While it is held, a genuine Drop at that store is held too. That is the point,
+but it does mean a hold is worth clearing the same day.
+
+### 1. See what it is holding
+
+Poll that one source again. The previous snapshot was never overwritten, so the
+poll re-derives its list from the live store rather than from anything stored:
+
+```bash
+curl -fsS -X POST "$API_BASE_URL/ingestion/site-watch/poll?sourceId=<source_id>" -H "x-admin-token: $ADMIN_TOKEN" | jq '{status, refusedReason, productCount, changes}'
+```
+
+`changes` is what that poll would have announced, with `broadcasts: 0` on every
+entry because none of it went anywhere. It reflects the store **as of that
+request** — if the shop is mid-change, two polls minutes apart can differ.
+
+### 2. Decide which it is
+
+| What `changes` looks like | What happened | Do |
+|---|---|---|
+| the brand's whole catalogue, including Watches that have been listed for months | the stored snapshot was lost or overwritten | find out how, then re-baseline (below) |
+| every product, with URLs in a shape you do not recognise | the store was redesigned or the endpoint moved | fix `endpoint` / `watch_config`, then re-baseline |
+| a plausible collection launch, and the store's own page agrees | a genuinely large launch | release it |
+| products that are not watches — straps, buckles, cases | the endpoint lists the whole shop | narrow the endpoint or selectors |
+
+**Open the store in a browser before deciding.** The whole point of the hold is
+that the data cannot be trusted to answer this question about itself.
+
+### 3a. Release it, if it is real
+
+```bash
+curl -fsS -X POST "$API_BASE_URL/ingestion/site-watch/poll?sourceId=<source_id>&release=true" -H "x-admin-token: $ADMIN_TOKEN" | jq '{status, dropsCreated, broadcastsSent}'
+```
+
+This publishes that poll in full and posts every Drop to both Channels — the
+thing that cannot be undone. It applies to one poll of one source; the next poll
+is guarded again, and `release=true` without a `sourceId` is rejected rather than
+ignored.
+
+> **Release polls the store afresh — it does not replay what you inspected.**
+> Check `dropsCreated` against the number you reviewed. If they differ, the shop
+> changed underneath you, and what went out is not quite what you approved.
+
+### 3b. Re-baseline it, if it is not
+
+When the flood is an artefact, what the source needs is a fresh silent baseline
+rather than a release. Delete the stale snapshot and poll:
+
+```sql
+DELETE FROM raw_ingestion_events WHERE source_id = '<source_id>';
+```
+
+The next poll has nothing to diff against, so it records a baseline and
+announces nothing — the same silent first poll a newly registered store gets,
+which also clears the hold. Check `baseline: true` and `dropsCreated: 0` in the
+response.
+
+> Deleting the events for a source that has published Drops sets those Drops'
+> `source_event_id` to null; the Drops themselves survive. Retracting Drops is a
+> separate operation — see below.
+
+If a brand does this routinely, raise `SITE_WATCH_MAX_CHANGES_PER_POLL` instead
+of releasing it by hand every time. Do not raise it merely to onboard a large
+catalogue: a first poll announces nothing however many products it finds.
 
 ---
 
@@ -290,9 +377,16 @@ No RSS-sourced drop falls inside it, and the three genuine YEMA store drops from
 6 August sit safely outside, as do both Baltic restocks from 4 August.
 
 Cause: a test run against production overwrote four stores' stored snapshots with
-fixture data; the next scheduled poll read every real product as new. The
-recurrence guard is in the test harness — see the
-[README](../../README.md#tests).
+fixture data; the next scheduled poll read every real product as new.
+
+Two guards came out of it, deliberately at different levels:
+
+- **That cause** cannot recur: the suite refuses a non-local `DATABASE_URL`
+  before a single spec loads. See the [README](../../README.md#tests).
+- **That shape** cannot recur whatever causes it: a poll finding more than
+  `SITE_WATCH_MAX_CHANGES_PER_POLL` changes at one store publishes nothing and
+  holds the source. All four stores would have hit it — the smallest announced
+  twelve. See [Held sources](#a-held-source-a-poll-that-refused-to-publish).
 
 ---
 
@@ -300,6 +394,7 @@ recurrence guard is in the test harness — see the
 
 - [ADR-0001](../adr/0001-tier-4-signals-publish-without-moderation.md) — why Tier 4 drops publish without moderation
 - [ADR-0002](../adr/0002-broadcasts-are-at-most-once.md) — why an alert is never sent twice, and never retried
+- [ADR-0005](../adr/0005-an-implausible-poll-is-refused-not-published.md) — why an implausible poll is refused, and why its snapshot is not kept
 - [README](../../README.md#telegram-drop-broadcast-contextmd-2) — channel setup and backfilling
 
 ---

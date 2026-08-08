@@ -24,6 +24,13 @@ export interface AppConfig {
     pollOnBoot: boolean;
     /** Pause between stores within one run, so a poll is polite as a whole. */
     pollDelayMs: number;
+    /**
+     * Most changes one poll of one store may announce before it is refused
+     * outright. `NaN` when the variable is unreadable; `SiteWatchService` is
+     * what decides that an unusable value means the default rather than an open
+     * gate, since it is the thing that has to stay closed.
+     */
+    maxChangesPerPoll: number;
   };
   anthropic: {
     apiKey: string | undefined;
@@ -84,6 +91,12 @@ export default (): AppConfig => ({
     pollOnBoot:
       (process.env.SITE_WATCH_POLL_ON_BOOT ?? 'false').toLowerCase() === 'true',
     pollDelayMs: parseInt(process.env.SITE_WATCH_POLL_DELAY_MS ?? '2000', 10),
+    // Why there is a wall at all, and why ten:
+    // docs/adr/0005-an-implausible-poll-is-refused-not-published.md.
+    maxChangesPerPoll: parseInt(
+      process.env.SITE_WATCH_MAX_CHANGES_PER_POLL ?? '10',
+      10,
+    ),
   },
   anthropic: {
     apiKey: process.env.ANTHROPIC_API_KEY || undefined,

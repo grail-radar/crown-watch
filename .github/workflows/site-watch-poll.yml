@@ -68,11 +68,14 @@ jobs:
               "- drops created: \(.totalDropsCreated)",
               "- alerts sent: \(.totalBroadcastsSent)",
               "- failures: \(.failureCount)",
-              "- skipped (backoff or robots.txt): \(.skippedCount)\n",
+              "- skipped (backoff or robots.txt): \(.skippedCount)",
+              # A held source published nothing and needs a person: see the
+              # runbook. Older API builds do not report this field at all.
+              "- refused (held for review): \(.refusedCount // 0)\n",
               "| source | status | health | changed | drops | alerts | detail |",
               "|---|---|---|---|---|---|---|",
               (.sources[] |
-                "| \(.name // .endpoint) | \(.status) | \(.health) | \(.changed) | \(.dropsCreated) | \(.broadcastsSent) | \(.error // .skippedReason // "") |")
+                "| \(.name // .endpoint) | \(.status) | \(.health) | \(.changed) | \(.dropsCreated) | \(.broadcastsSent) | \(.error // .refusedReason // .skippedReason // "") |")
             end
           ' run.json > summary.md 2>/dev/null; then
             cat summary.md >> "$GITHUB_STEP_SUMMARY"

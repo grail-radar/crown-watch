@@ -65,7 +65,8 @@ export class SiteWatchScheduler implements OnModuleInit {
         `(${trigger}) ${result.sourceCount} source(s), ` +
           `${result.totalDropsCreated} drop(s), ` +
           `${result.totalBroadcastsSent} broadcast(s), ` +
-          `${result.failureCount} failure(s), ${result.skippedCount} skipped`,
+          `${result.failureCount} failure(s), ${result.skippedCount} skipped, ` +
+          `${result.refusedCount} refused`,
       );
     } catch (err) {
       // pollAll isolates per-source failures itself, so reaching here means

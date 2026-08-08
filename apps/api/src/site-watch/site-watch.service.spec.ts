@@ -153,6 +153,37 @@ describe('SiteWatchService', () => {
     return { source, brandId };
   }
 
+  /** The same service, with its own view of how big one poll may be. */
+  const serviceWithLimit = (maxChangesPerPoll: number) =>
+    new SiteWatchService(
+      prisma,
+      fetcher,
+      new DropWriterService(prisma),
+      new WatchWriterService(prisma),
+      alerts,
+      robots,
+      new ConfigService({
+        digest: { publicWebUrl: 'https://crownswatch.org' },
+        siteWatch: {
+          userAgent: 'CrownWatchBot/0.1 (+https://crownswatch.org)',
+          pollDelayMs: 0,
+          maxChangesPerPoll,
+        },
+        telegram: {
+          botToken: 'test-token',
+          channels: { uk: UK_CHANNEL, en: EN_CHANNEL },
+        },
+      }),
+    );
+
+  /** A catalogue of `count` distinct in-stock products. */
+  const catalogueOf = (count: number) =>
+    Array.from({ length: count }, (_, i) => ({
+      handle: `ref-${i}`,
+      title: `Watch ref ${i}`,
+      available: true,
+    }));
+
   const dropsFor = (brandId: string) =>
     prisma.drop.findMany({ where: { brandId }, orderBy: { createdAt: 'asc' } });
 
@@ -634,6 +665,279 @@ describe('SiteWatchService', () => {
     expect(await dropsFor(brandId)).toHaveLength(0);
     // The good snapshot is still the latest one we hold.
     expect(await prisma.rawIngestionEvent.count({ where: { sourceId: source.id } })).toBe(1);
+  });
+
+  describe('refusing to announce an implausible number of drops', () => {
+    // 2026-08-07: a lost snapshot made one poll read 182 real products as new
+    // releases, and both Channels were told about every one of them. A Channel
+    // cannot unsend (ADR-0002), so the wall has to stand in front of publishing
+    // rather than behind it — whatever caused the flood.
+
+    it('publishes nothing and sends nothing when one poll finds too many changes', async () => {
+      const { source, brandId } = await arrangeSource();
+      fetcher.serve(catalogueOf(1));
+      await service.pollSource(source.id);
+
+      fetcher.serve(catalogueOf(13));
+      const result = await service.pollSource(source.id);
+
+      expect(result.status).toBe('refused');
+      expect(result.dropsCreated).toBe(0);
+      expect(result.broadcastsSent).toBe(0);
+      expect(await dropsFor(brandId)).toHaveLength(0);
+      expect(telegram.sent).toHaveLength(0);
+    });
+
+    it('says on the source row that it was held, and why', async () => {
+      const { source } = await arrangeSource();
+      fetcher.serve(catalogueOf(1));
+      await service.pollSource(source.id);
+
+      fetcher.serve(catalogueOf(13));
+      const result = await service.pollSource(source.id);
+
+      expect(result.health).toBe(SourceHealth.held);
+      expect(result.refusedReason).toMatch(/12 change/); // twelve new products
+      const reloaded = await prisma.source.findUniqueOrThrow({
+        where: { id: source.id },
+      });
+      expect(reloaded.healthStatus).toBe(SourceHealth.held);
+      expect(reloaded.lastError).toMatch(/refus/i);
+      expect(reloaded.lastPolledAt).not.toBeNull();
+      // Held, not broken: the store answered, so nothing is backing off and no
+      // failure streak is running. Only a human clears this.
+      expect(reloaded.consecutiveFailures).toBe(0);
+      expect(reloaded.nextAttemptAt).toBeNull();
+    });
+
+    it('shows what it would have published without publishing any of it', async () => {
+      const { source } = await arrangeSource();
+      fetcher.serve(catalogueOf(1));
+      await service.pollSource(source.id);
+
+      fetcher.serve(catalogueOf(13));
+      const result = await service.pollSource(source.id);
+
+      expect(result.changes).toHaveLength(12);
+      expect(result.changes.map((c) => c.title)).toContain('Watch ref 12');
+      expect(result.changes[0].url).toMatch(/^https:\/\/brand\.example\/products\//);
+      // Reported, not sent. The listing is what an operator rules on, so it
+      // must not be able to drift from what actually reached the Channels.
+      expect(result.changes.every((c) => c.broadcasts === 0)).toBe(true);
+      expect(telegram.sent).toHaveLength(0);
+    });
+
+    it('holds the flood rather than swallowing it, so the next poll refuses too', async () => {
+      // The snapshot decision that makes the guard honest. Storing the refused
+      // catalogue would silence the next poll — the flood would vanish, and with
+      // it any genuine release hiding inside it.
+      const { source } = await arrangeSource();
+      fetcher.serve(catalogueOf(1));
+      await service.pollSource(source.id);
+
+      fetcher.serve(catalogueOf(13));
+      await service.pollSource(source.id);
+      // Still only the baseline: nothing a refused poll saw was written down.
+      expect(
+        await prisma.rawIngestionEvent.count({ where: { sourceId: source.id } }),
+      ).toBe(1);
+
+      const again = await service.pollSource(source.id);
+
+      expect(again.status).toBe('refused');
+      expect(again.changes).toHaveLength(12);
+    });
+
+    it('keeps refusing once held, even after the flood shrinks below the wall', async () => {
+      // The flood must not be able to walk through in instalments. A held
+      // source that loses a few products between polls would otherwise present
+      // a diff under the threshold and announce the rest of the same flood.
+      const { source, brandId } = await arrangeSource();
+      fetcher.serve(catalogueOf(1));
+      await service.pollSource(source.id);
+
+      fetcher.serve(catalogueOf(13));
+      expect((await service.pollSource(source.id)).status).toBe('refused');
+
+      // Four of the twelve are still there — well under the limit of ten.
+      fetcher.serve(catalogueOf(5));
+      const shrunk = await service.pollSource(source.id);
+
+      expect(shrunk.status).toBe('refused');
+      expect(shrunk.dropsCreated).toBe(0);
+      expect(await dropsFor(brandId)).toHaveLength(0);
+      expect(telegram.sent).toHaveLength(0);
+    });
+
+    it('lets go of a source whose store returns to the catalogue we hold', async () => {
+      // The one automatic exit, and it is safe because it announces nothing by
+      // definition: the store matches the snapshot exactly, so there is no diff
+      // left to publish and nothing for a human to rule on.
+      const { source, brandId } = await arrangeSource();
+      fetcher.serve(catalogueOf(1));
+      await service.pollSource(source.id);
+      fetcher.serve(catalogueOf(13));
+      await service.pollSource(source.id);
+
+      fetcher.serve(catalogueOf(1));
+      const recovered = await service.pollSource(source.id);
+
+      expect(recovered.status).toBe('ok');
+      expect(recovered.changed).toBe(false);
+      expect(recovered.dropsCreated).toBe(0);
+      expect(await dropsFor(brandId)).toHaveLength(0);
+      const reloaded = await prisma.source.findUniqueOrThrow({
+        where: { id: source.id },
+      });
+      expect(reloaded.healthStatus).toBe(SourceHealth.healthy);
+      expect(reloaded.lastError).toBeNull();
+    });
+
+    it('lets a held source be re-baselined, which is the other way out', async () => {
+      // When the flood turns out to be an artefact, the runbook has the
+      // operator delete the stale snapshot so the next poll starts clean. A
+      // hold that survived that would leave the source stuck for good.
+      const { source, brandId } = await arrangeSource();
+      fetcher.serve(catalogueOf(1));
+      await service.pollSource(source.id);
+      fetcher.serve(catalogueOf(13));
+      await service.pollSource(source.id);
+
+      await prisma.rawIngestionEvent.deleteMany({
+        where: { sourceId: source.id },
+      });
+      const rebaselined = await service.pollSource(source.id);
+
+      expect(rebaselined.status).toBe('ok');
+      expect(rebaselined.baseline).toBe(true);
+      expect(rebaselined.dropsCreated).toBe(0);
+      expect(await dropsFor(brandId)).toHaveLength(0);
+      expect(telegram.sent).toHaveLength(0);
+      const reloaded = await prisma.source.findUniqueOrThrow({
+        where: { id: source.id },
+      });
+      expect(reloaded.healthStatus).toBe(SourceHealth.healthy);
+    });
+
+    it('does not record a refused catalogue as the brand it sells', async () => {
+      // The pages are built from the same payload the poll just refused to
+      // believe. Recording them would put 12 invented Watches on the Brand page.
+      const { source, brandId } = await arrangeSource();
+      fetcher.serve(catalogueOf(1));
+      await service.pollSource(source.id);
+      expect(await watchesFor(brandId)).toHaveLength(1);
+
+      fetcher.serve(catalogueOf(13));
+      const result = await service.pollSource(source.id);
+
+      expect(result.watchesRecorded).toBe(0);
+      expect(await watchesFor(brandId)).toHaveLength(1);
+    });
+
+    it('publishes the whole flood once an operator releases it', async () => {
+      const { source, brandId } = await arrangeSource();
+      fetcher.serve(catalogueOf(1));
+      await service.pollSource(source.id);
+      fetcher.serve(catalogueOf(13));
+      await service.pollSource(source.id);
+
+      // The operator read the report, agrees the store really did release
+      // twelve watches, and lets this one poll through.
+      const released = await service.pollSource(source.id, { release: true });
+
+      expect(released.status).toBe('ok');
+      expect(released.dropsCreated).toBe(12);
+      expect(released.broadcastsSent).toBe(24); // two channels apiece
+      expect(await dropsFor(brandId)).toHaveLength(12);
+      const reloaded = await prisma.source.findUniqueOrThrow({
+        where: { id: source.id },
+      });
+      expect(reloaded.healthStatus).toBe(SourceHealth.healthy);
+      expect(reloaded.lastError).toBeNull();
+    });
+
+    it('reads its threshold from configuration rather than a constant', async () => {
+      const strict = serviceWithLimit(2);
+      const { source } = await arrangeSource();
+      fetcher.serve(catalogueOf(1));
+      await strict.pollSource(source.id);
+
+      fetcher.serve(catalogueOf(4)); // three new products, limit is two
+      const result = await strict.pollSource(source.id);
+
+      expect(result.status).toBe('refused');
+      expect(result.refusedReason).toMatch(/limit 2/);
+    });
+
+    it('cannot be switched off by a nonsensical threshold', async () => {
+      // A mistyped environment variable must not be the thing that lets a
+      // flood through, so an unusable value falls back to the default rather
+      // than opening the gate.
+      const misconfigured = serviceWithLimit(0);
+      const { source, brandId } = await arrangeSource();
+      fetcher.serve(catalogueOf(1));
+      await misconfigured.pollSource(source.id);
+
+      fetcher.serve(catalogueOf(13));
+      const result = await misconfigured.pollSource(source.id);
+
+      expect(result.status).toBe('refused');
+      expect(await dropsFor(brandId)).toHaveLength(0);
+    });
+
+    it('lets a poll sitting exactly on the threshold through', async () => {
+      // "Implausible" has to start somewhere, and the boundary is where a wall
+      // is most likely to block the ordinary case it was never meant to catch.
+      const strict = serviceWithLimit(2);
+      const { source, brandId } = await arrangeSource();
+      fetcher.serve(catalogueOf(1));
+      await strict.pollSource(source.id);
+
+      fetcher.serve(catalogueOf(3)); // two new products
+      const result = await strict.pollSource(source.id);
+
+      expect(result.status).toBe('ok');
+      expect(result.dropsCreated).toBe(2);
+      expect(await dropsFor(brandId)).toHaveLength(2);
+    });
+
+    it('still takes a silent baseline of a brand-new store, however large', async () => {
+      // A first poll announces nothing at all, so a big catalogue is no risk —
+      // and onboarding a hundred-product brand must not need the wall moved.
+      const { source, brandId } = await arrangeSource();
+      fetcher.serve(catalogueOf(40));
+
+      const result = await service.pollSource(source.id);
+
+      expect(result.status).toBe('ok');
+      expect(result.baseline).toBe(true);
+      expect(result.dropsCreated).toBe(0);
+      expect(result.watchesRecorded).toBe(40);
+      expect(await dropsFor(brandId)).toHaveLength(0);
+      expect(telegram.sent).toHaveLength(0);
+    });
+
+    it('counts a refusal apart from a failure in the run report', async () => {
+      // A held source is not a broken one, and an operator reading the run
+      // needs to be able to tell them apart at a glance.
+      const held = await arrangeSource();
+      fetcher.serve(catalogueOf(1));
+      await service.pollSource(held.source.id);
+      fetcher.serve(catalogueOf(13));
+
+      const run = await service.pollAll();
+
+      const ours = run.sources.find((s) => s.sourceId === held.source.id);
+      expect(ours?.status).toBe('refused');
+      expect(ours?.health).toBe(SourceHealth.held);
+      expect(run.refusedCount).toBeGreaterThanOrEqual(1);
+      // A refusal is not a failure — conflating them would page someone about a
+      // store that answered perfectly well.
+      expect(
+        run.sources.filter((s) => s.status === 'error').map((s) => s.sourceId),
+      ).not.toContain(held.source.id);
+      expect(await dropsFor(held.brandId)).toHaveLength(0);
+    });
   });
 
   it('fails clearly when the source has no brand attached', async () => {
