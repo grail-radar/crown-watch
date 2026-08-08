@@ -162,6 +162,7 @@ model Brand {
   drops      Drop[]
   watchlists Watchlist[]
   watches    Watch[]
+  groupingOverrides WatchGroupingOverride[]
 
   @@index([status])
   @@map("brands")
@@ -191,11 +192,52 @@ model Watch {
 
   brand    Brand          @relation(fields: [brandId], references: [id], onDelete: Cascade)
   variants WatchVariant[]
+  drops    Drop[]
 
   @@unique([brandId, key])
   @@unique([brandId, slug])
   @@index([brandId])
   @@map("watches")
+}
+
+// Where the grouping rule is wrong, and what it should say instead.
+//
+// ADR-0003 accepted a deliberately simple identity rule — brand plus normalised
+// title — *on the condition* that corrections are cheap. A rule that simple is
+// wrong sometimes: a store appending a reference to some products and not their
+// siblings, two genuinely different models sharing a name, a limited edition
+// that should stand apart. Without this table that trade-off does not hold,
+// because the honest alternative would have been the expensive rule the project
+// rejected.
+//
+// One row re-homes one store product. Both directions come from that: give two
+// products the same `watch_key` to force a merge, give one its own to force a
+// split. Editing rows is the whole interface — no deploy, no restart.
+model WatchGroupingOverride {
+  id      String @id @default(cuid())
+  brandId String @map("brand_id")
+  /// The store product being re-homed. Globally unique for the same reason a
+  /// Variant is: a URL identifies exactly one thing in the world.
+  productUrl String @unique @map("product_url")
+  /// The identity key this product should group under, replacing the rule's.
+  /// Products sharing one become one Watch.
+  watchKey   String @map("watch_key")
+  /// What the forced Watch is called, when the key is one the rule would never
+  /// produce. Null means "use the name the rule derived for this product".
+  watchName  String? @map("watch_name")
+  /// Why, for whoever finds this in a year. Overrides outlive their reasons.
+  note       String?
+  /// Last poll this actually matched a product. Null long after `createdAt`
+  /// means the store changed and the override is now doing nothing — the
+  /// "harmless but discoverable" case rather than a silent no-op.
+  lastMatchedAt DateTime? @map("last_matched_at")
+  createdAt     DateTime  @default(now()) @map("created_at")
+  updatedAt     DateTime  @updatedAt @map("updated_at")
+
+  brand Brand @relation(fields: [brandId], references: [id], onDelete: Cascade)
+
+  @@index([brandId])
+  @@map("watch_grouping_overrides")
 }
 
 // One buyable configuration of a Watch — a bracelet option, a dial sold as its
@@ -225,6 +267,16 @@ model WatchVariant {
 model Drop {
   id               String           @id @default(cuid())
   brandId          String           @map("brand_id")
+  /// Which Watch this event is about. One release is one Drop however many
+  /// references the store lists for it (ADR-0003).
+  ///
+  /// Nullable, and permanently so: a Drop extracted from a publication's RSS
+  /// names a watch in prose and has no store product to tie it to, and the
+  /// three YEMA Drops from 2026-08-06 predate Watches existing. History is
+  /// assigned where it can be derived and left alone where it cannot — never
+  /// merged, because deleting a Drop cascades the `drop_broadcasts` rows that
+  /// are the only evidence its messages were sent (ADR-0002).
+  watchId          String?          @map("watch_id")
   title            String
   type             DropType
   priceLow         Decimal?         @map("price_low") @db.Decimal(12, 2)
@@ -250,12 +302,17 @@ model Drop {
   updatedAt        DateTime         @updatedAt @map("updated_at")
 
   brand         Brand              @relation(fields: [brandId], references: [id], onDelete: Cascade)
+  // SetNull, never Cascade: a Watch is a grouping we derived and may regroup,
+  // and losing the announcement because we changed our mind about which model
+  // it belonged to would destroy broadcast evidence along with it.
+  watch         Watch?             @relation(fields: [watchId], references: [id], onDelete: SetNull)
   sourceEvent   RawIngestionEvent? @relation(fields: [sourceEventId], references: [id], onDelete: SetNull)
   reviewer      User?              @relation("DropReviewer", fields: [reviewerId], references: [id], onDelete: SetNull)
   notifications NotificationLog[]
   broadcasts    DropBroadcast[]
 
   @@index([brandId])
+  @@index([watchId])
   @@index([moderationStatus])
   @@index([publishedAt])
   @@map("drops")

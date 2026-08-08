@@ -148,8 +148,8 @@ function absoluteUrl(href: string, base: string): string | null {
  * reordering and tracking parameters are invisible; and text is whitespace-
  * collapsed, so a reflowed template is not a title change. Everything the
  * adapter cannot express — price edits, copy tweaks — is already silent
- * downstream, because `diffSnapshots` only acts on new URLs and on
- * availability turning true.
+ * downstream, because `diffWatches` only acts on a Watch nothing was known of
+ * and on a Watch becoming buyable again.
  */
 export const htmlSelectors: StoreAdapter = (body, config, endpoint) => {
   const selectors = config.selectors;

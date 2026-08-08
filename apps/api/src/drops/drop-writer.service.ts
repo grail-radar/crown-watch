@@ -4,6 +4,12 @@ import { PrismaService } from '../prisma/prisma.service';
 
 export interface DropInput {
   brandId: string;
+  /**
+   * The Watch this event is about, when one is known. Null for a Drop read out
+   * of a publication's prose, which names a watch but has no store product to
+   * tie it to (ADR-0003).
+   */
+  watchId?: string | null;
   title: string;
   type: DropType;
   priceLow?: number | null;
@@ -42,6 +48,7 @@ export class DropWriterService {
     return client.drop.create({
       data: {
         brandId: input.brandId,
+        watchId: input.watchId ?? null,
         title: input.title,
         type: input.type,
         priceLow: this.decimal(input.priceLow),

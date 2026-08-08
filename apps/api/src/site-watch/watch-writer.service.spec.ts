@@ -176,6 +176,177 @@ describe('WatchWriterService', () => {
     expect(after[0].slug).toBe(before.slug);
   });
 
+  describe('correcting a grouping the rule got wrong', () => {
+    // ADR-0003 accepted the simple identity rule *on the condition* that
+    // corrections are cheap. These prove the condition holds: the override is a
+    // row, it applies on the next poll, and nothing is deployed or restarted.
+
+    /**
+     * A product URL nothing else in the suite uses. Both `watch_variants` and
+     * `watch_grouping_overrides` are unique on the URL *globally* — a URL is
+     * one thing in the world — so fixtures that shared one would collide.
+     */
+    const url = (brandSlug: string, handle: string) =>
+      `https://${brandSlug}.example/products/${handle}`;
+
+    /** What an operator writes into the table, and what the poll then reads. */
+    const overrideRows = (brandId: string) =>
+      prisma.watchGroupingOverride.findMany({ where: { brandId } });
+
+    const load = async (brandId: string) =>
+      (await overrideRows(brandId)).map((o) => ({
+        productUrl: o.productUrl,
+        watchKey: o.watchKey,
+        watchName: o.watchName,
+      }));
+
+    it('forces two watches together', async () => {
+      // The store appended a reference to one product and not its sibling.
+      const brand = await arrangeBrand();
+      const catalogue = [
+        product({ url: url(brand.slug, 'u8'), title: 'Superman Bronze' }),
+        product({ url: url(brand.slug, 'u7'), title: 'Superman Bronze Ref. CMM.10' }),
+      ];
+
+      await writer.record(brand.id, brand.slug, catalogue);
+      expect(await watchesFor(brand.id)).toHaveLength(2);
+
+      await prisma.watchGroupingOverride.create({
+        data: {
+          brandId: brand.id,
+          productUrl: url(brand.slug, 'u7'),
+          watchKey: `${brand.slug}:superman bronze`,
+          note: 'Store appends the reference to one bracelet only',
+        },
+      });
+      await writer.record(brand.id, brand.slug, catalogue, await load(brand.id));
+
+      const watches = await watchesFor(brand.id);
+      const populated = watches.filter((w) => w.variants.length > 0);
+      expect(populated).toHaveLength(1);
+      expect(populated[0].variants).toHaveLength(2);
+    });
+
+    it('forces one watch apart', async () => {
+      const brand = await arrangeBrand();
+      const catalogue = [
+        product({ url: url(brand.slug, 'standard'), title: 'Aquascaphe' }),
+        product({ url: url(brand.slug, 'limited'), title: 'Aquascaphe' }),
+      ];
+
+      await writer.record(brand.id, brand.slug, catalogue);
+      expect(await watchesFor(brand.id)).toHaveLength(1);
+
+      await prisma.watchGroupingOverride.create({
+        data: {
+          brandId: brand.id,
+          productUrl: url(brand.slug, 'limited'),
+          watchKey: `${brand.slug}:aquascaphe limited`,
+          watchName: 'Aquascaphe Limited Edition',
+        },
+      });
+      await writer.record(brand.id, brand.slug, catalogue, await load(brand.id));
+
+      const populated = (await watchesFor(brand.id)).filter(
+        (w) => w.variants.length > 0,
+      );
+      expect(populated).toHaveLength(2);
+      expect(populated.map((w) => w.name).sort()).toEqual([
+        'Aquascaphe',
+        'Aquascaphe Limited Edition',
+      ]);
+      expect(new Set(populated.map((w) => w.slug)).size).toBe(2);
+    });
+
+    it('holds through re-polls rather than being undone by the rule', async () => {
+      // Every poll re-derives the grouping from scratch, so an override that
+      // only survived one run would be worthless.
+      const brand = await arrangeBrand();
+      const catalogue = [
+        product({ url: url(brand.slug, 'a'), title: 'Aquascaphe' }),
+        product({ url: url(brand.slug, 'b'), title: 'Aquascaphe' }),
+      ];
+      await prisma.watchGroupingOverride.create({
+        data: {
+          brandId: brand.id,
+          productUrl: url(brand.slug, 'b'),
+          watchKey: `${brand.slug}:aquascaphe gmt`,
+          watchName: 'Aquascaphe GMT',
+        },
+      });
+
+      for (let poll = 0; poll < 3; poll += 1) {
+        await writer.record(brand.id, brand.slug, catalogue, await load(brand.id));
+      }
+
+      const populated = (await watchesFor(brand.id)).filter(
+        (w) => w.variants.length > 0,
+      );
+      expect(populated).toHaveLength(2);
+      expect(populated.every((w) => w.variants.length === 1)).toBe(true);
+    });
+
+    it('returns the products to the rule when the override is removed', async () => {
+      const brand = await arrangeBrand();
+      const catalogue = [
+        product({ url: url(brand.slug, 'a'), title: 'Aquascaphe' }),
+        product({ url: url(brand.slug, 'b'), title: 'Aquascaphe' }),
+      ];
+      const override = await prisma.watchGroupingOverride.create({
+        data: {
+          brandId: brand.id,
+          productUrl: url(brand.slug, 'b'),
+          watchKey: `${brand.slug}:aquascaphe gmt`,
+          watchName: 'Aquascaphe GMT',
+        },
+      });
+      await writer.record(brand.id, brand.slug, catalogue, await load(brand.id));
+
+      await prisma.watchGroupingOverride.delete({ where: { id: override.id } });
+      await writer.record(brand.id, brand.slug, catalogue, await load(brand.id));
+
+      const populated = (await watchesFor(brand.id)).filter(
+        (w) => w.variants.length > 0,
+      );
+      expect(populated).toHaveLength(1);
+      expect(populated[0].variants).toHaveLength(2);
+    });
+
+    it('stamps an override that matched, so a stale one can be told apart', async () => {
+      const brand = await arrangeBrand();
+      await prisma.watchGroupingOverride.create({
+        data: {
+          brandId: brand.id,
+          productUrl: url(brand.slug, 'here'),
+          watchKey: `${brand.slug}:merged`,
+        },
+      });
+      await prisma.watchGroupingOverride.create({
+        data: {
+          brandId: brand.id,
+          productUrl: url(brand.slug, 'delisted'),
+          watchKey: `${brand.slug}:merged`,
+        },
+      });
+
+      const result = await writer.record(
+        brand.id,
+        brand.slug,
+        [product({ url: url(brand.slug, 'here') })],
+        await load(brand.id),
+      );
+
+      expect(result.overridesApplied).toBe(1);
+      expect(result.overridesUnmatched).toEqual([url(brand.slug, 'delisted')]);
+      const rows = await overrideRows(brand.id);
+      const matched = rows.find((r) => r.productUrl.endsWith('/here'));
+      const stale = rows.find((r) => r.productUrl.endsWith('/delisted'));
+      expect(matched?.lastMatchedAt).not.toBeNull();
+      // Never matched, so nothing to date it by — which is the signal.
+      expect(stale?.lastMatchedAt).toBeNull();
+    });
+  });
+
   it('leaves no watch behind with nothing to buy', async () => {
     // The general form of the case above: whatever the store does to its
     // titles, a brand page must never grow an entry that leads nowhere.

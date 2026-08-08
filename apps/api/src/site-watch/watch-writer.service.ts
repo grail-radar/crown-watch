@@ -1,7 +1,29 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { ProductSnapshot } from './snapshot';
-import { WatchIdentity, watchIdentity } from './watch-identity';
+import { GroupingOverride, groupByWatch } from './watch-grouping';
+import { WatchIdentity } from './watch-identity';
+
+export interface RecordedCatalogue {
+  watches: number;
+  variants: number;
+  /** Grouping overrides that re-homed a product this poll. */
+  overridesApplied: number;
+  /**
+   * Overrides pointing at a product this store no longer lists. Surfaced so a
+   * correction that has quietly stopped applying is visible in the poll report
+   * rather than only in the table.
+   */
+  overridesUnmatched: string[];
+  /**
+   * Which Watch row each identity key ended up as.
+   *
+   * Returned rather than looked up again by the caller: a Drop has to point at
+   * the same Watch the page shows, and re-deriving that from the key would miss
+   * the retitle case, where the products kept their row under a new key.
+   */
+  watchIdByKey: Map<string, string>;
+}
 
 /**
  * Records what a brand currently sells as **Watches** with **Variants**
@@ -18,40 +40,38 @@ import { WatchIdentity, watchIdentity } from './watch-identity';
  */
 @Injectable()
 export class WatchWriterService {
+  private readonly logger = new Logger(WatchWriterService.name);
+
   constructor(private readonly prisma: PrismaService) {}
 
+  /**
+   * `overrides` are the operator's corrections, read fresh by the caller on
+   * every poll so an edit takes effect on the next run rather than on the next
+   * deploy — the condition ADR-0003 accepted the simple rule under.
+   */
   async record(
     brandId: string,
     brandSlug: string,
     products: ProductSnapshot[],
-  ): Promise<{ watches: number; variants: number }> {
-    const groups = new Map<
-      string,
-      { identity: WatchIdentity; entries: Array<{ product: ProductSnapshot; identity: WatchIdentity }> }
-    >();
-
-    for (const product of products) {
-      // Computed once and carried: the rule is pure, but it is also the hot
-      // path for a store with two hundred products.
-      const identity = watchIdentity(brandSlug, product.title);
-      const group = groups.get(identity.key) ?? { identity, entries: [] };
-      group.entries.push({ product, identity });
-      groups.set(identity.key, group);
-    }
-
+    overrides: GroupingOverride[] = [],
+  ): Promise<RecordedCatalogue> {
+    const grouping = groupByWatch(brandSlug, products, overrides);
+    const groups = grouping.groups;
+    const watchIdByKey = new Map<string, string>();
     let variants = 0;
 
-    for (const { identity, entries } of groups.values()) {
+    for (const group of groups.values()) {
       const watch = await this.watchFor(
         brandId,
-        identity,
-        entries.map((e) => e.product.url),
+        group.identity,
+        group.entries.map((e) => e.product.url),
       );
+      watchIdByKey.set(group.identity.key, watch.id);
 
-      for (const { product, identity: own } of entries) {
+      for (const { product, identity } of group.entries) {
         const fields = {
           watchId: watch.id,
-          reference: own.reference,
+          reference: identity.reference,
           price: product.price,
           currency: product.currency,
           imageUrl: product.imageUrl,
@@ -69,7 +89,38 @@ export class WatchWriterService {
       }
     }
 
-    return { watches: groups.size, variants };
+    if (grouping.applied.length > 0) {
+      // Stamped so an operator can tell a correction that is still holding from
+      // one the store has moved out from under. Best-effort: a failure here
+      // must not cost the catalogue update it is only annotating.
+      await this.prisma.watchGroupingOverride
+        .updateMany({
+          where: { productUrl: { in: grouping.applied } },
+          data: { lastMatchedAt: new Date() },
+        })
+        .catch((err: unknown) => {
+          this.logger.warn(
+            `Could not stamp grouping overrides as matched: ${
+              err instanceof Error ? err.message : String(err)
+            }`,
+          );
+        });
+    }
+
+    if (grouping.unmatched.length > 0) {
+      this.logger.warn(
+        `${grouping.unmatched.length} grouping override(s) match no product in this store — ` +
+          grouping.unmatched.join(', '),
+      );
+    }
+
+    return {
+      watches: groups.size,
+      variants,
+      overridesApplied: grouping.applied.length,
+      overridesUnmatched: grouping.unmatched,
+      watchIdByKey,
+    };
   }
 
   /**
