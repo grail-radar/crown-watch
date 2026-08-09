@@ -1,5 +1,5 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
-import { ModerationStatus, Prisma, WatchKind } from '@prisma/client';
+import { BrandStatus, ModerationStatus, Prisma, WatchKind } from '@prisma/client';
 import { ABOUT_A_WATCH } from '../drops/about-a-watch';
 import { purchaseLinkFor } from '../drops/purchase-link';
 import { PrismaService } from '../prisma/prisma.service';
@@ -215,6 +215,11 @@ export class CatalogService {
         foundedYearEst: true,
         status: true,
         createdAt: true,
+        // Only a Curated Brand's Annotation is served. One sitting on a Listed
+        // Brand is a draft nobody approved, and showing it would make the
+        // state meaningless (ADR-0004, #22).
+        annotation: true,
+        annotationApprovedAt: true,
         drops: {
           where: PUBLISHED,
           orderBy: { publishedAt: 'desc' },
@@ -234,9 +239,14 @@ export class CatalogService {
       },
     });
     if (!brand) throw new NotFoundException(`Brand not found: ${slug}`);
-    const { watches, ...rest } = brand;
+    const { watches, annotation, annotationApprovedAt, ...rest } = brand;
+    const curated = brand.status === BrandStatus.curated;
     return {
       ...rest,
+      // Withheld unless approved. The website cannot show what it never
+      // receives, which is a stronger guarantee than asking it to check.
+      annotation: curated ? annotation : null,
+      annotationApprovedAt: curated ? annotationApprovedAt : null,
       drops: brand.drops.map(flattenDrop),
       accessories: watches.map(summariseAccessory).sort(buyableFirst),
     };

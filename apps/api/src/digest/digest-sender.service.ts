@@ -130,7 +130,7 @@ export class DigestSenderService {
           <div style="font-size:20px;"><span style="color:#b08d4f;">Crown</span> Watch</div>
           <div style="margin-top:4px;font-family:Arial,Helvetica,sans-serif;font-size:12px;color:#8a877e;">The weekly microbrand drop radar</div>
           <div style="margin-top:22px;font-family:Arial,Helvetica,sans-serif;font-size:14px;line-height:1.55;color:#44423c;">
-            ${n === 1 ? 'One new drop' : `${n} new drops`} cleared the radar this week — every one from an independent watchmaker, verified by hand.
+            ${n === 1 ? 'One new drop' : `${n} new drops`} cleared the radar this week — every one from an independent watchmaker, straight from the brand's own store.
           </div>
           <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin-top:18px;font-family:Arial,Helvetica,sans-serif;">
             ${rows}

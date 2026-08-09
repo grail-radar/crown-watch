@@ -104,8 +104,18 @@ export interface BrandDetail {
   instagramHandle: string | null;
   country: string | null;
   foundedYearEst: number | null;
+  /** `listed` or `curated` — see the Annotation below. */
   status: string;
   createdAt: string;
+  /**
+   * The one honest sentence about this Brand, or null.
+   *
+   * Only ever present on a Curated Brand: the API withholds a draft that
+   * nobody has approved, so anything here can be shown as written (#22).
+   * Never purchasable, in any form (ADR-0004).
+   */
+  annotation?: string | null;
+  annotationApprovedAt?: string | null;
   drops: DropSummary[];
   /**
    * Empty for a brand that sells only watches. **Optional, not merely
