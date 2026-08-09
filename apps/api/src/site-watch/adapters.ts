@@ -1,4 +1,5 @@
 import { parse as parseHtml } from 'node-html-parser';
+import { currencyFromPrice } from './currency';
 import { ProductSnapshot } from './snapshot';
 
 /**
@@ -26,11 +27,16 @@ export interface HtmlSelectors {
   inStock?: string | null;
 }
 
-/** Per-source adapter settings, stored as data on the source row. */
+/**
+ * Per-source adapter settings, stored as data on the source row.
+ *
+ * There is deliberately **no `currency`**. It used to live here as a label an
+ * operator typed at registration, and a store serving more than one market
+ * price list then announced the wrong one half the time. Currency is now read
+ * from the bytes each price came from — see `currency.ts`.
+ */
 export interface WatchConfig {
   adapter: string;
-  /** Shopify's product feed omits currency, so the operator supplies it. */
-  currency?: string | null;
   /** Overrides the base used to build product URLs; derived from the endpoint otherwise. */
   productUrlBase?: string | null;
   /** Required by the `html_selectors` adapter, ignored by the others. */
@@ -65,6 +71,12 @@ export function storeBaseFrom(endpoint: string, config: WatchConfig): string {
  * Shopify storefronts expose a public product feed with per-variant
  * availability — structured, complete, and with nothing to misread. Where a
  * brand offers it, this is the highest-quality signal available.
+ *
+ * **It carries no currency, so nothing here sets one.** The feed returns bare
+ * numbers, and which market price list those numbers came from depends on how
+ * the storefront resolved the request. YEMA serves at least two, so a label
+ * would be a coin flip — and a Channel cannot unsend it (ADR-0002). Prices from
+ * this adapter go out as bare numbers until the store tells us otherwise.
  */
 export const shopifyProductsJson: StoreAdapter = (body, config, endpoint) => {
   let parsed: unknown;
@@ -79,7 +91,6 @@ export const shopifyProductsJson: StoreAdapter = (body, config, endpoint) => {
   }
 
   const base = storeBaseFrom(endpoint, config);
-  const currency = config.currency?.trim().toUpperCase() || null;
 
   return products.flatMap((raw): ProductSnapshot[] => {
     const p = raw as {
@@ -111,7 +122,8 @@ export const shopifyProductsJson: StoreAdapter = (body, config, endpoint) => {
         url: `${base}/products/${handle}`,
         title,
         price: prices.length ? Math.min(...prices) : null,
-        currency,
+        // See the note above: the feed does not say, so neither do we.
+        currency: null,
         imageUrl: firstImage ?? null,
         available,
       },
@@ -160,7 +172,6 @@ export const htmlSelectors: StoreAdapter = (body, config, endpoint) => {
   }
 
   const base = storeBaseFrom(endpoint, config);
-  const currency = config.currency?.trim().toUpperCase() || null;
 
   let root: ReturnType<typeof parseHtml>;
   try {
@@ -223,12 +234,17 @@ export const htmlSelectors: StoreAdapter = (body, config, endpoint) => {
           (soldOutPhrase && haystack.includes(soldOutPhrase))
         );
 
+    // The number and its currency come from the same string, on this fetch.
+    // A store that switches market price lists between polls switches both
+    // together, so the two can never disagree the way a fixed label did.
+    const priceText = text(item, selectors.price);
+
     return [
       {
         url,
         title,
-        price: toNumber(text(item, selectors.price)),
-        currency,
+        price: toNumber(priceText),
+        currency: currencyFromPrice(priceText),
         imageUrl: imageSrc ? absoluteUrl(imageSrc, base) : null,
         available,
       },
@@ -262,7 +278,9 @@ export function parseWatchConfig(value: unknown): WatchConfig {
 
   return {
     adapter: config.adapter.trim(),
-    currency: typeof config.currency === 'string' ? config.currency : null,
+    // A `currency` left on an existing row is read and discarded on purpose:
+    // registered sources still carry one, and silently honouring it would put
+    // back the label this ticket removed.
     productUrlBase:
       typeof config.productUrlBase === 'string' ? config.productUrlBase : null,
     selectors:

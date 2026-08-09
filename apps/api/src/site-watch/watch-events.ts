@@ -33,6 +33,14 @@ export interface WatchEvent {
   /** Cheapest and dearest across the references, or null when none say. */
   priceLow: number | null;
   priceHigh: number | null;
+  /**
+   * The currency those two figures are in, or null when the store did not say.
+   *
+   * Carried on the event rather than read off `lead` by the caller, because
+   * the span and the label have to come from the same references or the Drop
+   * can quote a number in one currency under the name of another (#24).
+   */
+  currency: string | null;
 }
 
 /**
@@ -54,15 +62,39 @@ function pickLead(products: ProductSnapshot[]): ProductSnapshot {
   return ranked[0];
 }
 
-function priceSpan(products: ProductSnapshot[]): {
-  priceLow: number | null;
-  priceHigh: number | null;
-} {
+/**
+ * What this Watch costs, and in what.
+ *
+ * Both come from the **same references**: those sharing the lead's currency.
+ * Taking the span across everything and the label off the lead is how a Drop
+ * ends up quoting 640 — from a card that printed no symbol — as "640 EUR",
+ * which is the fabricated label #24 exists to prevent. It also stops a span
+ * running from a euro price to a sterling one, a range nobody can read.
+ *
+ * A store whose cards are consistent — nearly all of them — is unaffected.
+ *
+ * Where a group genuinely spans currencies, `pickLead`'s cheapest-first
+ * comparison is meaningless and which currency leads is arbitrary. That is
+ * accepted: the invariant worth holding is that the label and the two figures
+ * always describe the same references, not which of two incomparable prices
+ * wins.
+ */
+function priceFor(
+  products: ProductSnapshot[],
+  lead: ProductSnapshot,
+): { priceLow: number | null; priceHigh: number | null; currency: string | null } {
+  const currency = lead.currency ?? null;
   const prices = products
+    .filter((p) => (p.currency ?? null) === currency)
     .map((p) => p.price)
     .filter((p): p is number => typeof p === 'number' && Number.isFinite(p));
-  if (prices.length === 0) return { priceLow: null, priceHigh: null };
-  return { priceLow: Math.min(...prices), priceHigh: Math.max(...prices) };
+
+  if (prices.length === 0) return { priceLow: null, priceHigh: null, currency: null };
+  return {
+    priceLow: Math.min(...prices),
+    priceHigh: Math.max(...prices),
+    currency,
+  };
 }
 
 /**
@@ -96,7 +128,7 @@ export function diffWatches(
       .filter((p): p is ProductSnapshot => p !== undefined);
 
     const lead = pickLead(products);
-    const span = priceSpan(products);
+    const span = priceFor(products, lead);
 
     if (known.length === 0) {
       events.push({ kind: 'new_watch', identity: group.identity, products, lead, ...span });

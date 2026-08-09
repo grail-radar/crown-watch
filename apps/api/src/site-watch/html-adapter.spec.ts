@@ -22,7 +22,6 @@ const ENDPOINT = 'https://northlake.example/collections/all';
 
 const CONFIG: WatchConfig = {
   adapter: 'html_selectors',
-  currency: 'EUR',
   selectors: {
     item: '.product-card',
     link: '.product-card__link',

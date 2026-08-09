@@ -352,8 +352,11 @@ describe('SiteWatchService', () => {
       expect(Number(drop.priceLow)).toBe(650);
       expect(Number(drop.priceHigh)).toBe(850);
       // The template renders priceLow only, and is deliberately untouched.
+      // Unlabelled, because this store's feed does not say which currency it
+      // just served — a bare number beats a wrong one (#24).
       for (const message of telegram.sent) {
-        expect(message.text).toContain('650 EUR');
+        expect(message.text).toContain('650');
+        expect(message.text).not.toMatch(/650\s*[A-Z]{3}/);
       }
     });
 
@@ -752,9 +755,148 @@ describe('SiteWatchService', () => {
     expect(drops[0].title).toBe('Field Watch');
     expect(drops[0].type).toBe('pre_order');
     expect(Number(drops[0].priceLow)).toBe(650);
-    expect(drops[0].currency).toBe('EUR');
+    // No currency: this store's feed serves a bare number and does not say
+    // which market price list it came from (#24).
+    expect(drops[0].currency).toBeNull();
     expect(drops[0].sourceUrl).toBe('https://brand.example/products/field');
     expect(drops[0].imageUrl).toBe('https://cdn.example/field.jpg');
+  });
+
+  describe('a store that serves more than one market price list', () => {
+    // The 2026-08-06 failure. YEMA serves at least two price lists — observed
+    // pairs 349/390, 39/47, 49/59, whose ratios differ, so these are separate
+    // lists rather than one converted — and `watch_config.currency` was a
+    // label typed once at registration. Both Channels were told
+    // "Price: 2190 USD" for a figure nobody can now place, and a Channel
+    // cannot unsend (ADR-0002).
+
+    /** Two market price lists for one catalogue, as a store would serve them. */
+    const priceLists = {
+      home: [{ handle: 'diver', title: 'Harbour Diver', price: '349.00', available: true }],
+      export: [{ handle: 'diver', title: 'Harbour Diver', price: '390.00', available: true }],
+    };
+
+    it('never labels a figure from a feed that does not say', async () => {
+      const { source, brandId } = await arrangeSource();
+      fetcher.serve([{ handle: 'other', title: 'Other', available: true }]);
+      await service.pollSource(source.id);
+
+      // First poll of the watch lands on one list…
+      fetcher.serve([
+        { handle: 'other', title: 'Other', available: true },
+        ...priceLists.home,
+      ]);
+      await service.pollSource(source.id);
+
+      const [drop] = await dropsFor(brandId);
+      expect(Number(drop.priceLow)).toBe(349);
+      expect(drop.currency).toBeNull();
+      for (const message of telegram.sent) {
+        expect(message.text).toContain('349');
+        expect(message.text).not.toMatch(/[A-Z]{3}\s*$/m);
+      }
+    });
+
+    it('labels nothing as the store switches lists under it, poll after poll', async () => {
+      // The criterion, driven properly: one source, one product, and the store
+      // answering from a different price list each time — which is exactly
+      // what YEMA did. The old bug was that the *number* moved between polls
+      // while the *label* never did.
+      const { source, brandId } = await arrangeSource();
+      fetcher.serve(priceLists.home);
+      await service.pollSource(source.id); // silent baseline, list A
+
+      // It sells out on list B, comes back on list A, sells out on list B
+      // again — a restock each time it returns, at whichever price is served.
+      const polls = [
+        [{ ...priceLists.export[0], available: false }],
+        priceLists.home,
+        [{ ...priceLists.export[0], available: false }],
+        priceLists.export,
+      ];
+      for (const catalogue of polls) {
+        fetcher.serve(catalogue);
+        await service.pollSource(source.id);
+      }
+
+      const drops = await dropsFor(brandId);
+      expect(drops.length).toBeGreaterThanOrEqual(2); // it did announce
+      // Both lists appear across the run, and not one figure is labelled.
+      expect(drops.map((d) => Number(d.priceLow))).toEqual(
+        expect.arrayContaining([349, 390]),
+      );
+      expect(drops.every((d) => d.currency === null)).toBe(true);
+      for (const message of telegram.sent) {
+        expect(message.text).not.toMatch(/\d\s*[A-Z]{3}\b/);
+      }
+    });
+
+    it('reads the currency per fetch when the store does print it', async () => {
+      // The other half. A store whose page carries the symbol gets a label,
+      // and it comes from the same bytes as the number — so a switch to a
+      // different market moves both together.
+      const HTML = {
+        adapter: 'html_selectors',
+        selectors: { item: '.product-card', link: 'a', title: 'h3', price: '.price' },
+      };
+      const page = (price: string) => `<!doctype html><html><body>
+        <ul><li class="product-card">
+          <a href="/products/diver"><h3>Harbour Diver</h3></a>
+          <span class="price">${price}</span>
+        </li></ul></body></html>`;
+
+      const { source, brandId } = await arrangeSource({ watchConfig: HTML });
+      fetcher.next = { status: 200, body: page('€ 349.00') };
+      await service.pollSource(source.id);
+
+      // The store switches list between polls; a new watch appears priced in
+      // the other currency, and is labelled with *that* one.
+      fetcher.next = {
+        status: 200,
+        body: `<!doctype html><html><body><ul>
+          <li class="product-card"><a href="/products/diver"><h3>Harbour Diver</h3></a><span class="price">£ 299.00</span></li>
+          <li class="product-card"><a href="/products/gmt"><h3>Meridian GMT</h3></a><span class="price">£ 459.00</span></li>
+        </ul></body></html>`,
+      };
+      await service.pollSource(source.id);
+
+      const [drop] = await dropsFor(brandId);
+      expect(drop.title).toBe('Meridian GMT');
+      expect(Number(drop.priceLow)).toBe(459);
+      expect(drop.currency).toBe('GBP');
+    });
+
+    it('omits the label when a store prints an ambiguous symbol', async () => {
+      const HTML = {
+        adapter: 'html_selectors',
+        selectors: { item: '.product-card', link: 'a', title: 'h3', price: '.price' },
+      };
+      const page = (products: Array<[string, string, string]>) =>
+        `<!doctype html><html><body><ul>${products
+          .map(
+            ([handle, title, price]) =>
+              `<li class="product-card"><a href="/products/${handle}"><h3>${title}</h3></a><span class="price">${price}</span></li>`,
+          )
+          .join('')}</ul></body></html>`;
+
+      const { source, brandId } = await arrangeSource({ watchConfig: HTML });
+      fetcher.next = { status: 200, body: page([['diver', 'Harbour Diver', '$349']]) };
+      await service.pollSource(source.id);
+
+      fetcher.next = {
+        status: 200,
+        body: page([
+          ['diver', 'Harbour Diver', '$349'],
+          ['gmt', 'Meridian GMT', '$459'],
+        ]),
+      };
+      await service.pollSource(source.id);
+
+      const [drop] = await dropsFor(brandId);
+      // `$` is six currencies. CronusArt and YEMA both print it.
+      expect(Number(drop.priceLow)).toBe(459);
+      expect(drop.currency).toBeNull();
+    });
   });
 
   it('publishes a restock when a sold-out product becomes available', async () => {
@@ -939,7 +1081,10 @@ describe('SiteWatchService', () => {
     for (const message of telegram.sent) {
       expect(message.text).toContain('Field Watch');
       expect(message.text).toContain(brand.name);
-      expect(message.text).toContain('650 EUR');
+      // The number, with no currency after it. On 2026-08-06 a message like
+      // this carried "2190 USD" for a figure nobody can now place (#24).
+      expect(message.text).toContain('650');
+      expect(message.text).not.toMatch(/650\s*[A-Z]{3}/);
       expect(message.text).toContain('https://brand.example/products/field');
       expect(message.text).toContain(`https://crownswatch.org/brands/${brand.slug}`);
     }
