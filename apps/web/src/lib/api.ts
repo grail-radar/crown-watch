@@ -69,6 +69,25 @@ export interface DropFeed {
   drops: FeedDrop[];
 }
 
+/**
+ * Something a brand sells that is not a watch — a strap, a bracelet, a box.
+ *
+ * A summary only; its own page carries every way to buy it. It never appears
+ * as a Drop and never reaches a Channel (ADR-0006).
+ */
+export interface BrandAccessory {
+  id: string;
+  name: string;
+  slug: string;
+  /** Cheapest across its variants, or null when the store lists no price. */
+  priceLow: string | null;
+  currency: string | null;
+  imageUrl: string | null;
+  variantCount: number;
+  /** True when at least one variant can be bought. */
+  available: boolean;
+}
+
 export interface BrandDetail {
   id: string;
   name: string;
@@ -80,6 +99,12 @@ export interface BrandDetail {
   status: string;
   createdAt: string;
   drops: DropSummary[];
+  /**
+   * Empty for a brand that sells only watches. **Optional, not merely
+   * possibly-empty**: the website and the API deploy independently, so a web
+   * build can be live against an API that predates this field.
+   */
+  accessories?: BrandAccessory[];
 }
 
 /** List brands for the directory. Degrades to empty if the API is unreachable. */

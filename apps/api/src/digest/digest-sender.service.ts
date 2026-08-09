@@ -1,6 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { ModerationStatus } from '@prisma/client';
+import { ABOUT_A_WATCH } from '../drops/about-a-watch';
 import { PrismaService } from '../prisma/prisma.service';
 
 const UNSUB_PLACEHOLDER = '{{UNSUB_URL}}';
@@ -56,6 +57,9 @@ export class DigestSenderService {
       where: {
         moderationStatus: ModerationStatus.approved,
         publishedAt: { gte: since },
+        // A strap is not a release, and an inbox is no more able to unsend than
+        // a Channel is (ADR-0006).
+        ...ABOUT_A_WATCH,
       },
       orderBy: { publishedAt: 'desc' },
       select: {

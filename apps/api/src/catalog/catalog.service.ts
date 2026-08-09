@@ -1,11 +1,21 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
-import { ModerationStatus, Prisma } from '@prisma/client';
+import { ModerationStatus, Prisma, WatchKind } from '@prisma/client';
+import { ABOUT_A_WATCH } from '../drops/about-a-watch';
 import { purchaseLinkFor } from '../drops/purchase-link';
 import { PrismaService } from '../prisma/prisma.service';
 
+/**
+ * What the public is allowed to see: approved, published, and about a watch.
+ *
+ * The accessory clause is a read filter rather than a cleanup — the Drops the
+ * watcher announced before #38 are real history and stay in the database
+ * (ADR-0006). It is shared with the digest and the dispatcher, because three
+ * places each deciding what "public" means is how a strap ends up in a Channel.
+ */
 const PUBLISHED: Prisma.DropWhereInput = {
   moderationStatus: ModerationStatus.approved,
   publishedAt: { not: null },
+  ...ABOUT_A_WATCH,
 };
 
 const DROP_TYPES = new Set<string>([
@@ -77,6 +87,72 @@ function withBrand(
 }
 
 /**
+ * The most accessories a brand page will carry. A cap rather than pagination:
+ * this is context beneath the Drops, and nobody is paging through straps.
+ */
+const MAX_ACCESSORIES = 60;
+
+/** What a brand page needs about one accessory. */
+const ACCESSORY_SELECT = {
+  id: true,
+  name: true,
+  slug: true,
+  variants: {
+    // Cheapest first, so the "from" price is the first priced one. Postgres
+    // sorts NULL last by default, so an unpriced variant cannot lead.
+    orderBy: [{ price: 'asc' }, { productUrl: 'asc' }],
+    select: {
+      price: true,
+      currency: true,
+      imageUrl: true,
+      available: true,
+    },
+  },
+} satisfies Prisma.WatchSelect;
+
+type AccessoryRow = Prisma.WatchGetPayload<{ select: typeof ACCESSORY_SELECT }>;
+
+/**
+ * A summary rather than the whole thing: the accessory's own page already
+ * carries every way to buy it, so the brand page needs the cheapest price, a
+ * photo, and whether it can be had at all.
+ *
+ * Variants arrive cheapest-first, so `price` is the "from" figure. The photo is
+ * borrowed from whichever variant has one, exactly as a Watch borrows its own —
+ * a store that photographs some references and not others still shows something.
+ */
+function summariseAccessory(row: AccessoryRow) {
+  const priced = row.variants.find((v) => v.price !== null);
+  return {
+    id: row.id,
+    name: row.name,
+    slug: row.slug,
+    priceLow: priced?.price ?? null,
+    currency: priced?.currency ?? null,
+    imageUrl: row.variants.find((v) => v.imageUrl)?.imageUrl ?? null,
+    variantCount: row.variants.length,
+    available: row.variants.some((v) => v.available),
+  };
+}
+
+/**
+ * In stock first, then alphabetical.
+ *
+ * A brand can sell forty straps and have half of them gone, and a list that
+ * leads with what is unavailable reads as a dead catalogue. The alphabetical
+ * half comes from the database's own `orderBy` surviving this pass, which it
+ * does because `Array#sort` is specified as stable — worth saying out loud,
+ * since a comparator returning 0 is otherwise easy to read as "unordered".
+ */
+function buyableFirst(
+  a: { available: boolean },
+  b: { available: boolean },
+): number {
+  if (a.available === b.available) return 0;
+  return a.available ? -1 : 1;
+}
+
+/**
  * Public, read-only catalog for the website: the brand directory and the
  * published-drops feed. Only moderation-approved, published drops are ever
  * exposed here (CONTEXT.md §5 — nothing reaches the public feed unmoderated).
@@ -130,10 +206,26 @@ export class CatalogService {
           orderBy: { publishedAt: 'desc' },
           select: DROP_SELECT,
         },
+        // The straps, bracelets and boxes this brand sells. They raise no Drop
+        // and interrupt nobody, but the data has been collected all along and
+        // this is where a reader meets it (ADR-0006).
+        watches: {
+          where: { kind: WatchKind.accessory },
+          orderBy: { name: 'asc' },
+          // Capped like every other read here. YEMA alone lists over a hundred
+          // straps and cases, and a brand page is not a shop.
+          take: MAX_ACCESSORIES,
+          select: ACCESSORY_SELECT,
+        },
       },
     });
     if (!brand) throw new NotFoundException(`Brand not found: ${slug}`);
-    return { ...brand, drops: brand.drops.map(flattenDrop) };
+    const { watches, ...rest } = brand;
+    return {
+      ...rest,
+      drops: brand.drops.map(flattenDrop),
+      accessories: watches.map(summariseAccessory).sort(buyableFirst),
+    };
   }
 
   /**

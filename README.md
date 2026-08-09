@@ -104,7 +104,8 @@ immediately rather than queueing for moderation
 
 A shop's feed also returns straps, buckles, gift cards and warranty products.
 Those are classified and recorded in full, and they never raise a Drop — the
-feed promises to tell you when a *watch* lands
+feed promises to tell you when a *watch* lands. They appear on the brand's page
+instead, under "Also from…", where they are context rather than news
 ([ADR-0006](./docs/adr/0006-accessories-are-classified-not-excluded.md)).
 
 Two adapters, chosen per source as data:

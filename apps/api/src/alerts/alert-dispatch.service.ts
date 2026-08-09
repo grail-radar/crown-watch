@@ -6,6 +6,7 @@ import {
   Prisma,
   SourceType,
 } from '@prisma/client';
+import { ABOUT_A_WATCH, isAboutAWatch } from '../drops/about-a-watch';
 import { purchaseLinkFor } from '../drops/purchase-link';
 import { PrismaService } from '../prisma/prisma.service';
 import { BroadcastChannel, destinationKey } from './destinations';
@@ -292,12 +293,24 @@ export class AlertDispatchService implements OnApplicationShutdown {
 
       const drop = await this.prisma.drop.findUnique({
         where: { id: dropId },
-        select: DROP_FIELDS,
+        select: { ...DROP_FIELDS, watch: { select: { kind: true } } },
       });
       if (!drop) {
         result.status = 'error';
         result.reason = `drop ${dropId} not found`;
         this.logger.error(result.reason);
+        return result;
+      }
+
+      // The last gate before a Channel, and the only one the moderation queue
+      // passes through: approving a Drop calls straight in here, and the queue
+      // can still hold an accessory from before #38 taught the watcher the
+      // difference. Refusing here rather than only in the query is deliberate —
+      // this is the step that cannot be undone (ADR-0002, ADR-0006).
+      if (!isAboutAWatch(drop)) {
+        result.status = 'skipped';
+        result.reason = `drop ${dropId} is about an accessory — not announced`;
+        this.logger.warn(result.reason);
         return result;
       }
 
@@ -519,6 +532,10 @@ export class AlertDispatchService implements OnApplicationShutdown {
           moderationStatus: ModerationStatus.approved,
           publishedAt: { not: null },
           broadcasts: { none: { chatId: channel.key } },
+          // Candidates are chosen per channel, so without this the day a new
+          // locale or a partner group is wired up, every strap the watcher
+          // announced before #38 goes out to it (ADR-0006).
+          ...ABOUT_A_WATCH,
         },
         orderBy: { publishedAt: 'asc' },
         take: limit,
