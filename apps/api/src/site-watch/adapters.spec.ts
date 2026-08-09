@@ -10,7 +10,7 @@ import {
 } from './adapters';
 
 const ENDPOINT = 'https://yema.com/products.json?limit=5';
-const CONFIG: WatchConfig = { adapter: 'shopify_products_json', currency: 'EUR' };
+const CONFIG: WatchConfig = { adapter: 'shopify_products_json' };
 
 // A real response captured from a live Shopify storefront.
 const fixture = readFileSync(
@@ -31,13 +31,20 @@ describe('shopifyProductsJson against a real captured response', () => {
     }
   });
 
-  it('carries title, price, currency and image through', () => {
+  it('carries title, price and image through', () => {
     const withPrice = products.find((p) => p.price !== null);
     expect(withPrice).toBeDefined();
     expect(withPrice!.title.length).toBeGreaterThan(0);
-    expect(withPrice!.currency).toBe('EUR');
     const withImage = products.find((p) => p.imageUrl !== null);
     expect(withImage?.imageUrl).toMatch(/^https?:\/\//);
+  });
+
+  it('claims no currency, because the feed does not carry one', () => {
+    // This fixture is a real YEMA response, and YEMA serves at least two
+    // market price lists. The numbers below are from one of them and the feed
+    // does not say which, so labelling them would be a coin flip that a
+    // Channel cannot take back (ADR-0002).
+    expect(products.every((p) => p.currency === null)).toBe(true);
   });
 
   it('produces stable identities across repeated parses', () => {

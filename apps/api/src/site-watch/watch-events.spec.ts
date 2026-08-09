@@ -192,6 +192,50 @@ describe('diffWatches', () => {
       expect(events[0].priceHigh).toBe(2400);
     });
 
+    it('never labels a price that came from an unlabelled reference', () => {
+      // The way the whole of #24 could be undone at the last step. The span is
+      // taken across the group and the label from the reference we link to, so
+      // a listing where only some cards carry the symbol would print
+      // "640 EUR" for a 640 that nothing said was euros.
+      const events = diffWatches(BRAND, [], [
+        product({ url: 'https://yema.example/products/a', price: 640, currency: null, available: false }),
+        product({ url: 'https://yema.example/products/b', price: 900, currency: 'EUR', available: true }),
+      ]);
+
+      const [event] = events;
+      // Whatever it reports, the number and the label have to agree.
+      if (event.currency !== null) {
+        expect(event.priceLow).toBe(900);
+      } else {
+        expect(event.priceLow).toBe(640);
+      }
+    });
+
+    it('quotes a span only across references in the same currency', () => {
+      // A group that genuinely spans currencies makes "cheapest" meaningless,
+      // so which one leads is arbitrary. What must hold either way is that the
+      // span never mixes them: €900–€1200 or £700, never €900–£700.
+      const priced = [
+        { url: 'https://yema.example/products/a', price: 900, currency: 'EUR' },
+        { url: 'https://yema.example/products/b', price: 1200, currency: 'EUR' },
+        { url: 'https://yema.example/products/c', price: 700, currency: 'GBP' },
+      ];
+      const events = diffWatches(
+        BRAND,
+        [],
+        priced.map((p) => product({ ...p, available: true })),
+      );
+
+      const [event] = events;
+      const sameCurrency = priced
+        .filter((p) => p.currency === event.currency)
+        .map((p) => p.price);
+      expect(sameCurrency.length).toBeGreaterThan(0);
+      expect(event.priceLow).toBe(Math.min(...sameCurrency));
+      expect(event.priceHigh).toBe(Math.max(...sameCurrency));
+      expect(event.lead.currency).toBe(event.currency);
+    });
+
     it('has no price at all when no reference carries one', () => {
       const events = diffWatches(BRAND, [], [
         product({ url: 'https://yema.example/products/a', price: null }),

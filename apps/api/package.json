@@ -23,6 +23,7 @@
     "backfill:telegram": "ts-node --transpile-only src/scripts/backfill-telegram.ts",
     "backfill:drop-watches": "ts-node --transpile-only src/scripts/backfill-drop-watches.ts",
     "backfill:watch-kinds": "ts-node --transpile-only src/scripts/backfill-watch-kinds.ts",
+    "relabel:drop-currency": "ts-node --transpile-only src/scripts/relabel-drop-currency.ts",
     "retract:drops": "ts-node --transpile-only src/scripts/retract-drops.ts",
     "purge:broadcasts": "ts-node --transpile-only src/scripts/purge-broadcasts.ts",
     "probe:stores": "ts-node --transpile-only src/scripts/probe-stores.ts",

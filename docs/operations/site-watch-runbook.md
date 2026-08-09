@@ -81,10 +81,15 @@ parsing it tells you the difference. One brand on the roster does exactly this.
 | **Use when** | `/products.json` returns products | the store is ordinary HTML |
 | **Availability** | per variant, exact | inferred from the page |
 | **Breaks when** | the platform changes its API (rare) | the store is redesigned (common) |
-| **Config** | `currency` | `currency` + `selectors` |
+| **Config** | none | `selectors` |
+| **Price currency** | never labelled — the feed omits it | read from the page on every fetch |
 
 Prefer the structured one whenever it is available. The HTML adapter is for the
 brands that leave you no choice — and it will need revisiting after a redesign.
+
+The currency row is the one reason to prefer the HTML adapter for a store that
+offers both: a feed price goes out as a bare number. See
+[Prices, and why some of them have no currency](#prices-and-why-some-of-them-have-no-currency).
 
 ### 3. Insert the source
 
@@ -94,7 +99,7 @@ INSERT INTO sources (id, type, name, brand_id, endpoint, watch_config, created_a
 VALUES (
   gen_random_uuid()::text, 'site_watch', 'The Brand — store',
   '<brand_id>', 'https://thebrand.example/products.json?limit=250',
-  '{"adapter":"shopify_products_json","currency":"EUR"}'::jsonb,
+  '{"adapter":"shopify_products_json"}'::jsonb,
   now(), now()
 );
 ```
@@ -105,7 +110,7 @@ INSERT INTO sources (id, type, name, brand_id, endpoint, watch_config, created_a
 VALUES (
   gen_random_uuid()::text, 'site_watch', 'The Brand — store',
   '<brand_id>', 'https://thebrand.example/collections/all',
-  '{"adapter":"html_selectors","currency":"EUR","selectors":{
+  '{"adapter":"html_selectors","selectors":{
       "item":".product-card",
       "link":".product-card__link",
       "title":".product-card__title",
@@ -331,6 +336,97 @@ broader broke: the API was unreachable, or the secrets are missing.
 
 A transient failure needs no intervention. The next run polls from scratch, and
 a source that failed is retried once its backoff window expires.
+
+---
+
+## Prices, and why some of them have no currency
+
+**A price is labelled only when the store said so on that fetch.** Where the
+store did not say, the number goes out bare — on the site and in the Channels.
+That is deliberate: a bare number beats a wrong one.
+
+### Why
+
+`watch_config.currency` used to carry the answer: a label an operator typed when
+the source was registered. YEMA serves at least two market price lists — the
+observed pairs 349/390, 39/47 and 49/59 have different ratios, so they are
+separate lists rather than one converted — which means the number changed
+between polls while the label never did. Roughly half of YEMA's polls announced
+a euro figure labelled `USD`, and one of them reached both Channels on
+2026-08-06 as *"Price: 2190 USD"*. Nobody can now say which list that came from,
+and a Channel cannot unsend ([ADR-0002](../adr/0002-broadcasts-are-at-most-once.md)).
+
+So the field is gone. `watch_config.currency` on an existing source row is read
+and discarded.
+
+### What each adapter can tell you
+
+| Adapter | Currency | Why |
+|---|---|---|
+| `html_selectors` | read from the price text on every fetch | The page prints `€ 640.00`, and the number and its symbol come from the same string — a store switching market lists switches both together. |
+| `shopify_products_json` | **never** | The feed returns bare numbers and no currency at all. Which list they came from depends on how the storefront resolved the request, so any label would be a guess. |
+
+Symbols only one currency uses are read (`€` `£` `zł` `₴`), as are spelled-out
+ISO codes (`2190 EUR`, `CHF 1 890`). Shared symbols are refused: `$` is six
+currencies, `¥` is two, `kr` is three. A dual-priced listing — `€640 / $700` —
+is refused too, since there is no way to choose. The full case table is
+`apps/api/src/site-watch/currency.spec.ts`.
+
+### What this costs
+
+A Shopify store that only ever serves one market loses a label it could have
+had. That is the accepted price of not being able to tell it apart from YEMA
+from the outside.
+
+### If you want a label back for a specific store
+
+Point the source at an HTML listing page that prints the symbol and register it
+with `html_selectors`. That is the supported route, and it is honest: the label
+then comes from the same bytes as the number.
+
+### Fixing the labels already published
+
+Drops created before this carry whatever the registration label said. Re-derive
+them from what their Watch's Variants now evidence:
+
+```bash
+pnpm --filter @crown-watch/api relabel:drop-currency
+```
+
+```bash
+pnpm --filter @crown-watch/api relabel:drop-currency -- --confirm
+```
+
+**Run it after every store has been polled once**, not before. The answer comes
+from each Watch's Variants, and those only carry what the store printed once a
+poll has rewritten them — running it early would clear labels the next poll
+would have confirmed.
+
+It is evidence rather than a wipe: a Watch whose priced Variants agree keeps its
+label (Baltic prints `€ 640.00`, so its Drops stay `EUR`), and one whose
+Variants no longer say anything is cleared. Drops about no Watch are skipped
+entirely — an RSS-extracted Drop's currency came out of a publication's prose,
+not from the label this replaced. Prices, publication state and broadcast rows
+are untouched.
+
+> The Channel messages already sent keep their wrong labels. A Channel cannot
+> unsend, and Telegram only permits deleting a post for 48 hours
+> ([telegram-destinations](./telegram-destinations.md)). Those are permanent;
+> this fixes the site and everything sent from here on.
+
+### Rejected alternatives
+
+- **Keep the config label, and only trust it for stores "known" to serve one
+  market.** The knowing is the problem. Nothing verifies it, it decays silently
+  as stores add markets, and the failure is a wrong number in a Channel.
+- **Pin the request to one market** (a country parameter, a market-scoped path,
+  a forced locale). Storefront-specific, undocumented for `products.json`, and
+  it would still be an assumption rather than something the response confirms.
+  Worth revisiting per store if a brand ever documents it.
+- **Convert everything to one display currency.** Requires an FX feed and a
+  rate as of the fetch, and would print a number no shop will actually charge.
+- **Guess from the brand's country.** A French brand selling to the US in
+  dollars is the common case, not the exception.
 
 ---
 
@@ -693,7 +789,6 @@ fall back on.
 ```json
 {
   "adapter": "html_selectors",
-  "currency": "EUR",
   "selectors": {
     "item": "a[href*=\"/products/\"]",
     "title": "p.uppercase",
@@ -715,6 +810,10 @@ Why these, and what they cost to get right:
   `mt-auto`. Fragile against a redesign — which is the standing trade-off of
   this adapter, and why a redesign shows up as `Adapter produced no products`
   rather than as silence.
+- **The `price` selector now carries the currency too.** Baltic prints
+  `€ 640.00`, so the symbol arrives in the same string as the number and the
+  Drop is labelled `EUR`. A selector that captured only the digits would strip
+  the label and publish a bare number — worth checking when you write one.
 - **`soldOutText` is "Out of stock", not "Sold out".** This one matters more
   than it looks. The first attempt used "Sold out", the phrase most stores use;
   it matched nothing, and three genuinely sold-out watches were recorded as

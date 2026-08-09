@@ -465,7 +465,10 @@ export class SiteWatchService {
           // renders `priceLow`, so an equal pair would read no differently.
           priceHigh:
             change.priceHigh !== change.priceLow ? change.priceHigh : null,
-          currency: change.lead.currency,
+          // From the event, not from `lead`: the two figures above and this
+          // label are computed over the same references, so a Drop can never
+          // quote a number in one currency under the name of another (#24).
+          currency: change.currency,
           imageUrl: change.lead.imageUrl,
           sourceUrl: change.lead.url,
           sourceEventId: created.id,
