@@ -146,7 +146,11 @@ describe('ExtractionService persistence', () => {
     expect(brand?.country).toBe('France');
     expect(brand?.website).toBe('https://example.com');
     expect(brand?.foundedYearEst).toBe(2016);
-    expect(brand?.status).toBe('watchlist');
+    // Listed, never curated: a Brand discovered by extraction has had no
+    // human judgement attached to it, and nothing automatic may claim one
+    // (#22).
+    expect(brand?.status).toBe('listed');
+    expect(brand?.annotation).toBeNull();
   });
 
   it('skips established majors instead of listing them as microbrands', async () => {

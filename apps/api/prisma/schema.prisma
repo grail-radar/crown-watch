@@ -42,9 +42,19 @@ enum WatchKind {
   accessory
 }
 
+// Whether a human has approved what we say about a Brand.
+//
+// `listed` is the honest default and not a lesser tier: the Brand is fully
+// visible, fully alerted on, and simply has no judgement attached yet. Breadth
+// and honesty are not in tension (CONTEXT.md §2) — what must never happen is
+// silence reading as endorsement.
+//
+// Replaces `watchlist|verified`. "Watchlist" is a *user's* list of Brands they
+// follow and never a state a Brand is in (CONTEXT.md §9), and "verified"
+// claimed something nobody had checked.
 enum BrandStatus {
-  watchlist
-  verified
+  listed
+  curated
 }
 
 enum DropType {
@@ -151,7 +161,17 @@ model Brand {
   instagramHandle  String?     @map("instagram_handle")
   country          String?
   foundedYearEst   Int?        @map("founded_year_est")
-  status           BrandStatus @default(watchlist)
+  status           BrandStatus @default(listed)
+  /// The one honest sentence about this Brand, including the unflattering ones
+  /// — the differentiator a larger competitor's database does not have
+  /// (CONTEXT.md §2). Never purchasable, in any form (ADR-0004).
+  ///
+  /// Present while `status` is still `listed` means a **draft**: written, not
+  /// yet approved, and shown to nobody. Only a Curated Brand displays one.
+  annotation           String?
+  /// When a human approved the Annotation. Null until one does — nothing
+  /// automatic ever sets it, which is what keeps `curated` meaningful.
+  annotationApprovedAt DateTime? @map("annotation_approved_at")
   // Phase 2 — brand reliability / delivery track-record (CONTEXT.md §2, §5).
   reliabilityScore Float?      @map("reliability_score")
   // How many times the enrichment pass has asked a model about this brand.
