@@ -384,6 +384,36 @@ Point the source at an HTML listing page that prints the symbol and register it
 with `html_selectors`. That is the supported route, and it is honest: the label
 then comes from the same bytes as the number.
 
+### Fixing the labels already published
+
+Drops created before this carry whatever the registration label said. Re-derive
+them from what their Watch's Variants now evidence:
+
+```bash
+pnpm --filter @crown-watch/api relabel:drop-currency
+```
+
+```bash
+pnpm --filter @crown-watch/api relabel:drop-currency -- --confirm
+```
+
+**Run it after every store has been polled once**, not before. The answer comes
+from each Watch's Variants, and those only carry what the store printed once a
+poll has rewritten them — running it early would clear labels the next poll
+would have confirmed.
+
+It is evidence rather than a wipe: a Watch whose priced Variants agree keeps its
+label (Baltic prints `€ 640.00`, so its Drops stay `EUR`), and one whose
+Variants no longer say anything is cleared. Drops about no Watch are skipped
+entirely — an RSS-extracted Drop's currency came out of a publication's prose,
+not from the label this replaced. Prices, publication state and broadcast rows
+are untouched.
+
+> The Channel messages already sent keep their wrong labels. A Channel cannot
+> unsend, and Telegram only permits deleting a post for 48 hours
+> ([telegram-destinations](./telegram-destinations.md)). Those are permanent;
+> this fixes the site and everything sent from here on.
+
 ### Rejected alternatives
 
 - **Keep the config label, and only trust it for stores "known" to serve one
