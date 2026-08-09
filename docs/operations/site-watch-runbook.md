@@ -334,6 +334,90 @@ a source that failed is retried once its backoff window expires.
 
 ---
 
+## When the watcher calls a strap a watch, or a watch a strap
+
+A brand's feed returns the whole shop. Every product is classified as a **watch**
+or an **accessory**, the answer is stored on `watches.kind`, and only a watch
+raises a Drop ([ADR-0006](../adr/0006-accessories-are-classified-not-excluded.md)).
+
+The rule is a short list of cases over the title. It will be wrong sometimes,
+and it leans deliberately toward calling things watches: an accessory announced
+is one stray message, a watch silenced is a release nobody knows is missing.
+
+### See what a brand is selling, by kind
+
+```sql
+SELECT kind, count(*) FROM watches WHERE brand_id = '<brand_id>' GROUP BY kind;
+```
+
+```sql
+SELECT name, kind, kind_override
+FROM watches
+WHERE brand_id = '<brand_id>' AND kind = 'accessory'
+ORDER BY name;
+```
+
+You do not need to poll to find this out — that is why the column is stored.
+
+### Correct one
+
+Set `kind_override`. The rule is not consulted again for that Watch, and the
+next poll applies it — including on a store that has not changed. The one
+exception is a [held source](#a-held-source-a-poll-that-refused-to-publish),
+which stops before it rebuilds the catalogue: release or re-baseline it first,
+and the override lands with the poll that follows.
+
+```sql
+UPDATE watches SET kind_override = 'accessory' WHERE id = '<watch_id>';
+```
+
+```sql
+UPDATE watches SET kind_override = 'watch' WHERE id = '<watch_id>';
+```
+
+To hand it back to the rule, clear the override:
+
+```sql
+UPDATE watches SET kind_override = NULL WHERE id = '<watch_id>';
+```
+
+`kind` is rewritten by every poll; `kind_override` is never written by anything
+but you.
+
+### Classify the Watches recorded before kinds existed
+
+Everything older defaults to `watch`. Dry run first:
+
+```bash
+pnpm --filter @crown-watch/api backfill:watch-kinds
+```
+
+```bash
+pnpm --filter @crown-watch/api backfill:watch-kinds -- --confirm
+```
+
+It skips any Watch carrying a `kind_override`, and it prints the reclassified
+accessories with how many Drops each already has — those are the messages that
+should never have gone out.
+
+### Find the accessory Drops already on the feed
+
+```sql
+SELECT d.id, b.name, d.title, d.published_at
+FROM drops d
+JOIN watches w ON w.id = d.watch_id
+JOIN brands b  ON b.id = d.brand_id
+WHERE w.kind = 'accessory' AND d.published_at IS NOT NULL
+ORDER BY d.published_at DESC;
+```
+
+This change is prospective — it does not retract anything. Taking those off the
+feed is [a deliberate operator action](#taking-drops-off-the-feed-that-should-never-have-been-announced),
+and it needs `backfill:drop-watches` to have run, since a Drop with a null
+`watch_id` cannot be found this way.
+
+---
+
 ## Correcting a wrong grouping
 
 The rule that decides which store products are the same **Watch** is brand plus
@@ -554,6 +638,7 @@ Two guards came out of it, deliberately at different levels:
 - [ADR-0002](../adr/0002-broadcasts-are-at-most-once.md) — why an alert is never sent twice, and never retried
 - [ADR-0003](../adr/0003-watch-identity-is-normalised-titles.md) — how products become Watches, and why the override table is load-bearing
 - [ADR-0005](../adr/0005-an-implausible-poll-is-refused-not-published.md) — why an implausible poll is refused, and why its snapshot is not kept
+- [ADR-0006](../adr/0006-accessories-are-classified-not-excluded.md) — why a strap is recorded but never announced
 - [README](../../README.md#telegram-drop-broadcast-contextmd-2) — channel setup and backfilling
 
 ---

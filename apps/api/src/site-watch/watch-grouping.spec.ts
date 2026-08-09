@@ -53,9 +53,11 @@ describe('groupByWatch', () => {
     });
 
     it('groups them into one Watch when told to', () => {
-      const grouping = groupByWatch('yema', products, [
-        { productUrl: 'https://yema.example/products/u7', watchKey: 'yema:superman bronze' },
-      ]);
+      const grouping = groupByWatch('yema', products, {
+        overrides: [
+          { productUrl: 'https://yema.example/products/u7', watchKey: 'yema:superman bronze' },
+        ],
+      });
 
       expect(grouping.groups.size).toBe(1);
       const [group] = [...grouping.groups.values()];
@@ -71,12 +73,14 @@ describe('groupByWatch', () => {
         'yema',
         // Store order puts the stray first, which is the case that breaks.
         [products[1], products[0]],
-        [
-          {
-            productUrl: 'https://yema.example/products/u7',
-            watchKey: 'yema:superman bronze',
-          },
-        ],
+        {
+          overrides: [
+            {
+              productUrl: 'https://yema.example/products/u7',
+              watchKey: 'yema:superman bronze',
+            },
+          ],
+        },
       );
 
       expect(names(grouping)).toEqual(['Superman Bronze']);
@@ -88,9 +92,11 @@ describe('groupByWatch', () => {
       const grouping = groupByWatch('serica', [
         product({ url: 'https://serica.example/products/a', title: 'Réf. 8315-2 (SYU66-20-SS)' }),
         product({ url: 'https://serica.example/products/b', title: 'Réf. 8315-2 (SYU66-20-BR)' }),
-      ], [
-        { productUrl: 'https://serica.example/products/b', watchKey: 'serica:réf. 8315-2' },
-      ]);
+      ], {
+        overrides: [
+          { productUrl: 'https://serica.example/products/b', watchKey: 'serica:réf. 8315-2' },
+        ],
+      });
 
       const [group] = [...grouping.groups.values()];
       expect(group.entries.map((e) => e.identity.reference).sort()).toEqual([
@@ -113,25 +119,29 @@ describe('groupByWatch', () => {
     });
 
     it('separates them into two Watches when told to', () => {
-      const grouping = groupByWatch('baltic', products, [
-        {
-          productUrl: 'https://brand.example/products/limited',
-          watchKey: 'baltic:aquascaphe limited',
-          watchName: 'Aquascaphe Limited Edition',
-        },
-      ]);
+      const grouping = groupByWatch('baltic', products, {
+        overrides: [
+          {
+            productUrl: 'https://brand.example/products/limited',
+            watchKey: 'baltic:aquascaphe limited',
+            watchName: 'Aquascaphe Limited Edition',
+          },
+        ],
+      });
 
       expect(grouping.groups.size).toBe(2);
       expect(names(grouping)).toEqual(['Aquascaphe', 'Aquascaphe Limited Edition']);
     });
 
     it('falls back to the rule’s name when the override does not give one', () => {
-      const grouping = groupByWatch('baltic', products, [
-        {
-          productUrl: 'https://brand.example/products/limited',
-          watchKey: 'baltic:aquascaphe limited',
-        },
-      ]);
+      const grouping = groupByWatch('baltic', products, {
+        overrides: [
+          {
+            productUrl: 'https://brand.example/products/limited',
+            watchKey: 'baltic:aquascaphe limited',
+          },
+        ],
+      });
 
       expect(grouping.groups.size).toBe(2);
       expect(names(grouping)).toEqual(['Aquascaphe', 'Aquascaphe']);
@@ -144,7 +154,11 @@ describe('groupByWatch', () => {
     const grouping = groupByWatch(
       'yema',
       [product({ url: 'https://yema.example/products/u8' })],
-      [{ productUrl: 'https://yema.example/products/delisted', watchKey: 'yema:whatever' }],
+      {
+        overrides: [
+          { productUrl: 'https://yema.example/products/delisted', watchKey: 'yema:whatever' },
+        ],
+      },
     );
 
     expect(grouping.groups.size).toBe(1);
@@ -156,7 +170,11 @@ describe('groupByWatch', () => {
     const grouping = groupByWatch(
       'yema',
       [product({ url: 'https://yema.example/products/u8' })],
-      [{ productUrl: 'https://baltic.example/products/other', watchKey: 'yema:merged' }],
+      {
+        overrides: [
+          { productUrl: 'https://baltic.example/products/other', watchKey: 'yema:merged' },
+        ],
+      },
     );
 
     expect(grouping.groups.size).toBe(1);
@@ -170,12 +188,14 @@ describe('groupByWatch', () => {
       product({ url: 'https://yema.example/products/a', title: 'One' }),
       product({ url: 'https://yema.example/products/b', title: 'Two' }),
     ];
-    const overrides = [
-      { productUrl: 'https://yema.example/products/b', watchKey: 'yema:one' },
-    ];
+    const rules = {
+      overrides: [
+        { productUrl: 'https://yema.example/products/b', watchKey: 'yema:one' },
+      ],
+    };
 
-    const first = groupByWatch('yema', products, overrides);
-    const second = groupByWatch('yema', products, overrides);
+    const first = groupByWatch('yema', products, rules);
+    const second = groupByWatch('yema', products, rules);
 
     expect([...second.groups.keys()]).toEqual([...first.groups.keys()]);
     expect(names(second)).toEqual(names(first));

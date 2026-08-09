@@ -522,6 +522,164 @@ describe('SiteWatchService', () => {
       ]);
     });
 
+    it('says nothing when the store adds a strap', async () => {
+      // Serica's feed announced "Bracelet Lézard - Marron" as a watch release,
+      // and YEMA's announced ten straps and a warranty product. Every one
+      // reached both Channels, which cannot unsend.
+      const { source, brandId } = await arrangeSource();
+      fetcher.serve([{ handle: 'diver', title: 'Harbour Diver', available: true }]);
+      await service.pollSource(source.id);
+
+      fetcher.serve([
+        { handle: 'diver', title: 'Harbour Diver', available: true },
+        { handle: 'strap', title: 'Vintage Leather Strap', available: true },
+        { handle: 'box', title: 'Collectors Watch Box', available: true },
+        { handle: 'warranty', title: 'Warranty Product', available: true },
+      ]);
+      const result = await service.pollSource(source.id);
+
+      expect(result.dropsCreated).toBe(0);
+      expect(await dropsFor(brandId)).toHaveLength(0);
+      expect(telegram.sent).toHaveLength(0);
+    });
+
+    it('keeps the accessory data in full, and says what it is', async () => {
+      // Classification, not exclusion — the sibling ticket needs this data.
+      const { source, brandId } = await arrangeSource();
+      fetcher.serve([
+        { handle: 'diver', title: 'Harbour Diver', price: '650.00', available: true },
+        { handle: 'strap', title: 'Rallye Leather Strap', price: '90.00', available: true },
+      ]);
+
+      const result = await service.pollSource(source.id);
+
+      // Counted apart, not lumped together: one of each.
+      expect(result.watchesRecorded).toBe(1);
+      expect(result.accessoriesRecorded).toBe(1);
+      expect(result.newAccessories).toEqual(['Rallye Leather Strap']);
+      const watches = await watchesFor(brandId);
+      const strap = watches.find((w) => w.name === 'Rallye Leather Strap');
+      expect(strap?.kind).toBe('accessory');
+      expect(strap?.variants).toHaveLength(1);
+      expect(Number(strap?.variants[0].price)).toBe(90);
+      expect(watches.find((w) => w.name === 'Harbour Diver')?.kind).toBe('watch');
+    });
+
+    it('still announces a watch alongside the accessories', async () => {
+      // The failure that would matter most: a rule that silenced everything.
+      const { source, brandId } = await arrangeSource();
+      fetcher.serve([{ handle: 'strap', title: 'Leather Strap', available: true }]);
+      await service.pollSource(source.id);
+
+      fetcher.serve([
+        { handle: 'strap', title: 'Leather Strap', available: true },
+        { handle: 'gmt', title: 'Meridian GMT', available: true },
+      ]);
+      const result = await service.pollSource(source.id);
+
+      expect(result.dropsCreated).toBe(1);
+      expect((await dropsFor(brandId))[0].title).toBe('Meridian GMT');
+      expect(telegram.sent).toHaveLength(2);
+    });
+
+    it('lets an operator silence a watch the rule could not name', async () => {
+      // Serica's "'Black Tie'" is a set of spring bars and no rule reads that
+      // off the title. Marking the row is the fix, and it needs no deploy.
+      const { source, brandId } = await arrangeSource();
+      fetcher.serve([{ handle: 'other', title: 'Other', available: true }]);
+      await service.pollSource(source.id);
+
+      fetcher.serve([
+        { handle: 'other', title: 'Other', available: true },
+        { handle: 'bonk', title: 'Mystery Fitting', available: true },
+      ]);
+      await service.pollSource(source.id);
+      expect(await dropsFor(brandId)).toHaveLength(1); // announced, wrongly
+
+      await prisma.watch.updateMany({
+        where: { brandId, name: 'Mystery Fitting' },
+        data: { kindOverride: 'accessory' },
+      });
+
+      // It comes back in stock later; that must not be announced either.
+      fetcher.serve([
+        { handle: 'other', title: 'Other', available: true },
+        { handle: 'bonk', title: 'Mystery Fitting', available: false },
+      ]);
+      await service.pollSource(source.id);
+      fetcher.serve([
+        { handle: 'other', title: 'Other', available: true },
+        { handle: 'bonk', title: 'Mystery Fitting', available: true },
+      ]);
+      const result = await service.pollSource(source.id);
+
+      expect(result.dropsCreated).toBe(0);
+      expect(await dropsFor(brandId)).toHaveLength(1); // still just the first
+      const marked = (await watchesFor(brandId)).find(
+        (w) => w.name === 'Mystery Fitting',
+      );
+      expect(marked?.kind).toBe('accessory');
+    });
+
+    it('lets an operator rescue a watch the rule wrongly silenced', async () => {
+      // The other direction, and the one that matters more. `bracelet` earns
+      // its place in the rule — it is how both Serica and YEMA title the strap
+      // itself — but it also appears in a watch listed on a given bracelet.
+      // Silence is the expensive mistake, so it has to be recoverable.
+      const { source, brandId } = await arrangeSource();
+      fetcher.serve([{ handle: 'other', title: 'Other', available: true }]);
+      await service.pollSource(source.id);
+
+      fetcher.serve([
+        { handle: 'other', title: 'Other', available: true },
+        { handle: 'band', title: 'Skin Diver CMM.20 Steel Bracelet', available: true },
+      ]);
+      await service.pollSource(source.id);
+      expect(await dropsFor(brandId)).toHaveLength(0); // silenced, wrongly
+
+      await prisma.watch.updateMany({
+        where: { brandId, name: 'Skin Diver CMM.20 Steel Bracelet' },
+        data: { kindOverride: 'watch' },
+      });
+
+      fetcher.serve([
+        { handle: 'other', title: 'Other', available: true },
+        { handle: 'band', title: 'Skin Diver CMM.20 Steel Bracelet', available: false },
+      ]);
+      await service.pollSource(source.id);
+      fetcher.serve([
+        { handle: 'other', title: 'Other', available: true },
+        { handle: 'band', title: 'Skin Diver CMM.20 Steel Bracelet', available: true },
+      ]);
+      const result = await service.pollSource(source.id);
+
+      expect(result.dropsCreated).toBe(1);
+      expect((await dropsFor(brandId))[0].title).toBe('Skin Diver CMM.20 Steel Bracelet');
+    });
+
+    it('applies a correction to a store that has not changed', async () => {
+      // Same trap as the grouping override: a correction is written about a
+      // catalogue with no reason to move.
+      const { source, brandId } = await arrangeSource();
+      fetcher.serve([
+        { handle: 'fitting', title: 'Odd Fitting', available: true },
+      ]);
+      await service.pollSource(source.id);
+
+      await prisma.watch.updateMany({
+        where: { brandId, name: 'Odd Fitting' },
+        data: { kindOverride: 'accessory' },
+      });
+
+      const result = await service.pollSource(source.id); // identical catalogue
+
+      expect(result.changed).toBe(false);
+      const marked = (await watchesFor(brandId)).find(
+        (w) => w.name === 'Odd Fitting',
+      );
+      expect(marked?.kind).toBe('accessory');
+    });
+
     it('does not re-announce a watch when the store adds a buying option', async () => {
       const { source, brandId } = await arrangeSource();
       fetcher.serve([{ handle: 'diver-a', title: 'Harbour Diver', available: true }]);

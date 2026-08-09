@@ -8,6 +8,7 @@ import { SiteWatchController } from './site-watch.controller';
 import { SiteWatchScheduler } from './site-watch.scheduler';
 import { SiteWatchService } from './site-watch.service';
 import { StoreProbe } from './store-probe';
+import { WatchKindBackfillService } from './watch-kind-backfill.service';
 import { WatchWriterService } from './watch-writer.service';
 
 @Module({
@@ -17,11 +18,12 @@ import { WatchWriterService } from './watch-writer.service';
     SiteWatchService,
     SiteWatchScheduler,
     WatchWriterService,
+    WatchKindBackfillService,
     RobotsService,
     StoreProbe,
     AdminGuard,
     { provide: SiteFetcher, useClass: HttpSiteFetcher },
   ],
-  exports: [SiteWatchService, StoreProbe],
+  exports: [SiteWatchService, StoreProbe, WatchKindBackfillService],
 })
 export class SiteWatchModule {}

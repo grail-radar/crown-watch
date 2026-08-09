@@ -10,6 +10,8 @@
  * The rule itself lives in `watch-identity.ts`. This puts products into buckets
  * by it, and lets an operator overrule it per product.
  */
+import { WatchKind } from '@prisma/client';
+import { classifyWatchKind } from './watch-kind';
 import { ProductSnapshot } from './snapshot';
 import { slugify, WatchIdentity, watchIdentity } from './watch-identity';
 
@@ -44,6 +46,27 @@ export interface WatchGroupEntry {
 export interface WatchGroup {
   identity: WatchIdentity;
   entries: WatchGroupEntry[];
+  /**
+   * Whether this is a watch or something a watch shop sells alongside them,
+   * after any operator correction. Only a watch raises a Drop (ADR-0006).
+   */
+  kind: WatchKind;
+}
+
+/**
+ * The operator's corrections, both kinds, applied on top of the rules.
+ *
+ * Grouped into one argument rather than trailing positional parameters: they
+ * travel together everywhere, and the caller loads both in the same breath.
+ */
+export interface GroupingRules {
+  /** Where a product belongs — see {@link GroupingOverride}. */
+  overrides?: GroupingOverride[];
+  /**
+   * What a Watch is, keyed by identity key. Only for Watches an operator has
+   * corrected; everything else follows `classifyWatchKind`.
+   */
+  kindOverrides?: ReadonlyMap<string, WatchKind>;
 }
 
 export interface Grouping {
@@ -68,8 +91,9 @@ export interface Grouping {
 export function groupByWatch(
   brandSlug: string,
   products: ProductSnapshot[],
-  overrides: GroupingOverride[] = [],
+  rules: GroupingRules = {},
 ): Grouping {
+  const overrides = rules.overrides ?? [];
   const byUrl = new Map(overrides.map((o) => [o.productUrl, o]));
   const groups = new Map<string, WatchGroup>();
   const named = new Map<string, string>();
@@ -100,16 +124,22 @@ export function groupByWatch(
       ? { key, name: ruled.name, slug: ruled.slug, reference: ruled.reference }
       : ruled;
 
-    const group = groups.get(key) ?? { identity, entries: [] };
+    const group = groups.get(key) ?? {
+      identity,
+      entries: [],
+      kind: WatchKind.watch,
+    };
     group.entries.push({ product, identity, overridden: override !== undefined });
     groups.set(key, group);
   }
 
   // Second pass, because the name a group settles on can be decided by a
-  // product the store listed after the one that created the group.
+  // product the store listed after the one that created the group — and the
+  // name is what the classification reads.
   for (const [key, group] of groups) {
     const name = named.get(key) ?? group.entries[0].identity.name;
     group.identity = { ...group.identity, name, slug: slugify(name) };
+    group.kind = rules.kindOverrides?.get(key) ?? classifyWatchKind(name);
   }
 
   const matched = new Set(applied);

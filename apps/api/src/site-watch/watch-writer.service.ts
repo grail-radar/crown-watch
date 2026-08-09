@@ -1,12 +1,24 @@
 import { Injectable, Logger } from '@nestjs/common';
+import { WatchKind } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { ProductSnapshot } from './snapshot';
-import { GroupingOverride, groupByWatch } from './watch-grouping';
+import { GroupingRules, groupByWatch } from './watch-grouping';
 import { WatchIdentity } from './watch-identity';
 
 export interface RecordedCatalogue {
+  /** Watches, in the glossary's sense — accessories are counted separately. */
   watches: number;
   variants: number;
+  /** Straps, boxes, gift cards. Recorded in full, announced to nobody. */
+  accessories: number;
+  /**
+   * Accessories this poll recorded for the first time, by name.
+   *
+   * A count alone would make a wrongly-silenced watch invisible, and that is
+   * the expensive misclassification (ADR-0006). Only the new ones: a brand's
+   * standing accessories would drown the report every hour.
+   */
+  newAccessories: string[];
   /** Grouping overrides that re-homed a product this poll. */
   overridesApplied: number;
   /**
@@ -53,19 +65,25 @@ export class WatchWriterService {
     brandId: string,
     brandSlug: string,
     products: ProductSnapshot[],
-    overrides: GroupingOverride[] = [],
+    rules: GroupingRules = {},
   ): Promise<RecordedCatalogue> {
-    const grouping = groupByWatch(brandSlug, products, overrides);
+    const grouping = groupByWatch(brandSlug, products, rules);
     const groups = grouping.groups;
     const watchIdByKey = new Map<string, string>();
     let variants = 0;
+    let accessories = 0;
+    const newAccessories: string[] = [];
 
     for (const group of groups.values()) {
-      const watch = await this.watchFor(
+      const isAccessory = group.kind !== WatchKind.watch;
+      if (isAccessory) accessories += 1;
+      const { watch, created } = await this.watchFor(
         brandId,
         group.identity,
+        group.kind,
         group.entries.map((e) => e.product.url),
       );
+      if (isAccessory && created) newAccessories.push(group.identity.name);
       watchIdByKey.set(group.identity.key, watch.id);
 
       for (const { product, identity } of group.entries) {
@@ -115,8 +133,10 @@ export class WatchWriterService {
     }
 
     return {
-      watches: groups.size,
+      watches: groups.size - accessories,
       variants,
+      accessories,
+      newAccessories,
       overridesApplied: grouping.applied.length,
       overridesUnmatched: grouping.unmatched,
       watchIdByKey,
@@ -133,20 +153,28 @@ export class WatchWriterService {
    * shared. When the products already belong to exactly one Watch and are the
    * whole of it, that is a rename, not a new model: the row is kept, and with
    * it the slug.
+   *
+   * `created` is reported because a *newly* silenced accessory is the one worth
+   * naming in the run report; a brand's standing accessories are not news.
    */
   private async watchFor(
     brandId: string,
     identity: WatchIdentity,
+    kind: WatchKind,
     productUrls: string[],
-  ) {
+  ): Promise<{ watch: { id: string }; created: boolean }> {
+    // `kind` is written on every poll but `kindOverride` never is: the override
+    // belongs to the operator, and the rule must not quietly undo a correction
+    // on the next run.
     const byKey = await this.prisma.watch.findUnique({
       where: { brandId_key: { brandId, key: identity.key } },
     });
     if (byKey) {
-      return this.prisma.watch.update({
+      const watch = await this.prisma.watch.update({
         where: { id: byKey.id },
-        data: { name: identity.name },
+        data: { name: identity.name, kind },
       });
+      return { watch, created: false };
     }
 
     const owners = await this.prisma.watch.findMany({
@@ -157,22 +185,26 @@ export class WatchWriterService {
     // Exactly one owner, and these products are all of it — so moving them
     // would empty it. That is the same watch under a new name.
     if (owners.length === 1 && owners[0]._count.variants === productUrls.length) {
-      return this.prisma.watch.update({
+      const watch = await this.prisma.watch.update({
         where: { id: owners[0].id },
         // The slug is deliberately not recomputed. A reader may already have
         // the URL, and a store tidying a title is not a reason to break it.
-        data: { key: identity.key, name: identity.name },
+        data: { key: identity.key, name: identity.name, kind },
       });
+      // A rename, not a new thing — so it is not news either.
+      return { watch, created: false };
     }
 
-    return this.prisma.watch.create({
+    const watch = await this.prisma.watch.create({
       data: {
         brandId,
         key: identity.key,
         name: identity.name,
+        kind,
         slug: await this.freeSlug(brandId, identity.slug),
       },
     });
+    return { watch, created: true };
   }
 
   /**
