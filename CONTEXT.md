@@ -218,6 +218,12 @@ One event about a Watch — it launched, restocked, opened a waitlist, went live
 An entry on a watch page, never a page of its own.
 _Avoid_: release, listing, post.
 
+**Accessory**:
+Something a brand's shop sells that is not a Watch — a strap, a bracelet, a buckle, a box, a
+gift card. Recorded in full and shown on the Brand page; never a Drop, and never announced to
+a Channel (ADR-0006).
+_Avoid_: merch, extra, add-on, product.
+
 **Annotation**:
 The one-sentence human judgement about a Brand, including the unflattering ones. The
 differentiator, and never purchasable (ADR-0004).

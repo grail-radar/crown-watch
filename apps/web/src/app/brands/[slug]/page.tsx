@@ -4,6 +4,7 @@ import { notFound } from 'next/navigation';
 import { BrandAvatar, BrandBanner } from '@/components/brand-art';
 import { DropCard } from '@/components/cards';
 import { getBrand } from '@/lib/api';
+import { formatPrice } from '@/lib/format';
 import { SITE_URL } from '@/lib/site';
 
 export const dynamic = 'force-dynamic';
@@ -35,6 +36,10 @@ export default async function BrandPage({ params }: Props) {
   const { slug } = await params;
   const brand = await getBrand(slug);
   if (!brand) notFound();
+
+  // An older API build does not send this field at all, and a brand page is
+  // not worth a crash over a section that is only ever context.
+  const accessories = brand.accessories ?? [];
 
   const jsonLd = {
     '@context': 'https://schema.org',
@@ -137,6 +142,66 @@ export default async function BrandPage({ params }: Props) {
           </div>
         )}
       </section>
+
+      {/* Everything else the shop sells. Deliberately below the drops and
+          deliberately quiet: a strap is never an event, and this section is
+          context rather than news (ADR-0006). A brand with none renders the
+          page exactly as it did before. */}
+      {accessories.length > 0 && (
+        <section className="mt-14 border-t border-line/70 pt-10">
+          <h2 className="font-display text-2xl tracking-tight">
+            Also from {brand.name}
+          </h2>
+          <p className="mt-2 text-sm text-faint">
+            Straps, bracelets and the rest of the shop. We track these, but they
+            are never Drops — nothing here is announced.
+          </p>
+
+          <ul className="mt-6 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
+            {accessories.map((accessory) => (
+              <li key={accessory.id}>
+                <Link
+                  href={`/watches/${brand.slug}/${accessory.slug}`}
+                  className="flex h-full items-center gap-3 rounded-xl border border-line bg-panel/40 p-3 transition hover:border-gold/40"
+                >
+                  {accessory.imageUrl ? (
+                    // Not next/image: third-party store URLs on arbitrary
+                    // hosts, which the optimiser needs configuring per domain.
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img
+                      src={accessory.imageUrl}
+                      alt=""
+                      className="h-12 w-12 shrink-0 rounded-lg border border-line object-cover"
+                    />
+                  ) : (
+                    <span
+                      aria-hidden
+                      className="h-12 w-12 shrink-0 rounded-lg border border-dashed border-line"
+                    />
+                  )}
+                  <span className="min-w-0 flex-1">
+                    <span className="block truncate text-sm text-ink">
+                      {accessory.name}
+                    </span>
+                    <span className="mt-0.5 block text-xs text-faint">
+                      {accessory.priceLow
+                        ? `${accessory.variantCount > 1 ? 'from ' : ''}${formatPrice(
+                            accessory.priceLow,
+                            null,
+                            accessory.currency,
+                          )}`
+                        : 'Price not listed'}
+                      {accessory.variantCount > 1 &&
+                        ` · ${accessory.variantCount} options`}
+                      {!accessory.available && ' · Out of stock'}
+                    </span>
+                  </span>
+                </Link>
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
     </main>
   );
 }

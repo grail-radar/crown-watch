@@ -5,6 +5,10 @@
 **Context issue:** [#38](https://github.com/grail-radar/crown-watch/issues/38),
 with [#41](https://github.com/grail-radar/crown-watch/issues/41) depending on it
 
+> **Amended 2026-08-09.** #41 settled where accessories are shown, and found
+> that the per-Watch half of its own preferred shape is not buildable from the
+> data. See the amendment at the end.
+
 ## Context
 
 A brand's `products.json` returns everything the shop sells, and Tier 4 treats
@@ -99,9 +103,9 @@ answer. One column, and it cannot disagree with itself.
 - **Existing rows needed a pass.** Everything predating this defaulted to
   `watch`. `backfill:watch-kinds` classifies them, and its output is how the
   cleanup ticket learns which published Drops were about accessories.
-- **Accessories are invisible until [#41](https://github.com/grail-radar/crown-watch/issues/41).**
-  They are recorded and reachable by URL as Watch pages, and nothing links to
-  them. That is the accepted intermediate state, not the destination.
+- **Where accessories are shown** — decided by
+  [#41](https://github.com/grail-radar/crown-watch/issues/41), see the amendment
+  below.
 - **Accessory Drops already announced stay on the feed.** This change is
   prospective. Retracting them is a separate, deliberate operator action, and it
   is now possible to enumerate them:
@@ -135,3 +139,55 @@ answer. One column, and it cannot disagree with itself.
 - **A separate `accessories` table.** Cleaner in the abstract, and it would
   duplicate Variants, slugs, and the grouping rule wholesale to express one
   boolean.
+
+---
+
+## Amendment, 2026-08-09 — where accessories are shown
+
+**Context issue:** [#41](https://github.com/grail-radar/crown-watch/issues/41).
+
+#41 posed the shape as a choice: are accessories something a reader browses in
+their own right, or context that appears on a Watch and on a Brand? It
+preferred the second — "nobody arrives wanting a strap directory, but plenty of
+people want to know whether *this* watch comes on a bracelet."
+
+**Half of that preference is not buildable, and it is the more appealing half.**
+Nothing in the data links an accessory to the watches it fits. A Watch owns its
+Variants; an accessory is its own Watch with its own Variants; there is no
+relation between them, and none can be derived — "Rallye Leather Strap" does not
+say which models it suits, and inferring it from lug width would mean parsing
+specs the project deliberately does not collect (see the `Watch` model's note on
+absent spec columns).
+
+So the decision is the achievable part of the preference:
+
+- **Accessories appear on the Brand page**, in a section below the Drops, each
+  linking to the Watch page it already has. Quiet by design — a strap is context,
+  never news.
+- **Accessories do not appear on a Watch page.** Not rejected on taste; it
+  requires an accessory→Watch relation that does not exist. Building one is a
+  ticket of its own, and it needs a source of truth nobody has yet offered.
+- **There is no accessory directory**, per the ticket's own reasoning.
+- **In stock leads.** A brand can sell forty straps with half of them gone, and a
+  list headed by what cannot be bought reads as a dead catalogue.
+
+Two things fell out of the same change, both required by #41's criteria:
+
+- **An accessory Drop is no longer served or sent**, including the ones
+  announced before #38 existed. That is a filter, not a cleanup: the Drops and
+  their `drop_broadcasts` rows stay exactly where they are, because those rows
+  are the only evidence the messages were sent (ADR-0002).
+
+  One predicate, `ABOUT_A_WATCH`, is shared by every path rather than copied
+  into each. Review found the send side entirely unguarded when it was not:
+  #38 had closed only the *write* path, so a Channel added later would have
+  backfilled every historic strap into it, the weekly digest was still mailing
+  them, and approving a pre-#38 Drop still sitting in the moderation queue would
+  have posted one. Three places each deciding what "public" means is how that
+  happens. The paths now covered: the drops feed, a Drop's own URL, the Brand
+  page, the brand directory's count, the weekly digest, the Telegram backfill,
+  and `broadcastDrop` itself — the last of which checks the row rather than the
+  query, because it is the step that cannot be undone.
+- **A Drop with no Watch is still served.** Anything read out of a publication's
+  RSS has a null `watch_id`, and excluding accessories carelessly would have
+  taken the whole of Tier 1 with them.
