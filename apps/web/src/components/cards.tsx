@@ -98,14 +98,21 @@ export function DropCard({
 
 export function BrandCard({ brand }: { brand: BrandSummary }) {
   const published = brand._count.drops;
-  // Only the facts we actually hold. A brand missing all of them falls back to
-  // its drop count rather than leaving an empty line where details should be.
+  const watches = brand._count.watches ?? 0;
+  // Only the facts we actually hold, strongest first. Watches rather than
+  // drops: a reader counting what they can see on the page counts watches, and
+  // a card promising four drops in front of a page showing two watches is the
+  // same lie #28 fixed one click later. A brand tracked only through a
+  // publication's RSS has no watches to count and falls back to its drops
+  // rather than claiming to make nothing.
   const facts = [
     brand.country,
     brand.foundedYearEst ? `est. ${brand.foundedYearEst}` : null,
-    published > 0
-      ? `${published} drop${published === 1 ? '' : 's'}`
-      : 'No drops yet',
+    watches > 0
+      ? `${watches} watch${watches === 1 ? '' : 'es'}`
+      : published > 0
+        ? `${published} drop${published === 1 ? '' : 's'}`
+        : 'On the radar',
   ].filter(Boolean);
 
   return (

@@ -94,10 +94,48 @@ function withBrand(
 }
 
 /**
+ * One row per Watch, keeping the most recent event about it.
+ *
+ * A store listing one model as three products announced it three times before
+ * grouping existed, and the backfill gave all three the same `watch_id` — so
+ * YEMA's page lists "Superman Bronze CMM.10" three times for what was one
+ * release. ADR-0003 already says one release is one Drop however many
+ * references sit beneath it; this is that rule applied on the way out, to
+ * history that was written before it existed.
+ *
+ * Rows must arrive newest-first, which is what makes the survivor the latest.
+ * A Drop belonging to no Watch is never collapsed: those come from a
+ * publication's prose, they are not duplicates of each other, and folding them
+ * together would delete news rather than de-duplicate it.
+ *
+ * Keyed on the Watch's slug rather than its id because that is what the select
+ * carries, and it is unique per brand — which is all this needs, running as it
+ * does over one brand's Drops.
+ */
+function oneDropPerWatch(rows: DropRow[]): DropRow[] {
+  const seen = new Set<string>();
+  return rows.filter((row) => {
+    if (!row.watch) return true;
+    if (seen.has(row.watch.slug)) return false;
+    seen.add(row.watch.slug);
+    return true;
+  });
+}
+
+/**
  * The most accessories a brand page will carry. A cap rather than pagination:
  * this is context beneath the Drops, and nobody is paging through straps.
  */
 const MAX_ACCESSORIES = 60;
+
+/**
+ * The most Watches a brand page will render. Higher than the accessory cap
+ * because this section is the point of the page rather than context beneath it,
+ * and still a cap rather than pagination: the largest catalogue we index is
+ * comfortably inside it. `watchCount` is the true total regardless, so a brand
+ * that ever exceeds this says so honestly rather than under-reporting itself.
+ */
+const MAX_WATCHES = 120;
 
 /**
  * The most Watches the sitemap will carry. Well above the current catalogue
@@ -106,8 +144,15 @@ const MAX_ACCESSORIES = 60;
  */
 const MAX_INDEXABLE_WATCHES = 1000;
 
-/** What a brand page needs about one accessory. */
-const ACCESSORY_SELECT = {
+/**
+ * What a brand page needs about one thing a brand sells — a Watch in the list
+ * of what they make, or an accessory in the list of what else they sell.
+ *
+ * One select for both, because the two lists answer the same question at a
+ * glance: what is it, what does it cost, can I have it. Two selects would be
+ * two chances to describe the same row differently.
+ */
+const WATCH_SUMMARY_SELECT = {
   id: true,
   name: true,
   slug: true,
@@ -124,18 +169,24 @@ const ACCESSORY_SELECT = {
   },
 } satisfies Prisma.WatchSelect;
 
-type AccessoryRow = Prisma.WatchGetPayload<{ select: typeof ACCESSORY_SELECT }>;
+type WatchSummaryRow = Prisma.WatchGetPayload<{
+  select: typeof WATCH_SUMMARY_SELECT;
+}>;
 
 /**
- * A summary rather than the whole thing: the accessory's own page already
- * carries every way to buy it, so the brand page needs the cheapest price, a
- * photo, and whether it can be had at all.
+ * A summary rather than the whole thing: the Watch's own page already carries
+ * every way to buy it, so the brand page needs the cheapest price, a photo, and
+ * whether it can be had at all.
+ *
+ * This is also what makes a Watch appear exactly once (#28) — the three store
+ * products YEMA lists for the Superman Bronze CMM.10 are `variantCount: 3` on
+ * one row, not three rows.
  *
  * Variants arrive cheapest-first, so `price` is the "from" figure. The photo is
- * borrowed from whichever variant has one, exactly as a Watch borrows its own —
- * a store that photographs some references and not others still shows something.
+ * borrowed from whichever variant has one — a store that photographs some
+ * references and not others still shows something.
  */
-function summariseAccessory(row: AccessoryRow) {
+function summariseWatch(row: WatchSummaryRow) {
   const priced = row.variants.find((v) => v.price !== null);
   return {
     id: row.id,
@@ -166,6 +217,64 @@ function buyableFirst(
   return a.available ? -1 : 1;
 }
 
+/** What a brand's watches cost, cheapest to dearest. */
+interface PriceBand {
+  low: Prisma.Decimal;
+  high: Prisma.Decimal;
+  /** Null when the stores never said — see {@link priceBandFrom}. */
+  currency: string | null;
+}
+
+/** One currency's worth of a brand's priced Variants, as `groupBy` returns it. */
+type PriceGroup = {
+  currency: string | null;
+  _min: { price: Prisma.Decimal | null };
+  _max: { price: Prisma.Decimal | null };
+};
+
+/**
+ * What a brand's watches cost, read off their Variants rather than typed in by
+ * anybody. Nothing here is editable, which is the point: a price band a human
+ * maintains is a price band that goes stale and cannot be trusted.
+ *
+ * Three rules, and each is a thing that has already gone wrong somewhere:
+ *
+ * - **Two currencies means no band.** €990 to $1,400 is not a range, it is two
+ *   numbers that cannot be compared, and a reader would take the smaller one
+ *   for the entry price. Withholding is the only honest answer without a rate.
+ * - **The label needs every priced Variant to agree.** A Shopify feed states a
+ *   bare number and the currency is genuinely unknown (#24). One labelled
+ *   sibling does not license labelling the rest — that is exactly how a €990
+ *   watch came to be shown as $990.
+ * - **A bare band is still a band.** Unlabelled numbers are what most stores
+ *   give us, and refusing to show them would empty the section for nearly
+ *   every brand.
+ *
+ * Accessories are the caller's job to exclude, and it matters: "from €60" on a
+ * brand whose cheapest watch is €690 is a lie a reader catches one click later.
+ */
+function priceBandFrom(groups: PriceGroup[]): PriceBand | null {
+  const priced = groups.filter((g) => g._min.price !== null);
+  if (priced.length === 0) return null;
+
+  const labelled = priced.filter((g) => g.currency !== null);
+  if (labelled.length > 1) return null;
+
+  const low = priced
+    .map((g) => g._min.price as Prisma.Decimal)
+    .reduce((a, b) => (b.lessThan(a) ? b : a));
+  const high = priced
+    .map((g) => g._max.price as Prisma.Decimal)
+    .reduce((a, b) => (b.greaterThan(a) ? b : a));
+
+  return {
+    low,
+    high,
+    // One group, and it carried a currency: every priced Variant agreed.
+    currency: priced.length === 1 ? priced[0].currency : null,
+  };
+}
+
 /**
  * Public, read-only catalog for the website: the brand directory and the
  * published-drops feed. Only moderation-approved, published drops are ever
@@ -194,52 +303,110 @@ export class CatalogService {
           website: true,
           status: true,
           createdAt: true,
-          // Published drops only — pending/rejected must not leak into the UI.
-          _count: { select: { drops: { where: PUBLISHED } } },
+          _count: {
+            select: {
+              // Published drops only — pending/rejected must not leak into the
+              // UI.
+              drops: { where: PUBLISHED },
+              // What the card actually says out loud. A directory reading
+              // "4 drops" next to a page reading "2 watches" is the same
+              // inconsistency #28 fixes, one click earlier. Accessories are
+              // excluded, or a brand's strap collection becomes its catalogue.
+              watches: { where: { kind: WatchKind.watch } },
+            },
+          },
         },
       }),
     ]);
     return { total, count: brands.length, brands };
   }
 
-  async getBrandBySlug(slug: string) {
-    const brand = await this.prisma.brand.findUnique({
-      where: { slug },
-      select: {
-        id: true,
-        name: true,
-        slug: true,
-        website: true,
-        instagramHandle: true,
-        country: true,
-        foundedYearEst: true,
-        status: true,
-        createdAt: true,
-        // Only a Curated Brand's Annotation is served. One sitting on a Listed
-        // Brand is a draft nobody approved, and showing it would make the
-        // state meaningless (ADR-0004, #22).
-        annotation: true,
-        annotationApprovedAt: true,
-        drops: {
-          where: PUBLISHED,
-          orderBy: { publishedAt: 'desc' },
-          select: DROP_SELECT,
+  /**
+   * Everything a Brand page renders, in the order it renders it (#28).
+   *
+   * The page leads with the Annotation, says what the brand costs, shows what
+   * it makes, and only then what recently happened — because discovery is the
+   * primary audience (CONTEXT.md §1) and the judgement is the thing a much
+   * larger competitor's database does not have. Ordering is the page's job;
+   * having all four to order is this method's.
+   *
+   * Three reads rather than one because a Brand's `watches` relation has to be
+   * asked two different questions — what it makes, and what else it sells — and
+   * the price band spans Variants the capped list may not include. They are
+   * issued together rather than in sequence; a poll landing mid-flight could in
+   * principle make the count and the list disagree by one, which is a cosmetic
+   * risk not worth a transaction on the hottest read the site has.
+   */
+  async getBrandBySlug(slug: string, watchTake = MAX_WATCHES) {
+    const safeTake = Math.min(Math.max(watchTake, 1), MAX_WATCHES);
+    const [brand, watches, priceGroups] = await Promise.all([
+      this.prisma.brand.findUnique({
+        where: { slug },
+        select: {
+          id: true,
+          name: true,
+          slug: true,
+          website: true,
+          instagramHandle: true,
+          country: true,
+          foundedYearEst: true,
+          status: true,
+          createdAt: true,
+          // Only a Curated Brand's Annotation is served. One sitting on a
+          // Listed Brand is a draft nobody approved, and showing it would make
+          // the state meaningless (ADR-0004, #22).
+          annotation: true,
+          annotationApprovedAt: true,
+          drops: {
+            where: PUBLISHED,
+            orderBy: { publishedAt: 'desc' },
+            select: DROP_SELECT,
+          },
+          // The straps, bracelets and boxes this brand sells. They raise no
+          // Drop and interrupt nobody, but the data has been collected all
+          // along and this is where a reader meets it (ADR-0006).
+          watches: {
+            where: { kind: WatchKind.accessory },
+            orderBy: { name: 'asc' },
+            // Capped like every other read here. YEMA alone lists over a
+            // hundred straps and cases, and a brand page is not a shop.
+            take: MAX_ACCESSORIES,
+            select: WATCH_SUMMARY_SELECT,
+          },
+          // The headline count, and deliberately not `drops`: YEMA's page read
+          // "4 drops tracked" for what a reader sees as two watches.
+          _count: { select: { watches: { where: { kind: WatchKind.watch } } } },
         },
-        // The straps, bracelets and boxes this brand sells. They raise no Drop
-        // and interrupt nobody, but the data has been collected all along and
-        // this is where a reader meets it (ADR-0006).
-        watches: {
-          where: { kind: WatchKind.accessory },
-          orderBy: { name: 'asc' },
-          // Capped like every other read here. YEMA alone lists over a hundred
-          // straps and cases, and a brand page is not a shop.
-          take: MAX_ACCESSORIES,
-          select: ACCESSORY_SELECT,
+      }),
+      this.prisma.watch.findMany({
+        where: { brand: { slug }, kind: WatchKind.watch },
+        orderBy: { name: 'asc' },
+        take: safeTake,
+        select: WATCH_SUMMARY_SELECT,
+      }),
+      // Every priced Variant of every Watch this brand makes — not only the
+      // ones the cap let through, and never an accessory.
+      this.prisma.watchVariant.groupBy({
+        by: ['currency'],
+        where: {
+          price: { not: null },
+          watch: { brand: { slug }, kind: WatchKind.watch },
         },
-      },
-    });
+        // Required by `groupBy`, and irrelevant to the answer — the band is a
+        // min and a max over whatever comes back, in whatever order.
+        orderBy: { currency: 'asc' },
+        _min: { price: true },
+        _max: { price: true },
+      }),
+    ]);
     if (!brand) throw new NotFoundException(`Brand not found: ${slug}`);
-    const { watches, annotation, annotationApprovedAt, ...rest } = brand;
+    const {
+      watches: accessories,
+      annotation,
+      annotationApprovedAt,
+      _count,
+      ...rest
+    } = brand;
     const curated = brand.status === BrandStatus.curated;
     return {
       ...rest,
@@ -247,8 +414,12 @@ export class CatalogService {
       // receives, which is a stronger guarantee than asking it to check.
       annotation: curated ? annotation : null,
       annotationApprovedAt: curated ? annotationApprovedAt : null,
-      drops: brand.drops.map(flattenDrop),
-      accessories: watches.map(summariseAccessory).sort(buyableFirst),
+      priceBand: priceBandFrom(priceGroups),
+      // The true total, which `watches` is not once the cap bites.
+      watchCount: _count.watches,
+      watches: watches.map(summariseWatch).sort(buyableFirst),
+      drops: oneDropPerWatch(brand.drops).map(flattenDrop),
+      accessories: accessories.map(summariseWatch).sort(buyableFirst),
     };
   }
 

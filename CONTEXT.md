@@ -224,6 +224,12 @@ gift card. Recorded in full and shown on the Brand page; never a Drop, and never
 a Channel (ADR-0006).
 _Avoid_: merch, extra, add-on, product.
 
+**Price band**:
+What a Brand's watches cost, cheapest to dearest, read off their Variants and never typed
+in by anyone. Accessories are excluded, and it carries a currency only when every priced
+Variant stated the same one (#24). Shown on the Brand page, below the Annotation.
+_Avoid_: price range, RRP, from-price.
+
 **Annotation**:
 The one-sentence human judgement about a Brand, including the unflattering ones. The
 differentiator, and never purchasable (ADR-0004).

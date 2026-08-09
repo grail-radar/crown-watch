@@ -4,7 +4,7 @@ import { notFound } from 'next/navigation';
 import { BrandAvatar, BrandBanner } from '@/components/brand-art';
 import { DropCard } from '@/components/cards';
 import { getBrand } from '@/lib/api';
-import { formatPrice } from '@/lib/format';
+import { formatPrice, monogram } from '@/lib/format';
 import { SITE_URL } from '@/lib/site';
 
 export const dynamic = 'force-dynamic';
@@ -32,14 +32,32 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   };
 }
 
+/**
+ * The Brand page — the screen this product is judged on (#28).
+ *
+ * The order is the argument. A reader arrives asking whether this brand is
+ * worth their attention, so the page answers in that order: the judgement, what
+ * it costs, what the brand makes, and only then what recently happened. If
+ * somebody screenshots one thing off this page it should be the Annotation,
+ * because a much larger competitor's database has everything else. Lead with a
+ * list of watches and the page is a worse version of something that exists.
+ */
 export default async function BrandPage({ params }: Props) {
   const { slug } = await params;
   const brand = await getBrand(slug);
   if (!brand) notFound();
 
   // An older API build does not send these fields at all, and a brand page is
-  // not worth a crash over a section that is only ever context.
+  // not worth a crash over one section.
   const accessories = brand.accessories ?? [];
+  const watches = brand.watches ?? [];
+  // The count the API holds, not `watches.length` — that list is capped, and
+  // the headline figure has to be the true one.
+  const watchCount = brand.watchCount ?? 0;
+  const priceBand = brand.priceBand ?? null;
+  const band = priceBand
+    ? formatPrice(priceBand.low, priceBand.high, priceBand.currency)
+    : null;
   // The API withholds an unapproved draft, so anything that arrives here has
   // been approved by a person and can be shown as-is (#22).
   const annotation = brand.annotation ?? null;
@@ -114,10 +132,18 @@ export default async function BrandPage({ params }: Props) {
                   Visit {brand.name} ↗
                 </a>
               )}
+              {/* Watches, not Drops. YEMA read "4 drops tracked" for what a
+                  reader sees as two watches, because one release was announced
+                  once per store product before grouping existed. A brand known
+                  only through a publication's RSS has no watches of its own to
+                  count and falls back to its drops rather than claiming to
+                  make nothing. */}
               <span className="rounded-full border border-line px-2.5 py-1">
-                {brand.drops.length > 0
-                  ? `${brand.drops.length} drop${brand.drops.length === 1 ? '' : 's'} tracked`
-                  : 'On the radar'}
+                {watchCount > 0
+                  ? `${watchCount} watch${watchCount === 1 ? '' : 'es'} tracked`
+                  : brand.drops.length > 0
+                    ? `${brand.drops.length} drop${brand.drops.length === 1 ? '' : 's'} tracked`
+                    : 'On the radar'}
               </span>
             </div>
           </div>
@@ -166,14 +192,131 @@ export default async function BrandPage({ params }: Props) {
         </section>
       )}
 
-      {/* Drops */}
+      {/* What it costs. Second because it is the next question a reader asks
+          after "is this any good" — and answering it here means they never have
+          to open a watch to find out whether the brand is in their range.
+
+          Every figure is read off the store's own Variants. There is no field
+          to type one into, deliberately: a hand-kept price band is a price band
+          that goes stale and starts lying. Skipped entirely for a brand with no
+          watches indexed, where the section below carries the absence. */}
+      {watchCount > 0 && (
+        <section className="mt-14 border-t border-line/70 pt-10">
+          <h2 className="text-xs font-medium uppercase tracking-[0.2em] text-faint">
+            What it costs
+          </h2>
+          {band ? (
+            <>
+              <p className="mt-3 font-display text-3xl tracking-tight text-ink">
+                {band}
+              </p>
+              <p className="mt-2 text-sm text-faint">
+                Across {watchCount} watch{watchCount === 1 ? '' : 'es'}, read
+                from {brand.name}&apos;s own store at our last check
+                {priceBand?.currency
+                  ? '.'
+                  : ' — which lists prices without a currency, so these are the numbers as given.'}
+              </p>
+            </>
+          ) : (
+            <p className="mt-3 text-lg text-faint">
+              {brand.name}&apos;s store doesn&apos;t publish prices, so we
+              don&apos;t have one to quote.
+            </p>
+          )}
+        </section>
+      )}
+
+      {/* What the brand makes. Each Watch exactly once, however many store
+          products sit beneath it — the API collapses them, so three YEMA
+          listings for the Superman Bronze CMM.10 are one card reading
+          "3 options" rather than three cards reading the same name. */}
       <section className="mt-14 border-t border-line/70 pt-10">
-        <h2 className="mb-6 font-display text-2xl tracking-tight">Drops</h2>
+        <h2 className="font-display text-2xl tracking-tight">
+          What {brand.name} makes
+        </h2>
+        {watches.length === 0 ? (
+          <p className="mt-6 rounded-2xl border border-dashed border-line p-10 text-center text-faint">
+            We haven&apos;t indexed {brand.name}&apos;s catalogue yet — we
+            follow them through the press rather than their own store, so what
+            they make isn&apos;t here. Drops still land below.
+          </p>
+        ) : (
+          <>
+            <ul className="mt-6 grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4">
+              {watches.map((watch) => {
+                const price = formatPrice(watch.priceLow, null, watch.currency);
+                return (
+                  <li key={watch.id}>
+                    <Link
+                      href={`/watches/${brand.slug}/${watch.slug}`}
+                      className="flex h-full flex-col overflow-hidden rounded-2xl border border-line bg-panel transition duration-300 hover:-translate-y-0.5 hover:border-gold/40"
+                    >
+                      <span className="block aspect-square overflow-hidden bg-panel-2">
+                        {watch.imageUrl ? (
+                          // Not next/image: third-party store URLs on arbitrary
+                          // hosts, which the optimiser needs configuring for
+                          // one domain at a time.
+                          // eslint-disable-next-line @next/next/no-img-element
+                          <img
+                            src={watch.imageUrl}
+                            alt={`${brand.name} ${watch.name}`}
+                            className="h-full w-full object-cover"
+                          />
+                        ) : (
+                          <span className="flex h-full items-center justify-center font-display text-2xl text-faint">
+                            {monogram(brand.name)}
+                          </span>
+                        )}
+                      </span>
+                      <span className="flex flex-1 flex-col p-3">
+                        <span className="line-clamp-2 text-sm leading-snug text-ink">
+                          {watch.name}
+                        </span>
+                        <span className="mt-1.5 text-xs text-faint">
+                          {price
+                            ? `${watch.variantCount > 1 ? 'from ' : ''}${price}`
+                            : 'Price not listed'}
+                        </span>
+                        <span className="mt-0.5 text-xs text-faint">
+                          {watch.variantCount > 1 &&
+                            `${watch.variantCount} options`}
+                          {watch.variantCount > 1 && !watch.available && ' · '}
+                          {!watch.available && 'Out of stock'}
+                        </span>
+                      </span>
+                    </Link>
+                  </li>
+                );
+              })}
+            </ul>
+            {watchCount > watches.length && (
+              // Honest about the cap rather than quietly showing a slice.
+              <p className="mt-4 text-xs text-faint">
+                Showing {watches.length} of {watchCount}.
+              </p>
+            )}
+          </>
+        )}
+      </section>
+
+      {/* What has recently happened. Last of the four, because an event is the
+          least of what a reader deciding about a brand needs — and each Watch
+          appears once here too: the API keeps the most recent Drop per Watch,
+          so a release announced once per store product is one entry
+          (ADR-0003). */}
+      <section className="mt-14 border-t border-line/70 pt-10">
+        <h2 className="mb-6 font-display text-2xl tracking-tight">
+          Recent drops
+        </h2>
         {brand.drops.length === 0 ? (
           <p className="rounded-2xl border border-dashed border-line p-10 text-center text-faint">
-            No published drops from {brand.name} yet — they&apos;re on the
-            radar, and new releases will appear here as their store publishes
-            them.
+            {/* A literal ’ rather than `&apos;`: the JSX transform drops the
+                leading space from a text run that also decodes an entity, and
+                this one used to render "from YEMAyet". Same reason the Watch
+                page spells its apostrophes this way. */}
+            No published drops from {brand.name} yet — they’re on the radar, and
+            new releases will appear here as their store publishes them.
           </p>
         ) : (
           <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3">

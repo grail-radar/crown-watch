@@ -9,6 +9,11 @@
 > [#27](https://github.com/grail-radar/crown-watch/issues/27); until then the
 > trade was one-sided.
 
+> **Amended 2026-08-10.** The read side now applies the rule to history too —
+> the Brand page serves one Drop per Watch, so the three YEMA posts that stay
+> wrong forever are read back as one. See the last consequence below,
+> [#28](https://github.com/grail-radar/crown-watch/issues/28).
+
 ## Context
 
 A store product is not a watch. On 2026-08-06 the YEMA watcher found three
@@ -96,6 +101,17 @@ it, and one event produces one message without that table changing at all.
 
   Implemented by `backfill:drop-watches`, which is dry-run by default and
   re-counts `drop_broadcasts` before and after.
+- **What cannot be rewritten is instead read back correctly.** The three YEMA
+  rows survive, and the Brand page serves one Drop per Watch — the most recent —
+  so a release announced once per store product is one entry rather than three
+  (#28). This is the read-side half of the problem the Context names, and it is
+  a filter rather than a merge: nothing is deleted, no `drop_broadcasts` row is
+  touched, and a Drop belonging to no Watch is never collapsed, because those
+  come from a publication's prose and are not duplicates of each other.
+
+  Deliberately only on the Brand page. The site-wide feed is chronological
+  across every brand, where consecutive rows about one Watch are conspicuous
+  but not the same claim about the same brand in the same place.
 - **A new buying option for a Watch already on sale is silent.** A third
   bracelet for a model that launched last year is not a release, so it raises no
   Drop. Only a Watch we have never seen any product of, or one that was
