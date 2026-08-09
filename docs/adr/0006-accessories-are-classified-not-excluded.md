@@ -188,6 +188,15 @@ Two things fell out of the same change, both required by #41's criteria:
   page, the brand directory's count, the weekly digest, the Telegram backfill,
   and `broadcastDrop` itself — the last of which checks the row rather than the
   query, because it is the step that cannot be undone.
+
+  **Amended 2026-08-09 by [#31](https://github.com/grail-radar/crown-watch/issues/31):**
+  an accessory Drop's *own URL* is the one exception. Making it 404 was wrong —
+  those URLs were in the sitemap, so search engines hold them, and a 404 throws
+  the page away. It now redirects to the accessory's own page, which serves the
+  same end: it is not shown as a Drop, and the link still lands. `getDropWatch`
+  is deliberately the one Drop-reading path that does not apply
+  `ABOUT_A_WATCH`, and it returns nothing but slugs of pages that are already
+  public.
 - **A Drop with no Watch is still served.** Anything read out of a publication's
   RSS has a null `watch_id`, and excluding accessories carelessly would have
   taken the whole of Tier 1 with them.

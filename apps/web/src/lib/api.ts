@@ -57,6 +57,14 @@ export interface DropSummary {
   sourceName: string | null;
   /** null when there is nothing honest to offer. */
   purchase: PurchaseLink | null;
+  /**
+   * The Watch this event is about, so a card links straight there rather than
+   * through the Drop URL's redirect. Null for a Drop read out of a
+   * publication's prose, which keeps its own page.
+   *
+   * Optional because the website and the API deploy independently.
+   */
+  watch?: { brandSlug: string; watchSlug: string } | null;
 }
 
 export interface FeedDrop extends DropSummary {
@@ -173,6 +181,61 @@ export interface WatchDetail {
   imageUrl: string | null;
   brand: { name: string; slug: string; website: string | null };
   variants: WatchVariant[];
+}
+
+/** One Watch as the sitemap needs it: where it lives and when it last moved. */
+export interface WatchIndexEntry {
+  slug: string;
+  updatedAt: string;
+  brand: { slug: string };
+}
+
+/**
+ * Every Watch worth indexing. Accessories are excluded by the API, so a gift
+ * card never reaches a search result (ADR-0006).
+ *
+ * Degrades to empty rather than throwing: a sitemap missing its watches is a
+ * bad day for SEO, and a sitemap that 500s is a worse one.
+ */
+export async function getWatches(take = 200): Promise<WatchIndexEntry[]> {
+  try {
+    const res = await fetch(`${API_URL}/watches?take=${take}`, {
+      cache: 'no-store',
+    });
+    if (!res.ok) return [];
+    const body = (await res.json()) as { watches?: WatchIndexEntry[] };
+    return body.watches ?? [];
+  } catch {
+    return [];
+  }
+}
+
+/** The Watch a Drop is about, so its URL can redirect there. */
+export interface DropWatch {
+  dropId: string;
+  /** Null when the Drop is about no Watch — an RSS-extracted one. */
+  watch: { brandSlug: string; watchSlug: string } | null;
+}
+
+/**
+ * Which Watch a Drop URL should land on, or null when there is no such
+ * published Drop.
+ *
+ * Distinct from `getDrop` on purpose: this answers for *any* published Drop,
+ * including the accessory ones the feed no longer serves. Their URLs were in
+ * the sitemap, so a 404 would throw away a page search engines already hold.
+ */
+export async function getDropWatch(id: string): Promise<DropWatch | null> {
+  try {
+    const res = await fetch(
+      `${API_URL}/drops/${encodeURIComponent(id)}/watch`,
+      { cache: 'no-store' },
+    );
+    if (!res.ok) return null;
+    return (await res.json()) as DropWatch;
+  } catch {
+    return null;
+  }
 }
 
 /** Fetch one watch, or null if not found/unreachable. */

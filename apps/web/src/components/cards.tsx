@@ -32,6 +32,13 @@ export function DropCard({
 }) {
   const price = formatPrice(drop.priceLow, drop.priceHigh, drop.currency);
   const added = relTime(drop.publishedAt);
+  // Straight to the Watch where there is one. The Drop URL redirects there
+  // anyway, so this only avoids the hop — but it also stops us asking a search
+  // engine to crawl a 308 to reach a page we are linking from regardless. A
+  // Drop with no Watch came from a publication's prose and keeps its own page.
+  const href = drop.watch
+    ? `/watches/${drop.watch.brandSlug}/${drop.watch.watchSlug}`
+    : `/drops/${drop.id}`;
   const media = (
     <div className="relative aspect-[16/10] overflow-hidden bg-panel-2">
       <DropImage
@@ -47,7 +54,7 @@ export function DropCard({
 
   return (
     <article className="group overflow-hidden rounded-2xl border border-line/80 bg-panel transition duration-300 hover:-translate-y-0.5 hover:border-gold/40">
-      <Link href={`/drops/${drop.id}`} aria-label={`${brand.name} — ${drop.title}`}>
+      <Link href={href} aria-label={`${brand.name} — ${drop.title}`}>
         {media}
       </Link>
 
@@ -62,7 +69,7 @@ export function DropCard({
         )}
 
         <Link
-          href={`/drops/${drop.id}`}
+          href={href}
           className="mt-1 block font-medium leading-snug text-ink decoration-gold/50 underline-offset-4 transition hover:underline"
         >
           {drop.title}

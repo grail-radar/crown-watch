@@ -1,10 +1,10 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
-import { notFound } from 'next/navigation';
+import { notFound, permanentRedirect } from 'next/navigation';
 import { DropCard, TypeBadge } from '@/components/cards';
 import { DropImage } from '@/components/drop-image';
 import { PurchaseButton } from '@/components/purchase-button';
-import { getBrand, getDrop } from '@/lib/api';
+import { getBrand, getDrop, getDropWatch } from '@/lib/api';
 import { dropTypeLabel, formatPrice, monogram, relTime } from '@/lib/format';
 import { SITE_URL } from '@/lib/site';
 
@@ -46,8 +46,31 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   };
 }
 
+/**
+ * A Drop URL.
+ *
+ * Every one of these has to keep resolving. They were in the sitemap, so
+ * search engines hold them, and readers may have shared them. What they
+ * resolve *to* has changed: a Drop is an event and makes a poor landing page,
+ * so a Drop about a Watch now redirects there — permanently, so the ranking
+ * moves to the Watch instead of being split across both.
+ *
+ * A Drop about no Watch — one extracted from a publication's prose, which names
+ * a watch but has no store product — keeps this page. It is the only thing that
+ * Drop has, and it carries the coverage link.
+ */
 export default async function DropPage({ params }: Props) {
   const { id } = await params;
+
+  // Asked before the drop itself, because this also answers for the accessory
+  // Drops the feed no longer serves — whose URLs were indexed just the same.
+  const destination = await getDropWatch(id);
+  if (destination?.watch) {
+    permanentRedirect(
+      `/watches/${destination.watch.brandSlug}/${destination.watch.watchSlug}`,
+    );
+  }
+
   const drop = await getDrop(id);
   if (!drop) notFound();
 

@@ -44,6 +44,10 @@ const DROP_SELECT = {
     select: { source: { select: { name: true, type: true } } },
   },
   brand: { select: { website: true } },
+  // So a card can link straight to the Watch. Without it every click would
+  // take the redirect hop the Drop URL now performs, which works but asks a
+  // search engine to crawl a 308 to reach a page we linked from anyway.
+  watch: { select: { slug: true, brand: { select: { slug: true } } } },
 } satisfies Prisma.DropSelect;
 
 type DropRow = Prisma.DropGetPayload<{ select: typeof DROP_SELECT }>;
@@ -59,9 +63,12 @@ type DropRow = Prisma.DropGetPayload<{ select: typeof DROP_SELECT }>;
  * has no business re-deriving this, and cannot if it never sees the inputs.
  */
 function flattenDrop(row: DropRow) {
-  const { sourceEvent, brand, ...drop } = row;
+  const { sourceEvent, brand, watch, ...drop } = row;
   return {
     ...drop,
+    // Flattened to the two slugs a link needs. The nested shape would tempt a
+    // caller into re-deriving the URL differently from everywhere else.
+    watch: watch ? { brandSlug: watch.brand.slug, watchSlug: watch.slug } : null,
     sourceName: sourceEvent?.source?.name ?? null,
     purchase: purchaseLinkFor({
       sourceType: sourceEvent?.source?.type,
@@ -91,6 +98,13 @@ function withBrand(
  * this is context beneath the Drops, and nobody is paging through straps.
  */
 const MAX_ACCESSORIES = 60;
+
+/**
+ * The most Watches the sitemap will carry. Well above the current catalogue
+ * (four stores, a few hundred watches); if it is ever reached the sitemap
+ * needs paging, which is a different change.
+ */
+const MAX_INDEXABLE_WATCHES = 1000;
 
 /** What a brand page needs about one accessory. */
 const ACCESSORY_SELECT = {
@@ -225,6 +239,77 @@ export class CatalogService {
       ...rest,
       drops: brand.drops.map(flattenDrop),
       accessories: watches.map(summariseAccessory).sort(buyableFirst),
+    };
+  }
+
+  /**
+   * Every Watch worth indexing, for the sitemap.
+   *
+   * Watches only. An accessory is a Watch row with `kind = 'accessory'`, and
+   * asking Google to index a gift card is the read-side version of announcing
+   * one (ADR-0006).
+   *
+   * Ordered by when each was last touched, so the cap keeps the pages most
+   * likely to have changed rather than an arbitrary slice. Not pageable, and
+   * capped at {@link MAX_INDEXABLE_WATCHES}: the roster is four stores and a
+   * few hundred watches, and a sitemap that needs paging is a problem worth
+   * solving when it exists rather than before.
+   */
+  async listWatches(take = 200) {
+    const safeTake = Math.min(Math.max(take, 1), MAX_INDEXABLE_WATCHES);
+    const watches = await this.prisma.watch.findMany({
+      where: { kind: WatchKind.watch },
+      orderBy: { updatedAt: 'desc' },
+      take: safeTake,
+      select: {
+        slug: true,
+        updatedAt: true,
+        brand: { select: { slug: true } },
+      },
+    });
+    return { count: watches.length, watches };
+  }
+
+  /**
+   * The Watch a Drop is about, so its URL can send a reader there.
+   *
+   * A Drop is an event and makes a poor landing page — "Baltic restocked on
+   * 4 August" is a bad thing to rank for and a worse thing to arrive at three
+   * months later.
+   *
+   * **Every `/drops/<id>` URL has to keep working.** Not because the Channels
+   * carry them — they never have, they link to the Brand page and the store —
+   * but because those URLs were in the sitemap, so search engines hold them,
+   * and readers may have shared them. A 404 throws that away instead of
+   * passing it to the page that deserves it.
+   *
+   * Deliberately **not** filtered by {@link ABOUT_A_WATCH}, unlike everything
+   * else that serves a Drop. An accessory Drop must not render as a release —
+   * and #41 made it 404, which quietly broke this rule for every accessory URL
+   * Google had already crawled. Redirecting to the accessory's own page
+   * satisfies both: it is not served as a Drop, and the link still lands.
+   *
+   * A Drop nobody was ever shown — unpublished, or rejected — was never in a
+   * sitemap and is a genuine 404.
+   */
+  async getDropWatch(id: string) {
+    const drop = await this.prisma.drop.findFirst({
+      where: {
+        id,
+        moderationStatus: ModerationStatus.approved,
+        publishedAt: { not: null },
+      },
+      select: {
+        id: true,
+        watch: { select: { slug: true, brand: { select: { slug: true } } } },
+      },
+    });
+    if (!drop) throw new NotFoundException(`Drop not found: ${id}`);
+    return {
+      dropId: drop.id,
+      watch: drop.watch
+        ? { brandSlug: drop.watch.brand.slug, watchSlug: drop.watch.slug }
+        : null,
     };
   }
 

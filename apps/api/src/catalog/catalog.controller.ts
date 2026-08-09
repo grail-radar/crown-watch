@@ -16,6 +16,12 @@ export class CatalogController {
     return this.catalog.getBrandBySlug(slug);
   }
 
+  /** Every indexable Watch, for the sitemap. Accessories are not included. */
+  @Get('watches')
+  watches(@Query('take') take?: string) {
+    return this.catalog.listWatches(this.int(take, 200));
+  }
+
   @Get('watches/:brandSlug/:watchSlug')
   watch(
     @Param('brandSlug') brandSlug: string,
@@ -40,6 +46,16 @@ export class CatalogController {
   @Get('drops/:id')
   drop(@Param('id') id: string) {
     return this.catalog.getPublishedDrop(id);
+  }
+
+  /**
+   * The Watch a Drop is about, so a Drop URL can redirect to it — null when it
+   * is about none. A distinct path from `drops/:id`, so the two cannot shadow
+   * each other.
+   */
+  @Get('drops/:id/watch')
+  dropWatch(@Param('id') id: string) {
+    return this.catalog.getDropWatch(id);
   }
 
   private int(value: string | undefined, fallback: number): number {
