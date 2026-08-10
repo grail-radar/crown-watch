@@ -2,6 +2,7 @@ import type { Metadata } from 'next';
 import Link from 'next/link';
 import { Fraunces, Instrument_Sans } from 'next/font/google';
 import { Analytics } from '@vercel/analytics/next';
+import { SpeedInsights } from '@vercel/speed-insights/next';
 import { ReleaseNote } from '@/components/release-note';
 import { TelegramIcon } from '@/components/telegram-icon';
 import { ThemeSwitch } from '@/components/theme-switch';
@@ -158,6 +159,7 @@ export default function RootLayout({
 
         <ReleaseNote />
         <Analytics />
+        <SpeedInsights />
       </body>
     </html>
   );
