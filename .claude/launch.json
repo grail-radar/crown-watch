@@ -8,15 +8,6 @@
       "port": 3333
     },
     {
-      "name": "api-local",
-      "runtimeExecutable": "pnpm",
-      "runtimeArgs": ["--filter", "@crown-watch/api", "dev"],
-      "port": 3333,
-      "env": {
-        "DATABASE_URL": "postgresql://crownwatch:crownwatch@localhost:5434/crownwatch?schema=public"
-      }
-    },
-    {
       "name": "web",
       "runtimeExecutable": "pnpm",
       "runtimeArgs": ["--filter", "@crown-watch/web", "dev"],

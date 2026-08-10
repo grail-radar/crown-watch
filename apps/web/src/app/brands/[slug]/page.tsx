@@ -2,9 +2,9 @@ import type { Metadata } from 'next';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { BrandAvatar, BrandBanner } from '@/components/brand-art';
-import { DropCard } from '@/components/cards';
+import { DropCard, WatchCard } from '@/components/cards';
 import { getBrand } from '@/lib/api';
-import { formatPrice, monogram } from '@/lib/format';
+import { brandTally, formatPrice } from '@/lib/format';
 import { SITE_URL } from '@/lib/site';
 
 export const dynamic = 'force-dynamic';
@@ -58,6 +58,9 @@ export default async function BrandPage({ params }: Props) {
   const band = priceBand
     ? formatPrice(priceBand.low, priceBand.high, priceBand.currency)
     : null;
+  // The headline figure, on the same rule the directory card and the social
+  // image use, so the three cannot say different things about one brand.
+  const tally = brandTally(watchCount, brand.drops.length);
   // The API withholds an unapproved draft, so anything that arrives here has
   // been approved by a person and can be shown as-is (#22).
   const annotation = brand.annotation ?? null;
@@ -134,16 +137,9 @@ export default async function BrandPage({ params }: Props) {
               )}
               {/* Watches, not Drops. YEMA read "4 drops tracked" for what a
                   reader sees as two watches, because one release was announced
-                  once per store product before grouping existed. A brand known
-                  only through a publication's RSS has no watches of its own to
-                  count and falls back to its drops rather than claiming to
-                  make nothing. */}
+                  once per store product before grouping existed (#28). */}
               <span className="rounded-full border border-line px-2.5 py-1">
-                {watchCount > 0
-                  ? `${watchCount} watch${watchCount === 1 ? '' : 'es'} tracked`
-                  : brand.drops.length > 0
-                    ? `${brand.drops.length} drop${brand.drops.length === 1 ? '' : 's'} tracked`
-                    : 'On the radar'}
+                {tally ? `${tally} tracked` : 'On the radar'}
               </span>
             </div>
           </div>
@@ -210,9 +206,13 @@ export default async function BrandPage({ params }: Props) {
               <p className="mt-3 font-display text-3xl tracking-tight text-ink">
                 {band}
               </p>
+              {/* Says what the band is actually made of. "Across N watches"
+                  would overstate it — the band spans the watches we have a
+                  price for, and a store that lists some without one would make
+                  that count a claim we cannot support. */}
               <p className="mt-2 text-sm text-faint">
-                Across {watchCount} watch{watchCount === 1 ? '' : 'es'}, read
-                from {brand.name}&apos;s own store at our last check
+                The cheapest and the dearest we hold a price for, read from{' '}
+                {brand.name}&apos;s own store at our last check
                 {priceBand?.currency
                   ? '.'
                   : ' — which lists prices without a currency, so these are the numbers as given.'}
@@ -244,51 +244,14 @@ export default async function BrandPage({ params }: Props) {
         ) : (
           <>
             <ul className="mt-6 grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4">
-              {watches.map((watch) => {
-                const price = formatPrice(watch.priceLow, null, watch.currency);
-                return (
-                  <li key={watch.id}>
-                    <Link
-                      href={`/watches/${brand.slug}/${watch.slug}`}
-                      className="flex h-full flex-col overflow-hidden rounded-2xl border border-line bg-panel transition duration-300 hover:-translate-y-0.5 hover:border-gold/40"
-                    >
-                      <span className="block aspect-square overflow-hidden bg-panel-2">
-                        {watch.imageUrl ? (
-                          // Not next/image: third-party store URLs on arbitrary
-                          // hosts, which the optimiser needs configuring for
-                          // one domain at a time.
-                          // eslint-disable-next-line @next/next/no-img-element
-                          <img
-                            src={watch.imageUrl}
-                            alt={`${brand.name} ${watch.name}`}
-                            className="h-full w-full object-cover"
-                          />
-                        ) : (
-                          <span className="flex h-full items-center justify-center font-display text-2xl text-faint">
-                            {monogram(brand.name)}
-                          </span>
-                        )}
-                      </span>
-                      <span className="flex flex-1 flex-col p-3">
-                        <span className="line-clamp-2 text-sm leading-snug text-ink">
-                          {watch.name}
-                        </span>
-                        <span className="mt-1.5 text-xs text-faint">
-                          {price
-                            ? `${watch.variantCount > 1 ? 'from ' : ''}${price}`
-                            : 'Price not listed'}
-                        </span>
-                        <span className="mt-0.5 text-xs text-faint">
-                          {watch.variantCount > 1 &&
-                            `${watch.variantCount} options`}
-                          {watch.variantCount > 1 && !watch.available && ' · '}
-                          {!watch.available && 'Out of stock'}
-                        </span>
-                      </span>
-                    </Link>
-                  </li>
-                );
-              })}
+              {watches.map((watch) => (
+                <li key={watch.id}>
+                  <WatchCard
+                    watch={watch}
+                    brand={{ name: brand.name, slug: brand.slug }}
+                  />
+                </li>
+              ))}
             </ul>
             {watchCount > watches.length && (
               // Honest about the cap rather than quietly showing a slice.

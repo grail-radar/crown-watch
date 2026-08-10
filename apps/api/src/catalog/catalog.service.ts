@@ -145,14 +145,17 @@ const MAX_WATCHES = 120;
 const MAX_INDEXABLE_WATCHES = 1000;
 
 /**
- * What a brand page needs about one thing a brand sells — a Watch in the list
- * of what they make, or an accessory in the list of what else they sell.
+ * What a brand page needs about one entry in a brand's catalogue — meaning a
+ * `watches` row of either kind: a Watch in the list of what the brand makes, or
+ * an Accessory in the list of what else it sells (ADR-0006).
  *
  * One select for both, because the two lists answer the same question at a
  * glance: what is it, what does it cost, can I have it. Two selects would be
- * two chances to describe the same row differently.
+ * two chances to describe the same row differently. Named for the row rather
+ * than for either kind, because an Accessory is emphatically not a Watch
+ * (CONTEXT.md §9) even though both live in this table.
  */
-const WATCH_SUMMARY_SELECT = {
+const CATALOGUE_ENTRY_SELECT = {
   id: true,
   name: true,
   slug: true,
@@ -169,12 +172,12 @@ const WATCH_SUMMARY_SELECT = {
   },
 } satisfies Prisma.WatchSelect;
 
-type WatchSummaryRow = Prisma.WatchGetPayload<{
-  select: typeof WATCH_SUMMARY_SELECT;
+type CatalogueEntryRow = Prisma.WatchGetPayload<{
+  select: typeof CATALOGUE_ENTRY_SELECT;
 }>;
 
 /**
- * A summary rather than the whole thing: the Watch's own page already carries
+ * A summary rather than the whole thing: the entry's own page already carries
  * every way to buy it, so the brand page needs the cheapest price, a photo, and
  * whether it can be had at all.
  *
@@ -186,7 +189,7 @@ type WatchSummaryRow = Prisma.WatchGetPayload<{
  * borrowed from whichever variant has one — a store that photographs some
  * references and not others still shows something.
  */
-function summariseWatch(row: WatchSummaryRow) {
+function summariseCatalogueEntry(row: CatalogueEntryRow) {
   const priced = row.variants.find((v) => v.price !== null);
   return {
     id: row.id,
@@ -242,6 +245,11 @@ type PriceGroup = {
  * - **Two currencies means no band.** €990 to $1,400 is not a range, it is two
  *   numbers that cannot be compared, and a reader would take the smaller one
  *   for the entry price. Withholding is the only honest answer without a rate.
+ *
+ *   *Unknown* is not a second currency. A store that labels some of its prices
+ *   and not others is one store in one currency that happens to be inconsistent
+ *   about saying so, and a brand prices in its own store — so those numbers do
+ *   compare, and the band spans them.
  * - **The label needs every priced Variant to agree.** A Shopify feed states a
  *   bare number and the currency is genuinely unknown (#24). One labelled
  *   sibling does not license labelling the rest — that is exactly how a €990
@@ -336,6 +344,10 @@ export class CatalogService {
    * issued together rather than in sequence; a poll landing mid-flight could in
    * principle make the count and the list disagree by one, which is a cosmetic
    * risk not worth a transaction on the hottest read the site has.
+   *
+   * `watchTake` exists so the cap is testable without arranging
+   * {@link MAX_WATCHES} rows, and is deliberately not on the controller: the
+   * website has no business asking for a shorter catalogue than the page shows.
    */
   async getBrandBySlug(slug: string, watchTake = MAX_WATCHES) {
     const safeTake = Math.min(Math.max(watchTake, 1), MAX_WATCHES);
@@ -371,7 +383,7 @@ export class CatalogService {
             // Capped like every other read here. YEMA alone lists over a
             // hundred straps and cases, and a brand page is not a shop.
             take: MAX_ACCESSORIES,
-            select: WATCH_SUMMARY_SELECT,
+            select: CATALOGUE_ENTRY_SELECT,
           },
           // The headline count, and deliberately not `drops`: YEMA's page read
           // "4 drops tracked" for what a reader sees as two watches.
@@ -382,7 +394,7 @@ export class CatalogService {
         where: { brand: { slug }, kind: WatchKind.watch },
         orderBy: { name: 'asc' },
         take: safeTake,
-        select: WATCH_SUMMARY_SELECT,
+        select: CATALOGUE_ENTRY_SELECT,
       }),
       // Every priced Variant of every Watch this brand makes — not only the
       // ones the cap let through, and never an accessory.
@@ -417,9 +429,9 @@ export class CatalogService {
       priceBand: priceBandFrom(priceGroups),
       // The true total, which `watches` is not once the cap bites.
       watchCount: _count.watches,
-      watches: watches.map(summariseWatch).sort(buyableFirst),
+      watches: watches.map(summariseCatalogueEntry).sort(buyableFirst),
       drops: oneDropPerWatch(brand.drops).map(flattenDrop),
-      accessories: accessories.map(summariseWatch).sort(buyableFirst),
+      accessories: accessories.map(summariseCatalogueEntry).sort(buyableFirst),
     };
   }
 

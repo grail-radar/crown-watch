@@ -112,6 +112,15 @@ it, and one event produces one message without that table changing at all.
   Deliberately only on the Brand page. The site-wide feed is chronological
   across every brand, where consecutive rows about one Watch are conspicuous
   but not the same claim about the same brand in the same place.
+
+  **The cost is real and accepted:** a genuine second event about one Watch — a
+  restock months after the launch — is no longer listed on the Brand page,
+  because the filter cannot tell it from the three YEMA rows that are one event
+  recorded three times. That is the right trade while the duplicates outnumber
+  the genuine repeats and while a Watch page carries no history of its own; it
+  stops being the right trade the day a Watch page lists its Drops, and the
+  filter should be reconsidered then. Nothing is lost from the database, and
+  the older Drop's own URL still resolves.
 - **A new buying option for a Watch already on sale is silent.** A third
   bracelet for a model that launched last year is not a release, so it raises no
   Drop. Only a Watch we have never seen any product of, or one that was
