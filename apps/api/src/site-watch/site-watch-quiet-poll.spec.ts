@@ -220,6 +220,66 @@ describe('SiteWatchService — a poll with nothing to announce', () => {
     });
   });
 
+  describe('a price that moved once and then stayed put', () => {
+    it('goes quiet on the next poll, instead of re-recording for ever', async () => {
+      // The trap in comparing against the last *stored* snapshot: a store that
+      // moves its price once and never again would look changed at every poll
+      // from then on, because the baseline it is compared against still holds
+      // the old price. YEMA's A/B rotation is the loud case; a one-way price
+      // change is the quiet one, and it would have re-upserted every Variant
+      // hourly, for ever.
+      const { source, brandId } = await arrangeBaselined([
+        { handle: 'aquascaphe', price: '500.00' },
+      ]);
+
+      fetcher.serve([{ handle: 'aquascaphe', price: '450.00' }]);
+      const moved = await service.pollSource(source.id);
+      expect(moved.changed).toBe(true);
+      expect(moved.snapshotStored).toBe(false);
+
+      const before = await prisma.watchVariant.findMany({
+        where: { watch: { brandId } },
+        select: { lastSeenAt: true },
+      });
+
+      // The store now says exactly what it said last poll.
+      const settled = await service.pollSource(source.id);
+
+      expect(settled.changed).toBe(false);
+      expect(settled.snapshotStored).toBe(false);
+      expect(await snapshotCount(source.id)).toBe(1);
+      const after = await prisma.watchVariant.findMany({
+        where: { watch: { brandId } },
+        select: { lastSeenAt: true },
+      });
+      expect(after.map((v) => v.lastSeenAt.toISOString())).toEqual(
+        before.map((v) => v.lastSeenAt.toISOString()),
+      );
+    });
+
+    it('still diffs the next real change against the right baseline', async () => {
+      // Whatever keeps the comparison honest must not corrupt what the diff
+      // reads: novelty and availability still have to be judged against the
+      // last announceable state.
+      const { source, brandId } = await arrangeBaselined([
+        { handle: 'aquascaphe', price: '500.00', available: false },
+      ]);
+
+      fetcher.serve([{ handle: 'aquascaphe', price: '450.00', available: false }]);
+      await service.pollSource(source.id);
+      await service.pollSource(source.id);
+
+      // Now it comes back in stock — a restock against a baseline that has been
+      // sitting through price moves.
+      fetcher.serve([{ handle: 'aquascaphe', price: '450.00', available: true }]);
+      const result = await service.pollSource(source.id);
+
+      expect(result.dropsCreated).toBe(1);
+      expect(result.changes[0].kind).toBe('restock');
+      expect(await dropCount(brandId)).toBe(1);
+    });
+  });
+
   describe('a store that has not moved at all', () => {
     it('writes nothing whatsoever', async () => {
       const { source, brandId } = await arrangeBaselined([

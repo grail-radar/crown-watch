@@ -36,6 +36,13 @@ happened.
 A price is a fact about a Watch and belongs on its Variant, where the brand page
 and the price band read it. Only the *landing zone* goes quiet.
 
+**A poll that finds nothing announceable refreshes the stored snapshot in place**
+rather than adding a row. The landing zone stops growing, which is the point,
+*and* the baseline stays current — without that second half, "changed" would be
+measured against the last **stored** payload rather than the last one **seen**,
+so a store that moved a price once and then settled would read as changed at
+every poll from then on and re-upsert its whole catalogue hourly, for ever.
+
 ## Why price movement is not an event, for now
 
 - **The evidence in this very ticket is that store prices oscillate for no
@@ -95,6 +102,12 @@ one.
   ends a hold when the store returns to the catalogue we already hold; under the
   narrowed identity that now includes a return whose prices moved meanwhile.
   Correct rather than lenient — prices were never what was being held back — but
-  it is a change to a safety guard and is asserted in the tests as such.
+  it is a change to a safety guard, so ADR-0005 is amended rather than quietly
+  overridden, and both directions are asserted in the tests: a settled return is
+  released, a store still flooding stays held whatever its prices say.
+- **The stored payload is overwritten on a quiet poll**, which is the one place
+  this project deliberately discards raw content (`CONTEXT.md` §5). What is
+  discarded is precisely the observation we decided not to keep, and only ever
+  in favour of a newer one of the same announceable state.
 - **`snapshotStored` appears in the poll report**, so an operator can see the
   difference between "nothing happened" and "nothing worth recording happened".

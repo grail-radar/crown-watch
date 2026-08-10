@@ -346,9 +346,13 @@ was written. YEMA does this several times a day; the reasoning is
 
 | `changed` | `snapshotStored` | What happened |
 |---|---|---|
-| `false` | `false` | the store is exactly as we last saw it. Nothing was written at all |
-| `true` | `false` | only prices, currencies or images moved. Variants updated, landing zone untouched |
+| `false` | `false` | the store is exactly as we last saw it. Nothing was written but the source's own `last_polled_at` |
+| `true` | `false` | only prices, currencies or images moved. Variants updated, and the stored snapshot refreshed in place rather than added to |
 | `true` | `true` | something announceable moved — a new product URL, or availability turning true |
+
+`changed` means "differs from the catalogue we last **saw**", not "last stored".
+A store that moves a price once and then settles reports `changed` on that poll
+and on no other — the in-place refresh is what makes the second poll quiet.
 
 **A price change is never a Drop**, and the price on the site is still current:
 the brand page and the price band read `watch_variants`, which every

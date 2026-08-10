@@ -109,7 +109,13 @@ export interface SiteWatchSourceResult {
   skippedReason?: string;
   /** Why the poll was refused, and how far over the threshold it was. */
   refusedReason?: string;
-  /** true when the store differs from what it showed at the previous poll */
+  /**
+   * true when the store differs from the catalogue we last saw it show.
+   *
+   * "Last saw", not "last stored": a poll that finds nothing announceable
+   * refreshes the stored payload in place, so a store that moves a price once
+   * and then settles reports `changed` on that poll and on no other.
+   */
   changed: boolean;
   /**
    * Whether this poll's catalogue was written to the landing zone.
@@ -399,7 +405,8 @@ export class SiteWatchService {
         ),
       };
 
-      const previous = await this.previousSnapshot(source.id);
+      const previousRow = await this.previousSnapshot(source.id);
+      const previous = previousRow?.products ?? null;
       const snapshotHash = hashSnapshot(products);
 
       // Two questions, and they are not the same question.
@@ -441,7 +448,7 @@ export class SiteWatchService {
         //
         // Recording is idempotent and announces nothing, so doing it costs
         // upserts and interrupts nobody. A store that has not moved at all and
-        // needs nothing from us writes literally nothing.
+        // needs nothing from us writes nothing but its own `last_polled_at`.
         const known = await this.prisma.watch.count({
           where: { brandId: source.brandId },
         });
@@ -457,6 +464,14 @@ export class SiteWatchService {
           result.newAccessories = recorded.newAccessories;
           result.groupingOverridesApplied = recorded.overridesApplied;
           result.groupingOverridesUnmatched = recorded.overridesUnmatched;
+        }
+        // Bring the baseline up to date in place. Without this the comparison
+        // above is against the last *stored* payload rather than the last one
+        // *seen*, so a store that moved a price once and then settled would
+        // read as changed at every poll from then on, and re-upsert its whole
+        // catalogue hourly for ever.
+        if (contentMoved && previousRow) {
+          await this.refreshSnapshot(previousRow.id, products, snapshotHash);
         }
         await this.recordSuccess(source.id, result);
         return result; // nothing here could have been announced
@@ -788,18 +803,67 @@ export class SiteWatchService {
     return change.kind === 'restock' ? DropType.restock : DropType.pre_order;
   }
 
-  /** The most recent snapshot held for this source, or null on first sight. */
+  /**
+   * The most recent snapshot held for this source, or null on first sight.
+   *
+   * The row id comes back with it because a poll that finds nothing
+   * announceable refreshes this row in place rather than adding one — see
+   * {@link refreshSnapshot}.
+   */
   private async previousSnapshot(
     sourceId: string,
-  ): Promise<ProductSnapshot[] | null> {
+  ): Promise<{ id: string; products: ProductSnapshot[] } | null> {
     const event = await this.prisma.rawIngestionEvent.findFirst({
       where: { sourceId },
       orderBy: { fetchedAt: 'desc' },
-      select: { rawPayload: true },
+      select: { id: true, rawPayload: true },
     });
     if (!event) return null;
     const payload = event.rawPayload as unknown;
-    return Array.isArray(payload) ? (payload as ProductSnapshot[]) : null;
+    return Array.isArray(payload)
+      ? { id: event.id, products: payload as ProductSnapshot[] }
+      : null;
+  }
+
+  /**
+   * Bring the stored snapshot up to date without adding a row.
+   *
+   * Called when the store moved on a field that can never raise a Drop. Two
+   * things have to be true at once and only an in-place refresh gives both:
+   *
+   *  - **the landing zone must stop growing**, which is the whole of #25
+   *  - **the baseline must stay current**, or every later poll compares a
+   *    settled store against a stale payload, calls it changed, and re-upserts
+   *    the whole catalogue hourly for ever. YEMA's A/B price rotation is the
+   *    loud version of that; a store that changes a price once and never again
+   *    is the quiet one.
+   *
+   * Safe for the diff by construction: this only ever runs when the signal is
+   * unchanged, so every field the diff reads out of the snapshot — product URL,
+   * title, availability — is identical either way. What is replaced is exactly
+   * what nothing reads.
+   */
+  private async refreshSnapshot(
+    id: string,
+    products: ProductSnapshot[],
+    snapshotHash: string,
+  ): Promise<void> {
+    const observedAt = new Date();
+    await this.prisma.rawIngestionEvent.update({
+      where: { id },
+      data: {
+        rawPayload: products as unknown as Prisma.InputJsonValue,
+        // Kept consistent with the payload it identifies, and still carrying
+        // the observation time so the unique constraint cannot reject a
+        // catalogue state that legitimately recurs.
+        contentHash: createHash('sha256')
+          .update(`${snapshotHash}:${observedAt.toISOString()}`)
+          .digest('hex'),
+        // Moves with the payload, so this stays the row `previousSnapshot`
+        // hands back.
+        fetchedAt: observedAt,
+      },
+    });
   }
 
   /**

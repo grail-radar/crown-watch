@@ -6,6 +6,14 @@
 following the 2026-08-07 incident
 ([#40](https://github.com/grail-radar/crown-watch/issues/40))
 
+> **Amended 2026-08-10.** Exit 3 below said "the snapshot hashes match". Since
+> [ADR-0008](./0008-a-price-is-a-fact-not-an-event.md) that is the wrong hash:
+> a hold now ends when the **signal** matches — product URLs, titles and
+> availability — so a store that comes back to the catalogue we hold with its
+> prices drifted is released rather than left waiting for a person. Prices were
+> never what was being held back. Nothing else about the guard changes: a store
+> still flooding is still refused, whatever its prices say.
+
 ## Context
 
 Tier 4 publishes without a human in the loop
@@ -63,8 +71,11 @@ Exactly three things end a hold, and all of them are either a person or silent:
 2. **Re-baseline** — deleting the source's stored snapshots, after which the
    next poll is a baseline: it announces nothing and starts clean. This is the
    right exit when the flood was an artefact rather than a real launch.
-3. **The store returning to the catalogue we hold** — the snapshot hashes match,
-   so there is no diff left to publish and nothing for anyone to rule on.
+3. **The store returning to the catalogue we hold** — the *signal* hashes match
+   (product URLs, titles, availability), so there is no diff left to publish and
+   nothing for anyone to rule on. See the 2026-08-10 amendment above: prices,
+   currencies and images are not part of this comparison, because they were
+   never part of what was being held back.
 
 ## Rationale
 
