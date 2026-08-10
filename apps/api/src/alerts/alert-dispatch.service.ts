@@ -9,7 +9,7 @@ import {
 import { ABOUT_A_WATCH, isAboutAWatch } from '../drops/about-a-watch';
 import { purchaseLinkFor } from '../drops/purchase-link';
 import { PrismaService } from '../prisma/prisma.service';
-import { BroadcastChannel, destinationKey } from './destinations';
+import { BroadcastChannel, configuredChannels } from './destinations';
 import {
   ALERT_LOCALES,
   AlertLocale,
@@ -186,23 +186,13 @@ export class AlertDispatchService implements OnApplicationShutdown {
    * Ours come first, so the channel we control is the first to have a drop and
    * a partner group never carries something our own followers have not seen.
    *
-   * Public because `BroadcastClaimSweepService` has to know what a *live*
-   * Channel is before it deletes a claim row, and it must know it from the same
-   * place the dispatcher does. Two answers to "where do we post" is how a sweep
-   * ends up destroying the evidence that a real Channel was already told.
+   * The resolution itself lives in `destinations.ts`, which is the module for
+   * where a drop goes. It is not a dispatch decision, and a second caller needs
+   * the same answer: the claim sweep refuses to delete a claim against a live
+   * channel, and that guard is worth nothing unless both read one list.
    */
-  channels(): BroadcastChannel[] {
-    const own = ALERT_LOCALES.flatMap((locale) => {
-      const chatId = this.config.get<string>(`telegram.channels.${locale}`);
-      // The key is the bare chat id, which is what every claim written before
-      // partner groups existed used — those channels keep their own history.
-      return chatId ? [{ locale, chatId, key: destinationKey(chatId) }] : [];
-    });
-
-    const groups =
-      this.config.get<BroadcastChannel[]>('telegram.groups') ?? [];
-
-    return [...own, ...groups];
+  private channels(): BroadcastChannel[] {
+    return configuredChannels(this.config);
   }
 
   /**

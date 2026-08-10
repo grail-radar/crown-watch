@@ -65,6 +65,42 @@ export function destinationKey(
  * simply never see a drop and nobody here is told — so this is deliberately the
  * one part of Telegram configuration that refuses to start rather than degrade.
  */
+/**
+ * Just enough of `ConfigService` to answer "where do we post".
+ *
+ * Structural, so this module keeps knowing nothing about Nest — `ConfigService`
+ * satisfies it without being imported.
+ */
+export interface ChannelConfig {
+  get<T>(key: string): T | undefined;
+}
+
+/**
+ * Everywhere a Drop is announced: our own Channel per language, plus any
+ * partner community configured through `TELEGRAM_GROUPS`.
+ *
+ * Ours come first, so the Channel we control is the first to have a Drop and a
+ * partner group never carries something our own followers have not seen.
+ *
+ * Lives here rather than on the dispatcher because it is not a dispatch
+ * decision — it is what `destinations.ts` is for, and two callers now need the
+ * same answer. `BroadcastClaimSweepService` refuses to delete a claim against a
+ * live Channel, and that guard is only worth anything if it reads the list from
+ * the same place the dispatcher does.
+ */
+export function configuredChannels(config: ChannelConfig): BroadcastChannel[] {
+  const own = ALERT_LOCALES.flatMap((locale) => {
+    const chatId = config.get<string>(`telegram.channels.${locale}`);
+    // The key is the bare chat id, which is what every claim written before
+    // partner groups existed used — those Channels keep their own history.
+    return chatId ? [{ locale, chatId, key: destinationKey(chatId) }] : [];
+  });
+
+  const groups = config.get<BroadcastChannel[]>('telegram.groups') ?? [];
+
+  return [...own, ...groups];
+}
+
 export function parseGroupDestinations(
   raw: string | undefined,
 ): BroadcastChannel[] {

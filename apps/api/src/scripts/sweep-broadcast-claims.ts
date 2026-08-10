@@ -26,17 +26,7 @@ import { NestFactory } from '@nestjs/core';
 import { BroadcastClaimSweepService } from '../alerts/broadcast-claim-sweep.service';
 import { AppModule } from '../app.module';
 import { databaseHost } from '../prisma/local-database';
-
-function flag(name: string): boolean {
-  return process.argv.includes(`--${name}`);
-}
-
-/** Repeatable: --chat=a --chat=b. */
-function options(name: string): string[] {
-  return process.argv
-    .filter((a) => a.startsWith(`--${name}=`))
-    .map((a) => a.split('=').slice(1).join('='));
-}
+import { flag, options } from './args';
 
 async function main(): Promise<void> {
   const logger = new Logger('sweep:claims');
@@ -71,37 +61,44 @@ async function main(): Promise<void> {
     // The service refuses outright in that case, but an operator should be able
     // to see what it believes is live rather than trust that it looked.
     process.stdout.write(
-      `\nChannels currently posted to: ${result.live.join(', ')}\n\n`,
+      `\nChannels currently posted to: ${result.liveChannels.join(', ')}\n\n`,
     );
-    for (const channel of result.channels) {
+    for (const chat of result.chats) {
       process.stdout.write(
-        `  ${channel.chatId.padEnd(24)} ${channel.claims} claim(s), ` +
-          `${channel.sent} marked sent, across ${channel.drops} drop(s)\n`,
+        `  ${chat.chatId.padEnd(24)} ${chat.claims} claim(s), ` +
+          `${chat.sent} marked sent, across ${chat.drops} drop(s)\n`,
       );
-      for (const drop of channel.sample) {
+      for (const drop of chat.listed) {
         process.stdout.write(`      ${drop.id}  ${drop.brand} — ${drop.title}\n`);
       }
-      if (channel.drops > channel.sample.length) {
-        process.stdout.write(
-          `      …and ${channel.drops - channel.sample.length} more\n`,
-        );
+      if (chat.drops > chat.listed.length) {
+        process.stdout.write(`      …and ${chat.drops - chat.listed.length} more\n`);
       }
     }
 
-    if (result.unmatched.length > 0) {
-      process.stdout.write(
-        `\nNo claims at all against: ${result.unmatched.join(', ')}\n` +
-          'Check the spelling — a chat id that matches nothing looks the same as a finished job.\n',
-      );
-    }
-
+    // Problems go to stderr. An operator watching a deploy log usually sees
+    // stderr and skims stdout, and a refusal that scrolled past unread is the
+    // same as no refusal at all.
     if (result.refused.length > 0) {
-      process.stdout.write('\nRefused, and nothing was swept:\n');
+      process.stderr.write('\nRefused, and nothing was swept:\n');
       for (const { chatId, reason } of result.refused) {
-        process.stdout.write(`  ${chatId} — ${reason}\n`);
+        process.stderr.write(`  ${chatId} — ${reason}\n`);
       }
       process.exitCode = 1;
       return;
+    }
+
+    if (result.unmatched.length > 0) {
+      process.stderr.write(
+        `\nNo claims at all against: ${result.unmatched.join(', ')}\n` +
+          'Check the spelling — a chat id that matches nothing looks the same as a finished job.\n',
+      );
+      // Exit non-zero when *nothing* named was there. The line above says a typo
+      // is indistinguishable from a finished job; exiting 0 would make that true
+      // of the exit code too. A partial match still succeeds. So does a re-run
+      // after a sweep that worked — it names a chat and finds it empty, which is
+      // the same signal and deserves the same answer: look.
+      if (result.unmatched.length === result.chats.length) process.exitCode = 1;
     }
 
     const { before, after } = result.counts;
@@ -131,7 +128,7 @@ async function main(): Promise<void> {
       after.sources !== before.sources ||
       swept !== result.deleted;
     if (collateral) {
-      process.stdout.write(
+      process.stderr.write(
         `\nCHECK: expected the broadcast count to fall by exactly ${result.deleted} ` +
           `and nothing else to move; it fell by ${swept}. A poll running at the same ` +
           'time explains a change in drops or sources. Anything else is worth ' +

@@ -23,24 +23,7 @@ import { NestFactory } from '@nestjs/core';
 import { AppModule } from '../app.module';
 import { DropRetractionService } from '../drops/drop-retraction.service';
 import { databaseHost } from '../prisma/local-database';
-
-function flag(name: string): boolean {
-  return process.argv.includes(`--${name}`);
-}
-
-function option(name: string): string | undefined {
-  return process.argv.find((a) => a.startsWith(`--${name}=`))?.split('=').slice(1).join('=');
-}
-
-function requireDate(name: string): Date {
-  const raw = option(name);
-  if (!raw) throw new Error(`--${name}=<ISO timestamp> is required`);
-  const date = new Date(raw);
-  if (Number.isNaN(date.getTime())) {
-    throw new Error(`--${name}="${raw}" is not a date I can read`);
-  }
-  return date;
-}
+import { flag, requireDate } from './args';
 
 async function main(): Promise<void> {
   const logger = new Logger('retract:drops');

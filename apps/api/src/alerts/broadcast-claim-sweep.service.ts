@@ -1,6 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import { PrismaService } from '../prisma/prisma.service';
-import { AlertDispatchService } from './alert-dispatch.service';
+import { configuredChannels } from './destinations';
 
 /**
  * How many Drops a dry run names before it starts summarising.
@@ -32,26 +33,35 @@ export interface ClaimSweepCounts {
   broadcasts: number;
 }
 
-export interface ClaimSweepChannelReport {
+/**
+ * One chat the sweep was asked about.
+ *
+ * Deliberately not called a Channel. A Channel is somewhere a Drop is announced
+ * and claimed against (`CONTEXT.md` §9) — these are chats that are not one, and
+ * calling them Channels is how the distinction this whole service rests on gets
+ * lost.
+ */
+export interface ClaimSweepChatReport {
   chatId: string;
   claims: number;
   /** How many of those claims say a message actually went out. */
   sent: number;
   /** Distinct Drops involved. */
   drops: number;
-  /** A few of them, so an operator can see what they were. */
-  sample: Array<{ id: string; title: string; brand: string }>;
+  /** Every one of them, up to {@link MAX_LISTED_DROPS}. */
+  listed: Array<{ id: string; title: string; brand: string }>;
 }
 
 export interface ClaimSweepReport {
   confirmed: boolean;
-  channels: ClaimSweepChannelReport[];
+  /** The chats asked about — never Channels, by definition of the job. */
+  chats: ClaimSweepChatReport[];
   /**
-   * Every Channel the dispatcher currently posts to, printed so the guard's
-   * state is visible. A silently empty list is the failure mode that would make
-   * this whole script dangerous, so it is shown rather than merely applied.
+   * Every Channel we currently post to, reported so the guard's state is
+   * visible. A silently empty list is the failure mode that would make this
+   * whole service dangerous, so it is shown rather than merely applied.
    */
-  live: string[];
+  liveChannels: string[];
   /** Requested chat ids that are live Channels, and were therefore not swept. */
   refused: Array<{ chatId: string; reason: string }>;
   /** Requested chat ids with no claims at all — most likely a typo. */
@@ -81,13 +91,13 @@ export interface ClaimSweepReport {
  * Drop is `rejected` and unpublished, and these point at live, published Drops,
  * so they were never in its working set. This is tidying, not a fix.
  *
- * The guard that makes this safe is one line of intent: a chat id that the
- * dispatcher currently posts to is refused outright. Deleting a live Channel's
- * claims would make its Drops candidates again and tell followers a second time
- * about releases they have already seen — the exact harm ADR-0002 names. The
- * list of live Channels is read from {@link AlertDispatchService.channels}
- * rather than rebuilt here, because two answers to "where do we post" is how
- * that guard would quietly stop guarding.
+ * The guard that makes this safe is one line of intent: a chat id we currently
+ * post to is refused outright. Deleting a live Channel's claims would make its
+ * Drops candidates again and tell followers a second time about releases they
+ * have already seen — the exact harm ADR-0002 names. The list of live Channels
+ * comes from `configuredChannels`, the same function the dispatcher resolves
+ * its destinations with, because two answers to "where do we post" is how that
+ * guard would quietly stop guarding.
  */
 @Injectable()
 export class BroadcastClaimSweepService {
@@ -95,7 +105,7 @@ export class BroadcastClaimSweepService {
 
   constructor(
     private readonly prisma: PrismaService,
-    private readonly alerts: AlertDispatchService,
+    private readonly config: ConfigService,
   ) {}
 
   async sweep(request: ClaimSweepRequest): Promise<ClaimSweepReport> {
@@ -110,7 +120,7 @@ export class BroadcastClaimSweepService {
     // Live Channels first. If the request names one, the run stops rather than
     // doing the safe part of it: an operator who mistyped one of two ids should
     // get an error, not a half-applied sweep to reason about afterwards.
-    const channelList = this.alerts.channels();
+    const channelList = configuredChannels(this.config);
     if (channelList.length === 0) {
       // **Fail closed.** Telegram configuration is optional and an unconfigured
       // bot is a supported boot state, so a shell with `DATABASE_URL` set and no
@@ -134,11 +144,11 @@ export class BroadcastClaimSweepService {
           'one of those Drops to it again (ADR-0002).',
       }));
 
-    const channels: ClaimSweepChannelReport[] = [];
+    const chats: ClaimSweepChatReport[] = [];
     for (const chatId of chatIds) {
-      channels.push(await this.describe(chatId));
+      chats.push(await this.describe(chatId));
     }
-    const unmatched = channels.filter((c) => c.claims === 0).map((c) => c.chatId);
+    const unmatched = chats.filter((c) => c.claims === 0).map((c) => c.chatId);
 
     const before = await this.counts();
     let deleted = 0;
@@ -161,8 +171,8 @@ export class BroadcastClaimSweepService {
     const after = confirmed ? await this.counts() : before;
     return {
       confirmed,
-      channels,
-      live: [...live].sort(),
+      chats,
+      liveChannels: [...live].sort(),
       refused,
       unmatched,
       deleted,
@@ -171,7 +181,7 @@ export class BroadcastClaimSweepService {
   }
 
   /** What one chat's claims are, and which Drops they belong to. */
-  private async describe(chatId: string): Promise<ClaimSweepChannelReport> {
+  private async describe(chatId: string): Promise<ClaimSweepChatReport> {
     const claims = await this.prisma.dropBroadcast.findMany({
       where: { chatId },
       select: {
@@ -194,7 +204,7 @@ export class BroadcastClaimSweepService {
       claims: claims.length,
       sent: claims.filter((c) => c.status === 'sent').length,
       drops: drops.size,
-      sample: [...drops.values()].slice(0, MAX_LISTED_DROPS),
+      listed: [...drops.values()].slice(0, MAX_LISTED_DROPS),
     };
   }
 

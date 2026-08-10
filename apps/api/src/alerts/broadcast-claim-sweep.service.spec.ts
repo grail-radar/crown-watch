@@ -6,8 +6,9 @@
  * makes that Drop a candidate again. That is why `BroadcastPurgeService` keeps
  * every row even when it deletes the post. The exception is a claim against a
  * Channel that never existed: `@crownwatch_ua_v2` lives only in a spec, it took
- * 30 claims on 2026-08-07 when the tests ran against production, no message was
- * ever sent to it, and `purge:broadcasts` fails on those rows for ever (#48).
+ * 30 claims on 2026-08-07 when the tests ran against production, and no message
+ * was ever sent to it. Removing them is tidying rather than a fix — the service
+ * says why the ticket's own justification did not survive checking (#48).
  *
  * So the tests here are mostly about what it refuses to do.
  */
@@ -15,9 +16,7 @@ import { ConfigService } from '@nestjs/config';
 import { DropType, ModerationStatus } from '@prisma/client';
 import { randomUUID } from 'node:crypto';
 import { PrismaService } from '../prisma/prisma.service';
-import { AlertDispatchService } from './alert-dispatch.service';
 import { BroadcastClaimSweepService } from './broadcast-claim-sweep.service';
-import { CapturingTelegram } from '../../test/capturing-telegram';
 
 const UK_CHANNEL = '@crownwatch_ua';
 const EN_CHANNEL = '@crownwatch_en';
@@ -38,10 +37,7 @@ describe('BroadcastClaimSweepService', () => {
         channels: { uk: UK_CHANNEL, en: EN_CHANNEL },
       },
     });
-    sweep = new BroadcastClaimSweepService(
-      prisma,
-      new AlertDispatchService(prisma, config, new CapturingTelegram()),
-    );
+    sweep = new BroadcastClaimSweepService(prisma, config);
   });
 
   afterAll(async () => {
@@ -92,7 +88,7 @@ describe('BroadcastClaimSweepService', () => {
 
       expect(report.confirmed).toBe(false);
       expect(report.deleted).toBe(0);
-      const ghost = report.channels.find((c) => c.chatId === GHOST);
+      const ghost = report.chats.find((c) => c.chatId === GHOST);
       expect(ghost?.claims).toBeGreaterThanOrEqual(1);
       expect(await claimsFor(GHOST, drop.id)).toBe(1);
     });
@@ -102,9 +98,9 @@ describe('BroadcastClaimSweepService', () => {
 
       const report = await sweep.sweep({ chatIds: [GHOST] });
 
-      const titles = report.channels
+      const titles = report.chats
         .find((c) => c.chatId === GHOST)
-        ?.sample.map((s) => s.title);
+        ?.listed.map((s) => s.title);
       expect(titles).toContain(drop.title);
     });
   });
@@ -191,11 +187,7 @@ describe('BroadcastClaimSweepService', () => {
       // would then delete every real claim without a word.
       const unconfigured = new BroadcastClaimSweepService(
         prisma,
-        new AlertDispatchService(
-          prisma,
-          new ConfigService({ telegram: { botToken: undefined, channels: {} } }),
-          new CapturingTelegram(),
-        ),
+        new ConfigService({ telegram: { botToken: undefined, channels: {} } }),
       );
       const { drop } = await arrangeClaims([UK_CHANNEL]);
 
@@ -210,7 +202,7 @@ describe('BroadcastClaimSweepService', () => {
 
       const report = await sweep.sweep({ chatIds: [GHOST] });
 
-      expect(report.live).toEqual(expect.arrayContaining([UK_CHANNEL, EN_CHANNEL]));
+      expect(report.liveChannels).toEqual(expect.arrayContaining([UK_CHANNEL, EN_CHANNEL]));
     });
 
     it('refuses an empty list rather than treating it as "everything"', async () => {
@@ -226,7 +218,7 @@ describe('BroadcastClaimSweepService', () => {
       // A typo should look like a typo. Zero claims and no error reads as "done".
       const report = await sweep.sweep({ chatIds: ['@nobody_here'] });
 
-      const entry = report.channels.find((c) => c.chatId === '@nobody_here');
+      const entry = report.chats.find((c) => c.chatId === '@nobody_here');
       expect(entry?.claims).toBe(0);
       expect(report.unmatched).toContain('@nobody_here');
     });
