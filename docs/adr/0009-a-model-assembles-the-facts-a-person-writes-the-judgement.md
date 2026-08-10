@@ -38,21 +38,44 @@ request; a schema without the field is not.
 `brands.status` are untouched by this path, which is what makes rejecting a
 draft a plain delete with no half-annotated state to repair.
 
+**The model is shown evidence, not asked to remember.** The prompt carries the
+brand's own page — fetched through the same `SiteFetcher` and the same
+robots.txt guard as a Tier 4 poll — plus the Watches we track and the Drops we
+have covered. Parametric memory about an obscure microbrand is exactly where a
+model invents a movement supplier with total confidence, and "assemble the facts
+in front of you" is a different task from "recall what you know about Baltic".
+When a site cannot be read, the reason is carried on the draft, so a writer
+knows the briefing was assembled from thin material before trusting it.
+
 **We do not pay to be told what we already hold.** Country, founding year, the
 price band and the catalogue counts come from our own database and are written
 into the draft directly. Asking a model to re-derive them would spend money for
 the privilege of disagreeing with ourselves.
 
-**A draft with nothing in it is recorded as a failure, not stored as a draft.**
-`sufficient = false` plus a note. An empty briefing that looks confident is
-worse than no briefing: a writer reading "movement supplier: —" takes it for a
-fact about the brand rather than a fact about us.
+**Nothing may be repeated back verbatim from the material we showed it.** Every
+field is checked against the site text, the Watch names and the Drop titles the
+model was given, normalised for case and whitespace, and dropped if it appears
+there (`CONTEXT.md` §6). A length cap alone does not do this job — a tagline is
+short, and "Swiss movements, honest prices" lifted off a homepage reads like a
+fact and is actually their marketing. Phrases under fifteen characters are
+exempt: "Sellita" is on the page precisely because it is the fact we asked for.
+
+**The three outcomes are kept apart, because what happens next differs.**
+`usable` is a briefing. `empty` means we asked and got too little to brief
+anyone — an answer, so the Brand is not asked again. `failed` means we could not
+ask at all, which is not an answer, so the Brand stays in the queue. An empty
+briefing that looks confident is worse than no briefing: a writer reading
+"movement supplier: —" takes it for a fact about the brand rather than a fact
+about us.
 
 **Cost is bounded before it is spent and reported after.** `max_tokens` caps the
 expensive half at 512 per Brand. A dry run counts the real input tokens through
-the API's own tokeniser and multiplies by that ceiling to give a worst case for
+the API's own tokeniser — against a prompt built exactly the way the paid ones
+are, evidence included — and multiplies by that ceiling to give a worst case for
 the whole run. Actual usage comes off each response and is reported per Brand
-and per run.
+and per run. A run spends on at most 100 Brands; a dry run is deliberately
+unclamped, because budgeting a 300-Brand catalogue is the question being asked
+and a capped estimate leaves the operator extrapolating by hand.
 
 ## Considered options
 
@@ -85,15 +108,24 @@ and per run.
   has no business being confident about. The draft is a starting point for a
   writer who will check what matters, not a source of record — nothing here
   writes to the Brand, so a wrong fact costs a minute rather than a correction.
-- **`known_for` entries are capped at 60 characters and 4 entries, and anything
-  longer is dropped rather than truncated.** The cap is the copyright guard
-  (`CONTEXT.md` §6): a tag is a few words in our own structure, and half a
-  sentence of somebody's marketing copy is still their sentence. Dropping loses
-  a fact; truncating would keep a liability and disguise it as a fact.
-- **Cost is small but not nothing.** At Opus 4.8 rates a Brand costs roughly
-  $0.019 in the worst case (about 1,150 input tokens, capped at 512 out), so the
-  37 unannotated Brands are well under a dollar and a 300-Brand catalogue is
-  under six. Measured, not estimated from characters — the tokeniser is asked.
+- **A lifted phrase is dropped rather than truncated.** Half a sentence of
+  somebody's copy is still their sentence, and truncating would keep the
+  liability while disguising it as a fact. Fields are also capped at 60
+  characters and 4 tags, but that is a second line of defence now — the guard
+  that does the work is the verbatim check.
+- **Grounding costs input tokens.** A prompt carrying up to 4,000 characters of
+  a brand's page is several times the size of one asking a model to recall. That
+  is the trade: the cheap prompt produces confident fiction about exactly the
+  brands nobody has heard of, which is all of them. Input is the cheap half of
+  the bill, and the estimate counts the real prompt, so the operator sees it.
+- **Reading a brand's site is a poll of their server.** It goes through the same
+  fetcher and the same robots.txt check as the Tier 4 watcher, so a brand that
+  has asked us not to read a page is not read here either.
+- **Cost is small but not nothing.** At Opus 4.8 rates a grounded Brand costs
+  roughly $0.025 in the worst case — 2,374 input tokens measured against a real
+  brand's page, capped at 512 out — so the 37 unannotated Brands come to about
+  $0.90 and a 300-Brand catalogue to about $7.40. Measured, not estimated from
+  characters: the tokeniser is asked, on the prompt that will actually be sent.
 - **A model with no rate in `pricing.ts` gets its tokens reported and no dollar
   figure.** Not zero, which would read as free. The table carries the date it
   was checked so a stale rate is discoverable rather than silently trusted.

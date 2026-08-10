@@ -29,7 +29,7 @@ export interface BrandFactsDraft {
    * keeps a sentence from arriving disguised as a tag.
    */
   known_for: string[];
-  /** One model a reader would recognise the brand by, if there is one. */
+  /** One Watch a reader would recognise the brand by, if there is one. */
   signature_watch: string | null;
   /** Where it is assembled, when that differs from where the brand is based. */
   assembled_in: string | null;
@@ -44,6 +44,7 @@ Rules:
 - Facts only. Never write an opinion, a recommendation, a verdict, or a sentence of prose. Someone else writes those, and a field that reads like marketing is worse than an empty one.
 - Never reproduce the brand's own marketing copy or any article's wording. Short factual fields in your own words, as with any extraction task.
 - Provide a value ONLY when you are confident it is correct for this specific brand. Use null, or an empty list, when you are not. A null is always better than a guess, and this draft is read by a person who will notice.
+- Everything you record must be supported by the material provided below. Do not add facts from memory that the material does not support.
 - known_for: at most 4 entries, each a short noun phrase of a few words — "bronze divers", "in-house chronographs", "field watches". Not sentences, not clauses, no punctuation.
 - movement_supplier: who supplies the movements (e.g. "Sellita", "Miyota", "La Joux-Perret"), or "in-house" when the brand makes its own.
 - Do not report the brand's country, founding year, or prices. Those are already known and are not being asked for.`;
@@ -70,7 +71,7 @@ const BRAND_FACTS_SCHEMA = {
     },
     signature_watch: {
       type: ['string', 'null'],
-      description: 'One model the brand is recognised by, or null.',
+      description: 'One watch the brand is recognised by, or null.',
     },
     assembled_in: {
       type: ['string', 'null'],

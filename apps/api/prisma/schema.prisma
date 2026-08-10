@@ -42,6 +42,18 @@ enum WatchKind {
   accessory
 }
 
+// How an attempt to assemble a Brand's facts went.
+//
+// `failed` means we could not ask — a transient API error. It stays in the
+// queue, because "we could not reach the model" is not an answer about the
+// Brand. `empty` means we did ask and got nothing usable, which is an answer:
+// asking again on the next run would spend money to be told the same thing.
+enum DraftStatus {
+  usable
+  empty
+  failed
+}
+
 // Whether a human has approved what we say about a Brand.
 //
 // `listed` is the honest default and not a lesser tier: the Brand is fully
@@ -227,16 +239,17 @@ model BrandAnnotationDraft {
   /// Json because the shape is a briefing for a person to read, not something
   /// the database needs to query — and it will change as we learn what helps.
   facts   Json
-  /// false when the draft is not worth handing to a writer — nothing was found,
-  /// or what came back looked like prose rather than facts. Kept rather than
-  /// discarded so "we tried this Brand and got nothing" is visible instead of
-  /// looking like a Brand nobody has drafted yet.
-  sufficient Boolean @default(true)
-  /// Why, when `sufficient` is false — and any caveat worth carrying when it is.
-  note       String?
-  /// What produced it and what it cost. Tokens are exact; the money is derived
-  /// from a rate table (`pricing.ts`) and is an estimate.
-  model        String
+  /// How the attempt went. `empty` and `failed` are both kept rather than
+  /// discarded, so "we tried this Brand" never looks like "nobody has tried".
+  /// They differ in what happens next: a `failed` Brand is asked again on the
+  /// next run, an `empty` one is not — we already know the answer.
+  status DraftStatus @default(usable)
+  /// Why, for anything other than `usable` — and any caveat worth carrying.
+  note   String?
+  /// Which language model produced it, and what it cost. Named for the LLM
+  /// rather than `model`, which in this codebase's vocabulary means a Watch
+  /// (CONTEXT.md §9). Tokens are exact; the money is derived from a rate table.
+  draftedByModel String @map("drafted_by_model")
   inputTokens  Int    @map("input_tokens")
   outputTokens Int    @map("output_tokens")
   createdAt DateTime @default(now()) @map("created_at")
@@ -244,7 +257,7 @@ model BrandAnnotationDraft {
 
   brand Brand @relation(fields: [brandId], references: [id], onDelete: Cascade)
 
-  @@index([sufficient])
+  @@index([status])
   @@map("brand_annotation_drafts")
 }
 

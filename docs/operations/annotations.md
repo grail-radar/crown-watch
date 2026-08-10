@@ -12,6 +12,12 @@ What drafting gives you is the research — where they're based, who makes the
 movements, what they're known for — so writing the sentence takes five minutes
 instead of an afternoon.
 
+The model is **shown** that research rather than asked to recall it: the brand's
+own page (fetched politely, robots.txt respected), the Watches we track, the
+Drops we've covered, and the price band from their Variants. A model asked to
+remember an obscure microbrand invents a movement supplier with total
+confidence, which is the failure this guards against.
+
 ---
 
 ## 1. Draft the facts
@@ -25,8 +31,15 @@ pnpm --filter @crown-watch/api draft:annotations -- --limit=20
 
 It prints the model, the Brands it would draft, the input tokens it actually
 counted (not a guess from character length), and a worst case for the run. At
-Opus 4.8 rates a Brand is roughly **$0.019** worst case, so the 37 unannotated
-Brands are well under a dollar.
+Opus 4.8 rates a Brand is roughly **$0.025** worst case, so the 37 unannotated
+Brands come to about **$0.90** and the whole 300-Brand target to about **$7.40**.
+
+The dry run is not capped — ask it about the whole catalogue and it will price
+the whole catalogue, because that is the number you are trying to decide on:
+
+```bash
+pnpm --filter @crown-watch/api draft:annotations -- --limit=500
+```
 
 Then spend:
 
@@ -34,7 +47,8 @@ Then spend:
 pnpm --filter @crown-watch/api draft:annotations -- --limit=20 --confirm
 ```
 
-It picks Brands with no Annotation and no draft, oldest first. Set
+It picks Brands with no Annotation and no answer yet, oldest first, and spends
+on **at most 100 Brands** per run however high `--limit` goes. Set
 `ANTHROPIC_DRAFT_MODEL` to pay for a better model here without changing the
 hourly extraction pass.
 
@@ -43,16 +57,25 @@ hourly extraction pass.
 ## 2. Read the drafts
 
 ```bash
-psql "$DATABASE_URL" -c "select b.slug, d.sufficient, d.facts, d.note from brand_annotation_drafts d join brands b on b.id = d.brand_id order by d.created_at desc limit 20;"
+psql "$DATABASE_URL" -c "select b.slug, d.status, d.facts, d.note from brand_annotation_drafts d join brands b on b.id = d.brand_id order by d.created_at desc limit 20;"
 ```
 
 A draft carries what the model found (movement supplier, in-house or not, what
 it's known for, a signature watch, where it's assembled) alongside what we
-already held (country, founding year, how many Watches and Drops we track).
+already held (country, founding year, the price band, how many Watches and Drops
+we track) and `sources`, which says what it was allowed to read.
 
-`sufficient = false` means we asked and got nothing useful — `note` says why.
-Those are recorded rather than dropped, so "we tried this Brand and it came back
-empty" doesn't look identical to "nobody has drafted this Brand".
+`status` is one of three, and they mean different things:
+
+| `status` | What happened | Asked again? |
+| --- | --- | --- |
+| `usable` | A briefing worth opening | No |
+| `empty` | We asked; too little came back to brief anyone | No — that *is* the answer |
+| `failed` | We could not ask at all (an API error) | Yes, on the next run |
+
+`note` says why, and it's worth reading on a `usable` draft too: it's where
+"the brand's site answered 404" ends up, and a confident-looking briefing
+assembled from nothing is exactly what you want to catch.
 
 **Check what matters before you rely on it.** A model is confident about
 movement suppliers it has no business being confident about. The draft is a
@@ -115,4 +138,5 @@ pnpm --filter @crown-watch/api draft:annotations -- --brand=<slug> --confirm
 - [ADR-0004](../adr/0004-curation-is-not-purchasable.md) — why placement and annotations are never for sale
 - [ADR-0009](../adr/0009-a-model-assembles-the-facts-a-person-writes-the-judgement.md) — why the judgement is never generated, and how that is enforced rather than requested
 - `CONTEXT.md` §2 — why the Annotation is the product
-- `CONTEXT.md` §6 — the copyright constraint the short-field caps enforce
+- `CONTEXT.md` §6 — the copyright constraint; a fact repeated verbatim out of
+  the material we showed the model is dropped rather than stored

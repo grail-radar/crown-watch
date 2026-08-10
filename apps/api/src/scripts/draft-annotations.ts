@@ -23,7 +23,7 @@ import 'reflect-metadata';
 import { Logger } from '@nestjs/common';
 import { NestFactory } from '@nestjs/core';
 import { AppModule } from '../app.module';
-import { AnnotationDraftService } from '../extraction/annotation-draft.service';
+import { AnnotationDraftService } from '../moderation/annotation-draft.service';
 import { databaseHost } from '../prisma/local-database';
 import { flag, option, options } from './args';
 
@@ -73,10 +73,10 @@ async function main(): Promise<void> {
     if (run.estimate) {
       const e = run.estimate;
       process.stdout.write(
-        `\nModel: ${run.model}\n` +
+        `\nModel: ${run.draftedByModel}\n` +
           `Brands: ${e.brands}\n` +
           `  input   ~${e.inputTokens} tokens (counted, not guessed)\n` +
-          `  output  at most ${e.maxOutputTokens} tokens each\n` +
+          `  output  at most ${e.maxOutputTokensPerBrand} tokens each\n` +
           `  worst case ${money(e.worstCaseUsd)} for the whole run\n`,
       );
     }
@@ -88,13 +88,18 @@ async function main(): Promise<void> {
 
     process.stdout.write('\n');
     for (const brand of run.brands) {
-      const mark = brand.sufficient ? 'drafted ' : 'nothing ';
+      const mark =
+        brand.status === 'usable'
+          ? 'drafted '
+          : brand.status === 'empty'
+            ? 'nothing '
+            : 'failed  ';
       process.stdout.write(`  ${mark} ${brand.name}\n`);
       if (brand.note) process.stdout.write(`           ${brand.note}\n`);
     }
 
     process.stdout.write(
-      `\nDrafted ${run.drafted}; ${run.insufficient} had nothing useful; ${run.failed} failed.\n` +
+      `\nDrafted ${run.drafted}; ${run.empty} had nothing useful; ${run.failed} could not be asked.\n` +
         `Actually used ${run.usage.inputTokens} in / ${run.usage.outputTokens} out — ${money(run.costUsd)}.\n` +
         `\nNothing has been published. Read the drafts, write the sentence yourself, and\n` +
         `approve it the way #22 describes — that step is what makes a Brand Curated.\n`,

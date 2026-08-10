@@ -7,7 +7,7 @@ import {
   BRAND_FACTS_TOOL,
   BRAND_FACTS_TOOL_NAME,
   BrandFactsDraft,
-} from './annotation-draft.types';
+} from '../moderation/annotation-draft.types';
 import {
   BRAND_ENRICH_SYSTEM_PROMPT,
   BRAND_ENRICH_TOOL,

@@ -7,26 +7,30 @@
  * produce one (#30, ADR-0009).
  *
  * Most of these tests are about what it refuses to do — write prose, invent a
- * confident empty draft, or touch the Brand.
+ * confident empty draft, repeat somebody's copy back, or touch the Brand.
  */
-import { BrandStatus } from '@prisma/client';
+import { BrandStatus, DraftStatus } from '@prisma/client';
 import { randomUUID } from 'node:crypto';
 import { PrismaService } from '../prisma/prisma.service';
 import { AnnotationDraftService } from './annotation-draft.service';
-import { AnthropicService } from './anthropic.service';
+import { AnthropicService } from '../extraction/anthropic.service';
 import { BrandFactsDraft } from './annotation-draft.types';
-import { TokenCount } from './pricing';
+import { TokenCount } from '../extraction/pricing';
+import { RobotsService } from '../site-watch/robots.service';
+import { SiteFetcher } from '../site-watch/site-fetcher';
+
+const DEFAULT_FACTS: BrandFactsDraft = {
+  movement_supplier: 'Sellita',
+  in_house_movement: false,
+  known_for: ['bronze divers', 'field watches'],
+  signature_watch: 'Aquascaphe',
+  assembled_in: 'France',
+};
 
 /** Answers with whatever the test says the model returned, and counts calls. */
 class StubAnthropic {
   enabled = true;
-  facts: BrandFactsDraft | null = {
-    movement_supplier: 'Sellita',
-    in_house_movement: false,
-    known_for: ['bronze divers', 'field watches'],
-    signature_watch: 'Aquascaphe',
-    assembled_in: 'France',
-  };
+  facts: BrandFactsDraft | null = { ...DEFAULT_FACTS };
   usage: TokenCount = { inputTokens: 900, outputTokens: 120 };
   model = 'claude-haiku-4-5';
   prompts: string[] = [];
@@ -50,9 +54,35 @@ class StubAnthropic {
   }
 }
 
+/** Serves the brand's own page, or whatever failure the test is about. */
+class StubFetcher {
+  status = 200;
+  body =
+    '<html><body><h1>Baltic</h1>' +
+    '<p>Vintage-inspired mechanical watches, assembled in Morteau.</p>' +
+    '<script>ignored()</script></body></html>';
+  throwWith: Error | null = null;
+  urls: string[] = [];
+
+  async fetch(url: string) {
+    this.urls.push(url);
+    if (this.throwWith) throw this.throwWith;
+    return { status: this.status, body: this.body };
+  }
+}
+
+class StubRobots {
+  allowed = true;
+  async allows() {
+    return this.allowed;
+  }
+}
+
 describe('AnnotationDraftService', () => {
   let prisma: PrismaService;
   let anthropic: StubAnthropic;
+  let fetcher: StubFetcher;
+  let robots: StubRobots;
   let drafts: AnnotationDraftService;
   const brandIds: string[] = [];
 
@@ -60,9 +90,13 @@ describe('AnnotationDraftService', () => {
     prisma = new PrismaService();
     await prisma.$connect();
     anthropic = new StubAnthropic();
+    fetcher = new StubFetcher();
+    robots = new StubRobots();
     drafts = new AnnotationDraftService(
       prisma,
       anthropic as unknown as AnthropicService,
+      fetcher as unknown as SiteFetcher,
+      robots as unknown as RobotsService,
     );
   });
 
@@ -71,13 +105,15 @@ describe('AnnotationDraftService', () => {
     anthropic.countedPrompts = [];
     anthropic.throwWith = null;
     anthropic.enabled = true;
-    anthropic.facts = {
-      movement_supplier: 'Sellita',
-      in_house_movement: false,
-      known_for: ['bronze divers', 'field watches'],
-      signature_watch: 'Aquascaphe',
-      assembled_in: 'France',
-    };
+    anthropic.facts = { ...DEFAULT_FACTS };
+    fetcher.urls = [];
+    fetcher.status = 200;
+    fetcher.throwWith = null;
+    fetcher.body =
+      '<html><body><h1>Baltic</h1>' +
+      '<p>Vintage-inspired mechanical watches, assembled in Morteau.</p>' +
+      '<script>ignored()</script></body></html>';
+    robots.allowed = true;
   });
 
   afterAll(async () => {
@@ -86,14 +122,19 @@ describe('AnnotationDraftService', () => {
   });
 
   async function arrangeBrand(
-    over: { annotation?: string; status?: BrandStatus; country?: string } = {},
+    over: {
+      annotation?: string;
+      status?: BrandStatus;
+      country?: string;
+      website?: string | null;
+    } = {},
   ) {
     const tag = randomUUID().slice(0, 8);
     const brand = await prisma.brand.create({
       data: {
         name: `Baltic ${tag}`,
         slug: `baltic-${tag}`,
-        website: 'https://baltic.example',
+        website: over.website === undefined ? 'https://baltic.example' : over.website,
         country: over.country ?? 'France',
         foundedYearEst: 2017,
         annotation: over.annotation,
@@ -107,6 +148,10 @@ describe('AnnotationDraftService', () => {
   const draftFor = (brandId: string) =>
     prisma.brandAnnotationDraft.findUnique({ where: { brandId } });
 
+  /** The prompt this run built for one particular Brand. */
+  const promptAbout = (name: string) =>
+    anthropic.prompts.find((p) => p.includes(name));
+
   describe('what it drafts', () => {
     it('stores the facts a writer needs', async () => {
       const brand = await arrangeBrand();
@@ -118,7 +163,7 @@ describe('AnnotationDraftService', () => {
       const facts = draft?.facts as Record<string, unknown>;
       expect(facts.movementSupplier).toBe('Sellita');
       expect(facts.knownFor).toEqual(['bronze divers', 'field watches']);
-      expect(draft?.sufficient).toBe(true);
+      expect(draft?.status).toBe(DraftStatus.usable);
     });
 
     it('carries what we already knew, rather than paying to be told again', async () => {
@@ -142,15 +187,16 @@ describe('AnnotationDraftService', () => {
       expect(draft?.inputTokens).toBe(900);
       expect(draft?.outputTokens).toBe(120);
       expect(run.usage.inputTokens).toBeGreaterThanOrEqual(900);
-      // Haiku: 900/1e6 * $1 + 120/1e6 * $5.
-      expect(run.costUsd).toBeCloseTo(0.0009 + 0.0006, 6);
+      // Haiku: 900/1e6 * $1 + 120/1e6 * $5, times however many brands ran.
+      const brands = run.brands.length;
+      expect(run.costUsd).toBeCloseTo((0.0009 + 0.0006) * brands, 6);
     });
 
     it('replaces a Brand’s previous draft rather than stacking them up', async () => {
       const brand = await arrangeBrand();
 
       await drafts.draft({ limit: 5, confirm: true, brandSlugs: [brand.slug] });
-      anthropic.facts = { ...anthropic.facts!, movement_supplier: 'Miyota' };
+      anthropic.facts = { ...DEFAULT_FACTS, movement_supplier: 'Miyota' };
       await drafts.draft({ limit: 5, confirm: true, brandSlugs: [brand.slug] });
 
       const all = await prisma.brandAnnotationDraft.findMany({
@@ -160,6 +206,69 @@ describe('AnnotationDraftService', () => {
       expect((all[0].facts as Record<string, unknown>).movementSupplier).toBe(
         'Miyota',
       );
+    });
+  });
+
+  describe('what it shows the model', () => {
+    it('shows the brand’s own site rather than asking it to remember', async () => {
+      // The failure this prevents: a model asked about an obscure microbrand
+      // from memory invents a movement supplier with total confidence.
+      const brand = await arrangeBrand();
+
+      await drafts.draft({ limit: 5, confirm: true, brandSlugs: [brand.slug] });
+
+      expect(fetcher.urls).toContain('https://baltic.example');
+      expect(promptAbout(brand.name)).toContain('assembled in Morteau');
+    });
+
+    it('shows the Watches and Drops we already track', async () => {
+      const brand = await arrangeBrand();
+      await prisma.watch.create({
+        data: {
+          brandId: brand.id,
+          name: 'Aquascaphe Bronze',
+          slug: `aq-${brand.slug}`,
+          key: `aq-${brand.slug}`,
+        },
+      });
+
+      await drafts.draft({ limit: 5, confirm: true, brandSlugs: [brand.slug] });
+
+      expect(promptAbout(brand.name)).toContain('Aquascaphe Bronze');
+    });
+
+    it('does not read a site robots.txt disallows', async () => {
+      // Drafting is not an excuse to stop reading these sites politely.
+      robots.allowed = false;
+      const brand = await arrangeBrand();
+
+      await drafts.draft({ limit: 5, confirm: true, brandSlugs: [brand.slug] });
+
+      expect(fetcher.urls).toHaveLength(0);
+      const draft = await draftFor(brand.id);
+      expect(draft?.note).toMatch(/robots\.txt/i);
+    });
+
+    it('tells the writer when the site could not be read', async () => {
+      // A good-looking draft assembled from nothing is the dangerous case: the
+      // writer should know the site was unreachable before trusting it.
+      fetcher.throwWith = new Error('ECONNREFUSED');
+      const brand = await arrangeBrand();
+
+      await drafts.draft({ limit: 5, confirm: true, brandSlugs: [brand.slug] });
+
+      const draft = await draftFor(brand.id);
+      expect(draft?.status).toBe(DraftStatus.usable);
+      expect(draft?.note).toMatch(/ECONNREFUSED/);
+    });
+
+    it('drafts a Brand we hold no website for, and says so', async () => {
+      const brand = await arrangeBrand({ website: null });
+
+      await drafts.draft({ limit: 5, confirm: true, brandSlugs: [brand.slug] });
+
+      expect(fetcher.urls).toHaveLength(0);
+      expect((await draftFor(brand.id))?.note).toMatch(/no website/i);
     });
   });
 
@@ -215,16 +324,34 @@ describe('AnnotationDraftService', () => {
       const run = await drafts.draft({ limit: 5, confirm: true });
 
       const draft = await draftFor(brand.id);
-      expect(draft?.sufficient).toBe(false);
-      expect(draft?.note).toMatch(/nothing/i);
-      expect(run.insufficient).toBeGreaterThanOrEqual(1);
+      expect(draft?.status).toBe(DraftStatus.empty);
+      expect(draft?.note).toMatch(/not enough|nothing/i);
+      expect(run.empty).toBeGreaterThanOrEqual(1);
+    });
+
+    it('drops a "fact" copied out of the brand’s own page', async () => {
+      // The guard that matters once the site is fetched (CONTEXT.md §6): a
+      // tagline is short, so a length cap alone waves it straight through.
+      fetcher.body =
+        '<html><body><p>Vintage-inspired mechanical watches for every day.</p></body></html>';
+      anthropic.facts = {
+        ...DEFAULT_FACTS,
+        signature_watch: 'Vintage-inspired mechanical watches',
+      };
+      const brand = await arrangeBrand();
+
+      await drafts.draft({ limit: 5, confirm: true, brandSlugs: [brand.slug] });
+
+      const facts = (await draftFor(brand.id))?.facts as Record<string, unknown>;
+      expect(facts.signatureWatch).toBeNull();
+      // The facts it did not copy still stand.
+      expect(facts.movementSupplier).toBe('Sellita');
     });
 
     it('drops a "fact" that arrived as a sentence', async () => {
-      // The copyright rule (CONTEXT.md §6) and the whole point of the split: a
-      // tag is "bronze divers", not a clause lifted from the brand's own copy.
+      // The whole point of the split: a tag is "bronze divers", not a clause.
       anthropic.facts = {
-        ...anthropic.facts!,
+        ...DEFAULT_FACTS,
         known_for: [
           'bronze divers',
           'Baltic is a French microbrand founded in 2017 whose vintage-inspired designs have won a devoted following.',
@@ -238,13 +365,11 @@ describe('AnnotationDraftService', () => {
       expect(facts.knownFor).toEqual(['bronze divers']);
     });
 
-    it('says so when everything it was handed read like prose', async () => {
+    it('says so when too little survived to brief anyone', async () => {
       anthropic.facts = {
         movement_supplier: null,
         in_house_movement: null,
-        known_for: [
-          'Baltic is a French microbrand whose vintage-inspired designs have won a devoted following among collectors.',
-        ],
+        known_for: ['bronze divers'],
         signature_watch: null,
         assembled_in: null,
       };
@@ -253,12 +378,13 @@ describe('AnnotationDraftService', () => {
       await drafts.draft({ limit: 5, confirm: true });
 
       const draft = await draftFor(brand.id);
-      expect(draft?.sufficient).toBe(false);
+      expect(draft?.status).toBe(DraftStatus.empty);
+      expect(draft?.note).toMatch(/1 usable fact/i);
     });
 
     it('keeps at most four tags, however many arrive', async () => {
       anthropic.facts = {
-        ...anthropic.facts!,
+        ...DEFAULT_FACTS,
         known_for: ['a', 'b', 'c', 'd', 'e', 'f'],
       };
       const brand = await arrangeBrand();
@@ -288,7 +414,42 @@ describe('AnnotationDraftService', () => {
 
       await drafts.draft({ limit: 20, confirm: true });
 
-      expect(anthropic.prompts.some((p) => p.includes(brand.name))).toBe(false);
+      expect(promptAbout(brand.name)).toBeUndefined();
+    });
+
+    it('leaves a Brand we already answered "nothing" for alone', async () => {
+      // An empty answer is an answer. Asking again spends money to be told the
+      // same thing.
+      anthropic.facts = {
+        movement_supplier: null,
+        in_house_movement: null,
+        known_for: [],
+        signature_watch: null,
+        assembled_in: null,
+      };
+      const brand = await arrangeBrand();
+      await drafts.draft({ limit: 5, confirm: true, brandSlugs: [brand.slug] });
+      anthropic.facts = { ...DEFAULT_FACTS };
+      anthropic.prompts = [];
+
+      await drafts.draft({ limit: 20, confirm: true });
+
+      expect(promptAbout(brand.name)).toBeUndefined();
+    });
+
+    it('asks again about a Brand it could not ask about', async () => {
+      // A transient API error is not an answer. Treating it as one would drop
+      // a Brand from the catalogue's coverage until somebody named its slug.
+      const brand = await arrangeBrand();
+      anthropic.throwWith = new Error('model unavailable');
+      await drafts.draft({ limit: 5, confirm: true, brandSlugs: [brand.slug] });
+      anthropic.throwWith = null;
+      anthropic.prompts = [];
+
+      await drafts.draft({ limit: 20, confirm: true });
+
+      expect(promptAbout(brand.name)).toBeDefined();
+      expect((await draftFor(brand.id))?.status).toBe(DraftStatus.usable);
     });
 
     it('drafts a named Brand even when it already has one', async () => {
@@ -299,7 +460,7 @@ describe('AnnotationDraftService', () => {
 
       await drafts.draft({ limit: 5, confirm: true, brandSlugs: [brand.slug] });
 
-      expect(anthropic.prompts.some((p) => p.includes(brand.name))).toBe(true);
+      expect(promptAbout(brand.name)).toBeDefined();
     });
   });
 
@@ -330,6 +491,30 @@ describe('AnnotationDraftService', () => {
         6,
       );
     });
+
+    it('estimates the whole catalogue, but only ever spends on a hundred', async () => {
+      // The criterion is budgeting a 300-Brand catalogue. Clamping the free
+      // estimate would leave the operator extrapolating by hand — which is the
+      // arithmetic this exists to do. Clamping the spend is the safety rail.
+      const tag = randomUUID().slice(0, 8);
+      await prisma.brand.createMany({
+        data: Array.from({ length: 101 }, (_, i) => ({
+          name: `Bulk ${tag} ${i}`,
+          slug: `bulk-${tag}-${i}`,
+          status: BrandStatus.listed,
+        })),
+      });
+      try {
+        const dry = await drafts.draft({ limit: 500 });
+        expect(dry.estimate!.brands).toBeGreaterThan(100);
+
+        const spend = await drafts.draft({ limit: 500, confirm: true });
+        expect(spend.candidates).toBe(100);
+        expect(anthropic.prompts).toHaveLength(100);
+      } finally {
+        await prisma.brand.deleteMany({ where: { slug: { startsWith: `bulk-${tag}-` } } });
+      }
+    });
   });
 
   describe('when it cannot run at all', () => {
@@ -349,7 +534,7 @@ describe('AnnotationDraftService', () => {
 
       expect(run.failed).toBeGreaterThanOrEqual(1);
       const draft = await draftFor(brand.id);
-      expect(draft?.sufficient).toBe(false);
+      expect(draft?.status).toBe(DraftStatus.failed);
       expect(draft?.note).toMatch(/model unavailable/i);
     });
   });

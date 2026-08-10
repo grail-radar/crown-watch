@@ -26,6 +26,15 @@ import { WatchWriterService } from './watch-writer.service';
     AdminGuard,
     { provide: SiteFetcher, useClass: HttpSiteFetcher },
   ],
-  exports: [SiteWatchService, StoreProbe, WatchKindBackfillService],
+  // RobotsService and the fetch seam are exported so the Annotation drafting
+  // in `moderation/` reads a brand's own site through the same politeness
+  // rules a poll does, rather than growing a second fetcher of its own.
+  exports: [
+    SiteWatchService,
+    StoreProbe,
+    WatchKindBackfillService,
+    RobotsService,
+    SiteFetcher,
+  ],
 })
 export class SiteWatchModule {}
