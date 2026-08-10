@@ -22,6 +22,7 @@ import {
   hashSnapshot,
   normalizeSnapshot,
   ProductSnapshot,
+  signalHash,
 } from './snapshot';
 import { diffWatches, WatchEvent, WatchEventKind } from './watch-events';
 import { GroupingRules } from './watch-grouping';
@@ -108,8 +109,24 @@ export interface SiteWatchSourceResult {
   skippedReason?: string;
   /** Why the poll was refused, and how far over the threshold it was. */
   refusedReason?: string;
-  /** true when the store differs from what it showed at the previous poll */
+  /**
+   * true when the store differs from the catalogue we last saw it show.
+   *
+   * "Last saw", not "last stored": those parted company the moment a cosmetic
+   * poll stopped storing anything, so this is measured against
+   * `sources.last_content_hash`. A store that moves a price once and then
+   * settles reports `changed` on that poll and on no other.
+   */
   changed: boolean;
+  /**
+   * Whether this poll's catalogue was written to the landing zone.
+   *
+   * False on a store that has not moved, and — the point of #25 — on one whose
+   * only movement was a price, a currency label or a photograph. None of those
+   * can raise a Drop, so storing the payload would be recording an observation
+   * nobody will ever read.
+   */
+  snapshotStored: boolean;
   /** true when this was the source's first ever snapshot */
   baseline: boolean;
   productCount: number;
@@ -288,6 +305,7 @@ export class SiteWatchService {
       consecutiveFailures: source.consecutiveFailures,
       nextAttemptAt: source.nextAttemptAt?.toISOString() ?? null,
       changed: false,
+      snapshotStored: false,
       baseline: false,
       productCount: 0,
       watchesRecorded: 0,
@@ -391,14 +409,46 @@ export class SiteWatchService {
       const previous = await this.previousSnapshot(source.id);
       const snapshotHash = hashSnapshot(products);
 
+      // Two questions, and they are not the same question.
+      //
+      // `changed` — did the store's answer move at all? That is what an
+      //   operator means by "did anything happen", and what the catalogue
+      //   needs, since a price is real even when it is not news.
+      // `announceable` — did it move in a way anybody could be told about? Only
+      //   a product URL never seen before and availability turning true raise a
+      //   Drop, so only those are worth a stored observation (#25).
+      //
       // Compare against the PREVIOUS poll only. A catalogue legitimately
       // returns to an earlier state — in stock, sold out, in stock again — and
       // that return is precisely the restock we exist to catch.
-      if (previous && hashSnapshot(previous) === snapshotHash) {
-        // Nothing moved, so there is normally nothing to record. Two cases
-        // still need the catalogue rebuilt, and both are about *our* state
-        // changing rather than the store's:
+      //
+      // `changed` is measured against what the store last *showed us*, held on
+      // the source, and not against the stored payload. Those parted company
+      // the moment a cosmetic poll stopped storing anything: a store that moved
+      // a price once and then settled would otherwise read as changed at every
+      // poll from then on, and re-upsert its whole catalogue hourly for ever.
+      //
+      // Not solved by rewriting the stored snapshot in place, though that is
+      // the obvious fix: that row is a Drop's `source_event_id`, and
+      // overwriting it would rewrite the provenance of an announcement that had
+      // already gone out.
+      const contentMoved = source.lastContentHash !== snapshotHash;
+      const signalMoved = !previous || signalHash(previous) !== signalHash(products);
+      result.changed = contentMoved;
+
+      if (previous && !signalMoved) {
+        // Nothing here can become a Drop, so no snapshot is stored and no diff
+        // is run. YEMA's alternating market price lists were writing six to
+        // eight payloads a day this way, every one of them a no-op.
         //
+        // The catalogue is a different matter, and is rebuilt for any of three
+        // reasons. The first is about the store; the other two are about *our*
+        // state changing rather than the store's:
+        //
+        //  - the store moved on a field this hash ignores — a price, a currency
+        //    label, a photograph. Real, not news, and the brand page reads
+        //    prices off Variants rather than off snapshots, so skipping this
+        //    would quietly staleness the site instead of the landing zone
         //  - the brand has no Watches at all, which is true of every source
         //    registered before Watches existed
         //  - this brand has grouping overrides, which an operator may have just
@@ -407,26 +457,23 @@ export class SiteWatchService {
         //    leave it unapplied indefinitely (ADR-0003 requires no deploy *and*
         //    no waiting).
         //
-        // Recording is idempotent and announces nothing, so doing it on an
-        // unchanged store costs upserts and interrupts nobody.
+        // Recording is idempotent and announces nothing, so doing it costs
+        // upserts and interrupts nobody. A store that has not moved at all and
+        // needs nothing from us writes nothing but its own `last_polled_at`.
         const known = await this.prisma.watch.count({
           where: { brandId: source.brandId },
         });
-        if (known === 0 || overrides.length > 0 || corrected.length > 0) {
+        if (contentMoved || known === 0 || overrides.length > 0 || corrected.length > 0) {
           const recorded = await this.watches.record(
             source.brandId,
             brand.slug,
             products,
             rules,
           );
-          result.watchesRecorded = recorded.watches;
-          result.accessoriesRecorded = recorded.accessories;
-          result.newAccessories = recorded.newAccessories;
-          result.groupingOverridesApplied = recorded.overridesApplied;
-          result.groupingOverridesUnmatched = recorded.overridesUnmatched;
+          this.applyRecorded(result, recorded);
         }
-        await this.recordSuccess(source.id, result);
-        return result; // store unchanged since last poll
+        await this.recordSuccess(source.id, result, snapshotHash);
+        return result; // nothing here could have been announced
       }
 
       // What this poll would announce, worked out before anything at all is
@@ -482,19 +529,16 @@ export class SiteWatchService {
         products,
         rules,
       );
-      result.watchesRecorded = recorded.watches;
-      result.accessoriesRecorded = recorded.accessories;
-      result.newAccessories = recorded.newAccessories;
-      result.groupingOverridesApplied = recorded.overridesApplied;
-      result.groupingOverridesUnmatched = recorded.overridesUnmatched;
+      this.applyRecorded(result, recorded);
 
       const created = await this.storeSnapshot(source.id, products, snapshotHash);
       result.changed = true;
+      result.snapshotStored = true;
 
       if (!previous) {
         // First sight of this store: remember it, announce nothing.
         result.baseline = true;
-        await this.recordSuccess(source.id, result);
+        await this.recordSuccess(source.id, result, snapshotHash);
         this.logger.log(
           `[${source.name ?? source.endpoint}] baseline recorded (${products.length} products)`,
         );
@@ -574,7 +618,7 @@ export class SiteWatchService {
         });
       }
 
-      await this.recordSuccess(source.id, result);
+      await this.recordSuccess(source.id, result, snapshotHash);
       this.logger.log(
         `[${source.name ?? source.endpoint}] ${products.length} products, ` +
           `${result.dropsCreated} drop(s), ${result.broadcastsSent} broadcast(s)`,
@@ -700,6 +744,7 @@ export class SiteWatchService {
   private async recordSuccess(
     sourceId: string,
     result: SiteWatchSourceResult,
+    contentHash: string,
   ): Promise<void> {
     result.health = SourceHealth.healthy;
     result.consecutiveFailures = 0;
@@ -712,6 +757,13 @@ export class SiteWatchService {
         consecutiveFailures: 0,
         nextAttemptAt: null,
         lastError: null,
+        // What this store showed us, stored or not. Recorded on every poll that
+        // completed, so the next one compares against what we last saw rather
+        // than against the last payload we thought worth keeping.
+        //
+        // Deliberately not written by `refuse`: a refused poll records nothing
+        // by design, so its refusal stays repeatable (ADR-0005).
+        lastContentHash: contentHash,
       },
     });
   }
@@ -754,6 +806,30 @@ export class SiteWatchService {
     return change.kind === 'restock' ? DropType.restock : DropType.pre_order;
   }
 
+  /**
+   * Copy what the catalogue writer did onto the poll report.
+   *
+   * One place, because the two paths that record a catalogue — a poll with
+   * nothing to announce and a poll with something — must report it identically
+   * or an operator reading a run learns different things about the same work.
+   */
+  private applyRecorded(
+    result: SiteWatchSourceResult,
+    recorded: {
+      watches: number;
+      accessories: number;
+      newAccessories: string[];
+      overridesApplied: number;
+      overridesUnmatched: string[];
+    },
+  ): void {
+    result.watchesRecorded = recorded.watches;
+    result.accessoriesRecorded = recorded.accessories;
+    result.newAccessories = recorded.newAccessories;
+    result.groupingOverridesApplied = recorded.overridesApplied;
+    result.groupingOverridesUnmatched = recorded.overridesUnmatched;
+  }
+
   /** The most recent snapshot held for this source, or null on first sight. */
   private async previousSnapshot(
     sourceId: string,
@@ -767,6 +843,7 @@ export class SiteWatchService {
     const payload = event.rawPayload as unknown;
     return Array.isArray(payload) ? (payload as ProductSnapshot[]) : null;
   }
+
 
   /**
    * Persist the snapshot in the landing zone.

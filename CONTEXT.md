@@ -224,6 +224,12 @@ gift card. Recorded in full and shown on the Brand page; never a Drop, and never
 a Channel (ADR-0006).
 _Avoid_: merch, extra, add-on, product.
 
+**Signal**:
+The part of a store's catalogue that can become a Drop: product URLs, titles, and whether
+each is buyable. A poll whose Signal has not moved announces nothing and stores nothing,
+however much its prices and photographs have shifted (ADR-0008).
+_Avoid_: alert identity, announceable state, diff key.
+
 **Price band**:
 What a Brand's watches cost, cheapest to dearest, read off their Variants and never typed
 in by anyone. Accessories are excluded, and it carries a currency only when every priced

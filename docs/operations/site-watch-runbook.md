@@ -337,6 +337,29 @@ broader broke: the API was unreachable, or the secrets are missing.
 A transient failure needs no intervention. The next run polls from scratch, and
 a source that failed is retried once its backoff window expires.
 
+### `changed: true` with `snapshotStored: false`
+
+Not a fault. The store moved on something nobody can be alerted about — a price,
+a currency label, a photograph — so the catalogue was refreshed and no snapshot
+was written. YEMA does this several times a day; the reasoning is
+[ADR-0008](../adr/0008-a-price-is-a-fact-not-an-event.md).
+
+| `changed` | `snapshotStored` | What happened |
+|---|---|---|
+| `false` | `false` | the store is exactly as we last saw it. Nothing was written but the source's own `last_polled_at` |
+| `true` | `false` | only prices, currencies or images moved. Variants updated, landing zone untouched |
+| `true` | `true` | the Signal moved — a new product URL, or availability turning true |
+
+`changed` means "differs from the catalogue we last **saw**", not "last stored".
+The two part company as soon as a poll stops storing, so what we last saw is kept
+on the source itself (`sources.last_content_hash`). A store that moves a price
+once and then settles reports `changed` on that poll and on no other.
+
+**A price change is never a Drop**, and the price on the site is still current:
+the brand page and the price band read `watch_variants`, which every
+content-moving poll rewrites. What is *not* kept is the history — see the ADR
+before planning anything that needs it.
+
 ---
 
 ## A Drop held back because its link is dead
@@ -789,6 +812,7 @@ Two guards came out of it, deliberately at different levels:
 - [ADR-0005](../adr/0005-an-implausible-poll-is-refused-not-published.md) — why an implausible poll is refused, and why its snapshot is not kept
 - [ADR-0006](../adr/0006-accessories-are-classified-not-excluded.md) — why a strap is recorded but never announced
 - [ADR-0007](../adr/0007-a-dead-link-demotes-a-drop-rather-than-discarding-it.md) — why a Drop with a dead link waits for a human instead of being thrown away
+- [ADR-0008](../adr/0008-a-price-is-a-fact-not-an-event.md) — why a price movement is never announced, and why a price-only poll stores nothing
 - [README](../../README.md#telegram-drop-broadcast-contextmd-2) — channel setup and backfilling
 
 ---
