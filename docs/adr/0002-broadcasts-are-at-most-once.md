@@ -4,6 +4,12 @@
 **Date:** 2026-07-28
 **Context issue:** [#1](https://github.com/grail-radar/crown-watch/issues/1), implemented by [#4](https://github.com/grail-radar/crown-watch/issues/4)
 
+> **Amended 2026-08-10.** A claim row may be deleted in exactly one case: it
+> names a Channel that does not exist, so no message was ever sent and there is
+> no "already told" fact to protect. `sweep:claims` does this and refuses any
+> chat id the dispatcher currently posts to. See the new consequence below,
+> [#48](https://github.com/grail-radar/crown-watch/issues/48).
+
 ## Context
 
 Detected drops are broadcast to two public Telegram channels, one Ukrainian and
@@ -53,6 +59,25 @@ which is precisely the "restart mid-run" case.
 
 ## Consequences
 
+- **A claim row is deletable only where it records a message that was never
+  sent.** The rule this ADR states is about what a row *means*: "this Drop
+  reached this Channel". A claim against a Channel that does not exist means
+  nothing of the kind — no follower saw anything, and there is no repetition to
+  prevent. Those rows are pure cost: `purge:broadcasts` fails on them with "chat
+  not found" on every run, for ever, and every count they appear in is wrong.
+
+  `sweep:claims` (#48) deletes them, and the guard that keeps this from becoming
+  a hole in the rule is that it **refuses any chat id the dispatcher currently
+  posts to**, reading that list from `AlertDispatchService.channels()` rather
+  than rebuilding it. Deleting a live Channel's claims would make every one of
+  its Drops a candidate again, which is precisely the harm this ADR exists to
+  prevent. It names chats explicitly — never a pattern — and there is no "all".
+
+  The residual risk is stated rather than designed away: if a Channel with a
+  swept chat id were ever configured for real, its Drops would be announced to
+  it. `@crownwatch_ua_v2` is a string from a spec file and no such chat exists,
+  so this is theoretical — but it is the reason the sweep takes explicit ids and
+  refuses to guess.
 - A transient Telegram outage silently costs those drops their alerts. They are
   visible on the feed and in the digest, and `drop_broadcasts.error` records
   what happened, but nothing re-sends them.

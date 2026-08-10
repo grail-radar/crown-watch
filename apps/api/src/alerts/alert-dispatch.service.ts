@@ -185,8 +185,13 @@ export class AlertDispatchService implements OnApplicationShutdown {
    *
    * Ours come first, so the channel we control is the first to have a drop and
    * a partner group never carries something our own followers have not seen.
+   *
+   * Public because `BroadcastClaimSweepService` has to know what a *live*
+   * Channel is before it deletes a claim row, and it must know it from the same
+   * place the dispatcher does. Two answers to "where do we post" is how a sweep
+   * ends up destroying the evidence that a real Channel was already told.
    */
-  private channels(): BroadcastChannel[] {
+  channels(): BroadcastChannel[] {
     const own = ALERT_LOCALES.flatMap((locale) => {
       const chatId = this.config.get<string>(`telegram.channels.${locale}`);
       // The key is the bare chat id, which is what every claim written before

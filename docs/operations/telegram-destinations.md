@@ -170,6 +170,58 @@ doing, and is not the same as undoing it.
 
 ---
 
+## Sweeping claims against a channel that never existed
+
+The one case where deleting a `drop_broadcasts` row is correct, and the reason
+the section above is so insistent that it never does.
+
+A claim row means "this drop reached this channel". A claim against a chat that
+does not exist means nothing of the kind: no follower saw anything, so there is
+no repetition to prevent. What those rows do instead is make every count wrong
+and make `purge:broadcasts` report failures that are not failures — it tries to
+delete posts in a chat Telegram has never heard of, and gets "chat not found"
+every time, for ever.
+
+Written for #48: on 2026-08-07 the tests ran against production, and
+`@crownwatch_ua_v2` — a handle that exists only in
+`alert-dispatch.service.spec.ts` — took 30 claims.
+
+```bash
+pnpm --filter @crown-watch/api sweep:claims -- --chat=@crownwatch_ua_v2
+```
+
+Dry run by default. It prints the claim count, how many say a message went out,
+and the drops involved, and changes nothing. **Read that list.** Then:
+
+```bash
+pnpm --filter @crown-watch/api sweep:claims -- --chat=@crownwatch_ua_v2 --confirm
+```
+
+Afterwards it prints row counts for drops, brands, sources and broadcasts,
+before and after. Only the last should have moved; it says so loudly if
+anything else did.
+
+**What it refuses**
+
+- **Any chat id the bot currently posts to.** It reads that list from the
+  dispatcher itself, so the guard cannot drift from where alerts actually go.
+  Deleting a live channel's claims would offer every one of those drops to it
+  again, and followers would be told a second time about releases they have
+  already seen ([ADR-0002](../adr/0002-broadcasts-are-at-most-once.md)).
+- **A run naming both a ghost and a live channel** — the whole run stops rather
+  than doing the safe half, so a mistyped id is an error and not a partly
+  applied sweep.
+- **An empty list.** There is deliberately no "sweep everything".
+
+A chat id matching no claims at all is reported as unmatched rather than passing
+silently, because a typo otherwise looks exactly like a finished job.
+
+**Before running it against production**, re-check what is actually there — the
+ticket's original figures were wrong, and the audit on
+[#48](https://github.com/grail-radar/crown-watch/issues/48) is the corrected one.
+
+---
+
 ## Removing a group
 
 Delete its entry from `TELEGRAM_GROUPS` and redeploy. Nothing else is needed:
