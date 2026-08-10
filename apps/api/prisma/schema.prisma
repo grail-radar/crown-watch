@@ -111,6 +111,19 @@ model Source {
   // data means adding a brand on a supported platform needs no code change.
   watchConfig  Json?        @map("watch_config")
   lastPolledAt DateTime?    @map("last_polled_at")
+  /// Hash of the catalogue this source last *showed us*, whether or not that
+  /// observation was worth storing.
+  ///
+  /// Tier 4 only. A poll whose only movement is a price, a currency label or a
+  /// photograph stores no snapshot (ADR-0008), so the stored payload is not a
+  /// record of what we last saw — and comparing against it would make a store
+  /// that moved a price once and then settled read as changed at every poll
+  /// from then on, re-upserting its whole catalogue hourly for ever.
+  ///
+  /// Kept here rather than by rewriting the snapshot in place, because that row
+  /// is a Drop's `source_event_id`: overwriting it would rewrite the provenance
+  /// of an announcement that had already gone out.
+  lastContentHash String?   @map("last_content_hash")
   healthStatus SourceHealth @default(unknown) @map("health_status")
   // Politeness state. A store that errors or rate-limits us is asking to be
   // left alone for a while; persisting that request is what makes it survive a

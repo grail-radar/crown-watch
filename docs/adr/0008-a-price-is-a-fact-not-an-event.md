@@ -22,8 +22,9 @@ price belongs in the snapshot's identity and there is nothing to fix.
 
 ## Decision
 
-**Price movement raises no Drop.** Price, currency and image leave the snapshot's
-alerting identity; a poll whose only movement is one of them stores nothing.
+**Price movement raises no Drop.** Price, currency and image leave the **Signal**
+— the part of a store's catalogue that can become a Drop (`CONTEXT.md` §9). A
+poll whose Signal has not moved stores nothing.
 
 **Title stays in that identity**, though a retitle raises no Drop either.
 `groupByWatch` derives its key from the title, so the titles in the *stored*
@@ -36,12 +37,19 @@ happened.
 A price is a fact about a Watch and belongs on its Variant, where the brand page
 and the price band read it. Only the *landing zone* goes quiet.
 
-**A poll that finds nothing announceable refreshes the stored snapshot in place**
-rather than adding a row. The landing zone stops growing, which is the point,
-*and* the baseline stays current — without that second half, "changed" would be
-measured against the last **stored** payload rather than the last one **seen**,
-so a store that moved a price once and then settled would read as changed at
-every poll from then on and re-upsert its whole catalogue hourly, for ever.
+**What the store last showed us is recorded on the source**, in
+`sources.last_content_hash`, separately from what was last stored. Those two
+part company the moment a cosmetic poll stops storing anything, and without the
+first one "changed" would be measured against the last **stored** payload rather
+than the last one **seen** — so a store that moved a price once and then settled
+would read as changed at every poll from then on and re-upsert its whole
+catalogue hourly, for ever.
+
+Deliberately **not** solved by rewriting the stored snapshot in place, which is
+the obvious fix and the wrong one: that row is a Drop's `source_event_id`, so
+overwriting it would rewrite the provenance of an announcement that had already
+been sent, and would make this the one place the project discards raw fetched
+content against `CONTEXT.md` §5.
 
 ## Why price movement is not an event, for now
 
@@ -105,9 +113,10 @@ one.
   it is a change to a safety guard, so ADR-0005 is amended rather than quietly
   overridden, and both directions are asserted in the tests: a settled return is
   released, a store still flooding stays held whatever its prices say.
-- **The stored payload is overwritten on a quiet poll**, which is the one place
-  this project deliberately discards raw content (`CONTEXT.md` §5). What is
-  discarded is precisely the observation we decided not to keep, and only ever
-  in favour of a newer one of the same announceable state.
+- **No raw content is ever overwritten or deleted.** `CONTEXT.md` §5 stands
+  untouched: a quiet poll simply writes no payload. The observation is not kept,
+  which is the accepted cost above; nothing that *was* kept is disturbed, and no
+  Drop's `source_event_id` ever points at a payload other than the one that
+  produced it.
 - **`snapshotStored` appears in the poll report**, so an operator can see the
   difference between "nothing happened" and "nothing worth recording happened".

@@ -112,9 +112,10 @@ export interface SiteWatchSourceResult {
   /**
    * true when the store differs from the catalogue we last saw it show.
    *
-   * "Last saw", not "last stored": a poll that finds nothing announceable
-   * refreshes the stored payload in place, so a store that moves a price once
-   * and then settles reports `changed` on that poll and on no other.
+   * "Last saw", not "last stored": those parted company the moment a cosmetic
+   * poll stopped storing anything, so this is measured against
+   * `sources.last_content_hash`. A store that moves a price once and then
+   * settles reports `changed` on that poll and on no other.
    */
   changed: boolean;
   /**
@@ -405,8 +406,7 @@ export class SiteWatchService {
         ),
       };
 
-      const previousRow = await this.previousSnapshot(source.id);
-      const previous = previousRow?.products ?? null;
+      const previous = await this.previousSnapshot(source.id);
       const snapshotHash = hashSnapshot(products);
 
       // Two questions, and they are not the same question.
@@ -421,7 +421,18 @@ export class SiteWatchService {
       // Compare against the PREVIOUS poll only. A catalogue legitimately
       // returns to an earlier state — in stock, sold out, in stock again — and
       // that return is precisely the restock we exist to catch.
-      const contentMoved = !previous || hashSnapshot(previous) !== snapshotHash;
+      //
+      // `changed` is measured against what the store last *showed us*, held on
+      // the source, and not against the stored payload. Those parted company
+      // the moment a cosmetic poll stopped storing anything: a store that moved
+      // a price once and then settled would otherwise read as changed at every
+      // poll from then on, and re-upsert its whole catalogue hourly for ever.
+      //
+      // Not solved by rewriting the stored snapshot in place, though that is
+      // the obvious fix: that row is a Drop's `source_event_id`, and
+      // overwriting it would rewrite the provenance of an announcement that had
+      // already gone out.
+      const contentMoved = source.lastContentHash !== snapshotHash;
       const signalMoved = !previous || signalHash(previous) !== signalHash(products);
       result.changed = contentMoved;
 
@@ -459,21 +470,9 @@ export class SiteWatchService {
             products,
             rules,
           );
-          result.watchesRecorded = recorded.watches;
-          result.accessoriesRecorded = recorded.accessories;
-          result.newAccessories = recorded.newAccessories;
-          result.groupingOverridesApplied = recorded.overridesApplied;
-          result.groupingOverridesUnmatched = recorded.overridesUnmatched;
+          this.applyRecorded(result, recorded);
         }
-        // Bring the baseline up to date in place. Without this the comparison
-        // above is against the last *stored* payload rather than the last one
-        // *seen*, so a store that moved a price once and then settled would
-        // read as changed at every poll from then on, and re-upsert its whole
-        // catalogue hourly for ever.
-        if (contentMoved && previousRow) {
-          await this.refreshSnapshot(previousRow.id, products, snapshotHash);
-        }
-        await this.recordSuccess(source.id, result);
+        await this.recordSuccess(source.id, result, snapshotHash);
         return result; // nothing here could have been announced
       }
 
@@ -530,11 +529,7 @@ export class SiteWatchService {
         products,
         rules,
       );
-      result.watchesRecorded = recorded.watches;
-      result.accessoriesRecorded = recorded.accessories;
-      result.newAccessories = recorded.newAccessories;
-      result.groupingOverridesApplied = recorded.overridesApplied;
-      result.groupingOverridesUnmatched = recorded.overridesUnmatched;
+      this.applyRecorded(result, recorded);
 
       const created = await this.storeSnapshot(source.id, products, snapshotHash);
       result.changed = true;
@@ -543,7 +538,7 @@ export class SiteWatchService {
       if (!previous) {
         // First sight of this store: remember it, announce nothing.
         result.baseline = true;
-        await this.recordSuccess(source.id, result);
+        await this.recordSuccess(source.id, result, snapshotHash);
         this.logger.log(
           `[${source.name ?? source.endpoint}] baseline recorded (${products.length} products)`,
         );
@@ -623,7 +618,7 @@ export class SiteWatchService {
         });
       }
 
-      await this.recordSuccess(source.id, result);
+      await this.recordSuccess(source.id, result, snapshotHash);
       this.logger.log(
         `[${source.name ?? source.endpoint}] ${products.length} products, ` +
           `${result.dropsCreated} drop(s), ${result.broadcastsSent} broadcast(s)`,
@@ -749,6 +744,7 @@ export class SiteWatchService {
   private async recordSuccess(
     sourceId: string,
     result: SiteWatchSourceResult,
+    contentHash: string,
   ): Promise<void> {
     result.health = SourceHealth.healthy;
     result.consecutiveFailures = 0;
@@ -761,6 +757,13 @@ export class SiteWatchService {
         consecutiveFailures: 0,
         nextAttemptAt: null,
         lastError: null,
+        // What this store showed us, stored or not. Recorded on every poll that
+        // completed, so the next one compares against what we last saw rather
+        // than against the last payload we thought worth keeping.
+        //
+        // Deliberately not written by `refuse`: a refused poll records nothing
+        // by design, so its refusal stays repeatable (ADR-0005).
+        lastContentHash: contentHash,
       },
     });
   }
@@ -804,67 +807,43 @@ export class SiteWatchService {
   }
 
   /**
-   * The most recent snapshot held for this source, or null on first sight.
+   * Copy what the catalogue writer did onto the poll report.
    *
-   * The row id comes back with it because a poll that finds nothing
-   * announceable refreshes this row in place rather than adding one — see
-   * {@link refreshSnapshot}.
+   * One place, because the two paths that record a catalogue — a poll with
+   * nothing to announce and a poll with something — must report it identically
+   * or an operator reading a run learns different things about the same work.
    */
+  private applyRecorded(
+    result: SiteWatchSourceResult,
+    recorded: {
+      watches: number;
+      accessories: number;
+      newAccessories: string[];
+      overridesApplied: number;
+      overridesUnmatched: string[];
+    },
+  ): void {
+    result.watchesRecorded = recorded.watches;
+    result.accessoriesRecorded = recorded.accessories;
+    result.newAccessories = recorded.newAccessories;
+    result.groupingOverridesApplied = recorded.overridesApplied;
+    result.groupingOverridesUnmatched = recorded.overridesUnmatched;
+  }
+
+  /** The most recent snapshot held for this source, or null on first sight. */
   private async previousSnapshot(
     sourceId: string,
-  ): Promise<{ id: string; products: ProductSnapshot[] } | null> {
+  ): Promise<ProductSnapshot[] | null> {
     const event = await this.prisma.rawIngestionEvent.findFirst({
       where: { sourceId },
       orderBy: { fetchedAt: 'desc' },
-      select: { id: true, rawPayload: true },
+      select: { rawPayload: true },
     });
     if (!event) return null;
     const payload = event.rawPayload as unknown;
-    return Array.isArray(payload)
-      ? { id: event.id, products: payload as ProductSnapshot[] }
-      : null;
+    return Array.isArray(payload) ? (payload as ProductSnapshot[]) : null;
   }
 
-  /**
-   * Bring the stored snapshot up to date without adding a row.
-   *
-   * Called when the store moved on a field that can never raise a Drop. Two
-   * things have to be true at once and only an in-place refresh gives both:
-   *
-   *  - **the landing zone must stop growing**, which is the whole of #25
-   *  - **the baseline must stay current**, or every later poll compares a
-   *    settled store against a stale payload, calls it changed, and re-upserts
-   *    the whole catalogue hourly for ever. YEMA's A/B price rotation is the
-   *    loud version of that; a store that changes a price once and never again
-   *    is the quiet one.
-   *
-   * Safe for the diff by construction: this only ever runs when the signal is
-   * unchanged, so every field the diff reads out of the snapshot — product URL,
-   * title, availability — is identical either way. What is replaced is exactly
-   * what nothing reads.
-   */
-  private async refreshSnapshot(
-    id: string,
-    products: ProductSnapshot[],
-    snapshotHash: string,
-  ): Promise<void> {
-    const observedAt = new Date();
-    await this.prisma.rawIngestionEvent.update({
-      where: { id },
-      data: {
-        rawPayload: products as unknown as Prisma.InputJsonValue,
-        // Kept consistent with the payload it identifies, and still carrying
-        // the observation time so the unique constraint cannot reject a
-        // catalogue state that legitimately recurs.
-        contentHash: createHash('sha256')
-          .update(`${snapshotHash}:${observedAt.toISOString()}`)
-          .digest('hex'),
-        // Moves with the payload, so this stays the row `previousSnapshot`
-        // hands back.
-        fetchedAt: observedAt,
-      },
-    });
-  }
 
   /**
    * Persist the snapshot in the landing zone.
