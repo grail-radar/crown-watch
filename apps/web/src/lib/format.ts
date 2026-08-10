@@ -50,6 +50,25 @@ export function formatPrice(
   return fmt((low ?? high) as string);
 }
 
+/**
+ * What a brand has to show for itself, in one phrase — "12 watches", "3 drops",
+ * or null when it has neither yet.
+ *
+ * Watches first, because that is what a reader counts on the page: YEMA read
+ * "4 drops tracked" for what a reader sees as two watches (#28). A brand we
+ * follow only through a publication's RSS has no catalogue of its own indexed,
+ * and falls back to its drops rather than claiming to make nothing.
+ *
+ * One function rather than the same cascade written out on the brand page, the
+ * directory card and the social image — three places that have to agree, and
+ * had drifted apart once already.
+ */
+export function brandTally(watches: number, drops: number): string | null {
+  if (watches > 0) return `${watches} watch${watches === 1 ? '' : 'es'}`;
+  if (drops > 0) return `${drops} drop${drops === 1 ? '' : 's'}`;
+  return null;
+}
+
 /** Coarse relative time: "3 hours ago", "yesterday", "2 months ago". */
 export function relTime(iso: string | null): string {
   if (!iso) return '';

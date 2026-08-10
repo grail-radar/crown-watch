@@ -17,8 +17,12 @@ export interface BrandSummary {
   website: string | null;
   status: string;
   createdAt: string;
-  /** Count of PUBLISHED drops only. */
-  _count: { drops: number };
+  /**
+   * `drops` counts PUBLISHED drops only. `watches` is what the card shows —
+   * accessories excluded, and optional because the website and the API deploy
+   * independently.
+   */
+  _count: { drops: number; watches?: number };
 }
 
 export interface BrandList {
@@ -78,12 +82,13 @@ export interface DropFeed {
 }
 
 /**
- * Something a brand sells that is not a watch — a strap, a bracelet, a box.
+ * One thing a brand sells, as the brand page lists it.
  *
- * A summary only; its own page carries every way to buy it. It never appears
- * as a Drop and never reaches a Channel (ADR-0006).
+ * A summary only; the thing's own page carries every way to buy it. One Watch
+ * however many store products sit beneath it — three YEMA listings for the
+ * Superman Bronze CMM.10 are `variantCount: 3` here, not three entries (#28).
  */
-export interface BrandAccessory {
+export interface BrandWatchSummary {
   id: string;
   name: string;
   slug: string;
@@ -94,6 +99,29 @@ export interface BrandAccessory {
   variantCount: number;
   /** True when at least one variant can be bought. */
   available: boolean;
+}
+
+/**
+ * Something a brand sells that is not a watch — a strap, a bracelet, a box.
+ *
+ * The same shape, because the two lists answer the same question at a glance;
+ * a distinct name because an Accessory never appears as a Drop and never
+ * reaches a Channel (ADR-0006), and that difference is worth keeping visible.
+ */
+export type BrandAccessory = BrandWatchSummary;
+
+/**
+ * What a brand's watches cost, cheapest to dearest, read off their Variants.
+ *
+ * `currency` is null when the stores never stated one — most Shopify feeds
+ * give a bare number, and reading a symbol into it is how a €990 watch was
+ * once shown as $990 (#24). The API withholds the band entirely rather than
+ * span two currencies.
+ */
+export interface PriceBand {
+  low: string;
+  high: string;
+  currency: string | null;
 }
 
 export interface BrandDetail {
@@ -116,11 +144,28 @@ export interface BrandDetail {
    */
   annotation?: string | null;
   annotationApprovedAt?: string | null;
+  /**
+   * What the brand costs, or null when nothing it makes carries a price.
+   * Derived, never entered — a hand-kept band is a band that goes stale.
+   */
+  priceBand?: PriceBand | null;
+  /**
+   * Every Watch the brand makes, each exactly once. Capped by the API, so it
+   * may be shorter than {@link watchCount}.
+   */
+  watches?: BrandWatchSummary[];
+  /** The true number of Watches, which is what the page says out loud. */
+  watchCount?: number;
+  /**
+   * The recent events, already collapsed to one per Watch by the API — a
+   * release announced once per store product is still one release (ADR-0003).
+   */
   drops: DropSummary[];
   /**
    * Empty for a brand that sells only watches. **Optional, not merely
    * possibly-empty**: the website and the API deploy independently, so a web
-   * build can be live against an API that predates this field.
+   * build can be live against an API that predates this field. The same is
+   * true of `watches`, `watchCount` and `priceBand` above.
    */
   accessories?: BrandAccessory[];
 }

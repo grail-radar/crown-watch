@@ -1,6 +1,11 @@
 import Link from 'next/link';
-import type { BrandSummary, DropSummary } from '@/lib/api';
+import type {
+  BrandSummary,
+  BrandWatchSummary,
+  DropSummary,
+} from '@/lib/api';
 import {
+  brandTally,
   dropTypeBadgeClass,
   dropTypeLabel,
   formatPrice,
@@ -96,16 +101,70 @@ export function DropCard({
   );
 }
 
+/**
+ * One Watch as the brand page lists it — a photo, what it is called, and what
+ * the cheapest way to have it costs.
+ *
+ * However many store products sit beneath it, this is one card: the API
+ * collapses them, so YEMA's three listings for the Superman Bronze CMM.10 read
+ * "3 options" rather than filling a row with the same name (#28).
+ */
+export function WatchCard({
+  watch,
+  brand,
+}: {
+  watch: BrandWatchSummary;
+  brand: { name: string; slug: string };
+}) {
+  const price = formatPrice(watch.priceLow, null, watch.currency);
+  return (
+    <Link
+      href={`/watches/${brand.slug}/${watch.slug}`}
+      className="flex h-full flex-col overflow-hidden rounded-2xl border border-line bg-panel transition duration-300 hover:-translate-y-0.5 hover:border-gold/40"
+    >
+      <span className="block aspect-square overflow-hidden bg-panel-2">
+        {watch.imageUrl ? (
+          // Not next/image: third-party store URLs on arbitrary hosts, which
+          // the optimiser needs configuring for one domain at a time.
+          // eslint-disable-next-line @next/next/no-img-element
+          <img
+            src={watch.imageUrl}
+            alt={`${brand.name} ${watch.name}`}
+            className="h-full w-full object-cover"
+          />
+        ) : (
+          <span className="flex h-full items-center justify-center font-display text-2xl text-faint">
+            {monogram(brand.name)}
+          </span>
+        )}
+      </span>
+      <span className="flex flex-1 flex-col p-3">
+        <span className="line-clamp-2 text-sm leading-snug text-ink">
+          {watch.name}
+        </span>
+        <span className="mt-1.5 text-xs text-faint">
+          {price
+            ? `${watch.variantCount > 1 ? 'from ' : ''}${price}`
+            : 'Price not listed'}
+        </span>
+        <span className="mt-0.5 text-xs text-faint">
+          {watch.variantCount > 1 && `${watch.variantCount} options`}
+          {watch.variantCount > 1 && !watch.available && ' · '}
+          {!watch.available && 'Out of stock'}
+        </span>
+      </span>
+    </Link>
+  );
+}
+
 export function BrandCard({ brand }: { brand: BrandSummary }) {
-  const published = brand._count.drops;
-  // Only the facts we actually hold. A brand missing all of them falls back to
-  // its drop count rather than leaving an empty line where details should be.
+  // Only the facts we actually hold. A card promising four drops in front of a
+  // page showing two watches is the same inconsistency #28 fixed, one click
+  // earlier — so both read from the same rule.
   const facts = [
     brand.country,
     brand.foundedYearEst ? `est. ${brand.foundedYearEst}` : null,
-    published > 0
-      ? `${published} drop${published === 1 ? '' : 's'}`
-      : 'No drops yet',
+    brandTally(brand._count.watches ?? 0, brand._count.drops) ?? 'On the radar',
   ].filter(Boolean);
 
   return (

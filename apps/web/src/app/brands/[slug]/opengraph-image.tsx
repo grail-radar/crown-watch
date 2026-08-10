@@ -1,6 +1,6 @@
 import { ImageResponse } from 'next/og';
 import { getBrand } from '@/lib/api';
-import { monogram } from '@/lib/format';
+import { brandTally, monogram } from '@/lib/format';
 
 export const alt = 'Brand on Crown Watch';
 export const size = { width: 1200, height: 630 };
@@ -18,9 +18,13 @@ export default async function BrandOgImage({
   const { slug } = await params;
   const brand = await getBrand(slug);
   const name = brand?.name ?? 'Crown Watch';
-  const drops = brand?.drops.length ?? 0;
+  // The same headline the page and the directory card carry, from the same
+  // rule: watches are what a reader counts, and `drops` is now one entry per
+  // Watch rather than a total, so quoting it here would have under-reported
+  // the brand (#28).
+  const tally = brandTally(brand?.watchCount ?? 0, brand?.drops.length ?? 0);
   const sub = brand
-    ? `${drops > 0 ? `${drops} published drop${drops === 1 ? '' : 's'}` : 'On the radar'} · tracked by Crown Watch`
+    ? `${tally ?? 'On the radar'} · tracked by Crown Watch`
     : 'Microbrand watch drop & waitlist radar';
 
   return new ImageResponse(
