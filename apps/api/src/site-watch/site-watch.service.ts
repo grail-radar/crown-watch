@@ -13,6 +13,7 @@ import { DropWriterService } from '../drops/drop-writer.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { getAdapter, parseWatchConfig } from './adapters';
 import { healthFor, isBackedOff, nextAttemptAt } from './backoff';
+import { LinkVerdict, verdictFor, verdictForFailure } from './link-liveness';
 import { RobotsService } from './robots.service';
 import { SiteFetcher } from './site-fetcher';
 import { WatchWriterService } from './watch-writer.service';
@@ -74,6 +75,11 @@ export interface SiteWatchChangeReport {
   products: number;
   /** Channels this drop was posted to, for the operator running the poll. */
   broadcasts: number;
+  /**
+   * What the store said when asked whether `url` still leads anywhere.
+   * `gone` is the only value that held the Drop back — see {@link vetLink}.
+   */
+  link: LinkVerdict;
 }
 
 /**
@@ -134,6 +140,12 @@ export interface SiteWatchSourceResult {
    */
   groupingOverridesUnmatched: string[];
   dropsCreated: number;
+  /**
+   * Drops this poll wrote but did not publish, because the store would not
+   * serve the product they point at. They are waiting in the moderation queue
+   * rather than lost — see {@link vetLink} and ADR-0007.
+   */
+  deadLinkCount: number;
   /** Telegram messages posted across all channels for this source's drops. */
   broadcastsSent: number;
   /**
@@ -156,6 +168,12 @@ export interface SiteWatchRunResult {
   skippedCount: number;
   /** Sources held back: they changed too much at once to be announced. */
   refusedCount: number;
+  /**
+   * Drops written but not published across the whole run, because the store
+   * would not serve the product page they point at. They are in the moderation
+   * queue, not lost (ADR-0007).
+   */
+  totalDeadLinks: number;
   sources: SiteWatchSourceResult[];
 }
 
@@ -221,13 +239,15 @@ export class SiteWatchService {
       failureCount: results.filter((r) => r.status === 'error').length,
       skippedCount: results.filter((r) => r.status === 'skipped').length,
       refusedCount: results.filter((r) => r.status === 'refused').length,
+      totalDeadLinks: results.reduce((n, r) => n + r.deadLinkCount, 0),
       sources: results,
     };
 
     this.logger.log(
       `Site-watch run: ${run.sourceCount} source(s), ${run.totalDropsCreated} drop(s), ` +
         `${run.totalBroadcastsSent} broadcast(s), ${run.failureCount} failure(s), ` +
-        `${run.skippedCount} skipped, ${run.refusedCount} refused`,
+        `${run.skippedCount} skipped, ${run.refusedCount} refused, ` +
+        `${run.totalDeadLinks} held for moderation (dead link)`,
     );
     return run;
   }
@@ -265,6 +285,7 @@ export class SiteWatchService {
       groupingOverridesApplied: 0,
       groupingOverridesUnmatched: [],
       dropsCreated: 0,
+      deadLinkCount: 0,
       broadcastsSent: 0,
       changes: [],
     };
@@ -452,6 +473,11 @@ export class SiteWatchService {
 
       for (const change of changes) {
         const type = this.dropType(change);
+        // Asked before the Drop is written, and only ever about a candidate we
+        // are on the point of announcing — a baseline poll asks about nothing,
+        // and a refused one never reaches this loop.
+        const link = await this.vetLink(change.lead.url);
+        const dead = link === 'gone';
         const drop = await this.drops.create({
           brandId: source.brandId,
           // The Watch's tidied name, not one reference's raw title: the three
@@ -474,15 +500,31 @@ export class SiteWatchService {
           sourceEventId: created.id,
           // A structural diff of the brand's own store — nothing was inferred.
           confidenceScore: 1,
-          publish: true,
+          // ADR-0001 lets this lane publish unmoderated *because* nothing was
+          // inferred. A product page the store will not serve falsifies that
+          // for this one candidate, so it falls back to the lane everything
+          // else uses rather than going out (ADR-0007).
+          publish: !dead,
         });
         result.dropsCreated += 1;
 
         // The drop exists and is public the moment it is written; the broadcast
         // is what puts it on someone's phone. It never throws, so a silent
         // Telegram cannot fail the ingestion run that produced the drop.
-        const broadcast = await this.alerts.broadcastDrop(drop.id);
+        // Nothing unpublished is offered to a Channel — a reader must not be
+        // sent somewhere we have just been told does not exist.
+        const broadcast = dead
+          ? { sentCount: 0 }
+          : await this.alerts.broadcastDrop(drop.id);
         result.broadcastsSent += broadcast.sentCount;
+
+        if (dead) {
+          result.deadLinkCount += 1;
+          this.logger.warn(
+            `[${source.name ?? source.endpoint}] "${change.identity.name}" held for ` +
+              `moderation: the store does not serve ${change.lead.url}`,
+          );
+        }
 
         result.changes.push({
           kind: change.kind,
@@ -491,6 +533,7 @@ export class SiteWatchService {
           url: change.lead.url,
           products: change.products.length,
           broadcasts: broadcast.sentCount,
+          link,
         });
       }
 
@@ -537,6 +580,43 @@ export class SiteWatchService {
       configured > 0
       ? Math.floor(configured)
       : DEFAULT_MAX_CHANGES_PER_POLL;
+  }
+
+  /**
+   * Ask the store whether the page we are about to send a reader to exists.
+   *
+   * A reader clicking "Buy" and landing on a 404 is the most expensive kind of
+   * wrong this project can be: the exact moment the feed promises something and
+   * fails to deliver, on a Channel that cannot unsend (ADR-0002). The realistic
+   * cause is not a store lying — it is a products feed listing something that
+   * is not published to the storefront, or a product delisted between the poll
+   * and the broadcast.
+   *
+   * **Bounded by construction.** One request per candidate, only for candidates
+   * about to be announced, and the flood guard has already capped those. A
+   * baseline poll announces a whole catalogue's worth of nothing and so asks
+   * nothing; a refused poll never reaches here.
+   *
+   * **Polite by the same rules as a poll.** robots.txt is asked first — a
+   * disallowed path is not requested at all — and the answer is cached per
+   * origin, so vetting three releases from one store costs one robots lookup.
+   * The pause between requests is the same knob that paces the run.
+   *
+   * **Never throws, and fails open.** Anything short of the store saying "no
+   * such thing" leaves the candidate publishable. This is the call the robots
+   * cache already makes for an unreadable robots.txt, for the same reason: one
+   * flaky moment must not be able to silence a brand.
+   */
+  private async vetLink(url: string): Promise<LinkVerdict> {
+    try {
+      if (!(await this.robots.allows(url))) return 'unverified';
+      const delayMs = this.config.get<number>('siteWatch.pollDelayMs');
+      if (typeof delayMs === 'number' && delayMs > 0) await this.pause(delayMs);
+      const response = await this.fetcher.fetch(url);
+      return verdictFor(response.status);
+    } catch {
+      return verdictForFailure();
+    }
   }
 
   /**
@@ -591,6 +671,10 @@ export class SiteWatchService {
       url: change.lead.url,
       products: change.products.length,
       broadcasts: 0,
+      // Not asked. A refused poll announces nothing, so there is nothing to
+      // vet — and vetting first would turn one refusal into a burst of
+      // requests at a store we have just decided something is wrong with.
+      link: 'unverified' as LinkVerdict,
     }));
 
     await this.prisma.source.update({

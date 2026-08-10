@@ -339,6 +339,52 @@ a source that failed is retried once its backoff window expires.
 
 ---
 
+## A Drop held back because its link is dead
+
+A poll that reports `deadLinkCount` above zero found a release, wrote the Drop,
+and then **did not publish it** because the store would not serve the product
+page it points at. Nothing reached a Channel. The Drop is sitting in the
+moderation queue, and it is the only place it appears — the site does not show
+it and no alert went out. The reasoning is
+[ADR-0007](../adr/0007-a-dead-link-demotes-a-drop-rather-than-discarding-it.md).
+
+Only a `404` or a `410` does this. A 403, a 429, a 500 or a timeout publishes as
+normal and is reported as `unverified` — the check failing tells us nothing about
+the product, and refusing on it would let a struggling store silence a brand.
+
+This is **not** a held source. Health is untouched, backoff is untouched, and
+that store's other releases in the same poll published normally.
+
+### See which ones, and why
+
+```bash
+curl -fsS -X POST "$API_BASE_URL/ingestion/site-watch/poll?sourceId=<source_id>" -H "x-admin-token: $ADMIN_TOKEN" | jq '{deadLinkCount, changes: [.changes[] | select(.link == "gone")]}'
+```
+
+Each entry carries the `url` that was refused and `broadcasts: 0`. The run log
+line carries the same count for the whole run, and each one is logged as a
+warning naming the Watch and the URL.
+
+### Decide what it is
+
+| What the URL does in a browser | What happened | Do |
+|---|---|---|
+| 404s, and the product is nowhere on the store | listed in the feed, never published to the storefront — or delisted since | leave it. Reject the queued Drop if you want it out of the queue |
+| loads fine now | the store published the page after the poll ran | approve the queued Drop; it broadcasts on approval |
+| 404s, but the watch is plainly on sale under a different URL | the store changed the handle | approve nothing. The next poll sees the new URL as a new product and announces it properly |
+
+### Approving one
+
+Approval calls straight into the broadcast path, so it publishes and posts to
+both Channels exactly as an on-time Drop would. Check the page loads first —
+this is the last gate before something that cannot be unsent.
+
+Nobody is notified that a Drop is waiting. If `deadLinkCount` is regularly above
+zero for one store, that store's feed and storefront disagree systematically and
+is worth a look on its own.
+
+---
+
 ## Prices, and why some of them have no currency
 
 **A price is labelled only when the store said so on that fetch.** Where the
@@ -735,6 +781,7 @@ Two guards came out of it, deliberately at different levels:
 - [ADR-0003](../adr/0003-watch-identity-is-normalised-titles.md) — how products become Watches, and why the override table is load-bearing
 - [ADR-0005](../adr/0005-an-implausible-poll-is-refused-not-published.md) — why an implausible poll is refused, and why its snapshot is not kept
 - [ADR-0006](../adr/0006-accessories-are-classified-not-excluded.md) — why a strap is recorded but never announced
+- [ADR-0007](../adr/0007-a-dead-link-demotes-a-drop-rather-than-discarding-it.md) — why a Drop with a dead link waits for a human instead of being thrown away
 - [README](../../README.md#telegram-drop-broadcast-contextmd-2) — channel setup and backfilling
 
 ---
