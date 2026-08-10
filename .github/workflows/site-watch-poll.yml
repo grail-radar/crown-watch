@@ -72,10 +72,18 @@ jobs:
               # A held source published nothing and needs a person: see the
               # runbook. Older API builds do not report this field at all.
               "- refused (held for review): \(.refusedCount // 0)\n",
-              "| source | status | health | changed | drops | alerts | detail |",
-              "|---|---|---|---|---|---|---|",
+              # `changed` without `stored` means the store moved on something
+              # nobody can be alerted about — a price, a currency, a photo. The
+              # catalogue was refreshed and no snapshot was written (ADR-0008).
+              #
+              # `has(...)` rather than `//`: jq treats `false` as absent, so
+              # `.snapshotStored // "?"` would print "?" for precisely the case
+              # this column exists to show. "?" means an API build that predates
+              # the field.
+              "| source | status | health | changed | stored | drops | alerts | detail |",
+              "|---|---|---|---|---|---|---|---|",
               (.sources[] |
-                "| \(.name // .endpoint) | \(.status) | \(.health) | \(.changed) | \(.dropsCreated) | \(.broadcastsSent) | \(.error // .refusedReason // .skippedReason // "") |")
+                "| \(.name // .endpoint) | \(.status) | \(.health) | \(.changed) | \(if has("snapshotStored") then .snapshotStored else "?" end) | \(.dropsCreated) | \(.broadcastsSent) | \(.error // .refusedReason // .skippedReason // "") |")
             end
           ' run.json > summary.md 2>/dev/null; then
             cat summary.md >> "$GITHUB_STEP_SUMMARY"
