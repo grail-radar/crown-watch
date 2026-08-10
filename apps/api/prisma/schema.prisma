@@ -203,9 +203,49 @@ model Brand {
   watchlists Watchlist[]
   watches    Watch[]
   groupingOverrides WatchGroupingOverride[]
+  annotationDraft   BrandAnnotationDraft?
 
   @@index([status])
   @@map("brands")
+}
+
+// The facts a human needs in front of them to write a Brand's Annotation.
+//
+// **Never the Annotation itself.** A model is good at assembling facts and bad
+// at judgement, and judgement is the only part worth reading (CONTEXT.md §2) —
+// so there is no column here for a sentence, and the tool the model answers
+// through has no field for one either (ADR-0009).
+//
+// A table of its own rather than columns on Brand, and that is what makes
+// rejecting a draft safe: drafting never writes to the Brand at all, so
+// throwing one away is a delete and cannot leave a Brand half-annotated (#30).
+model BrandAnnotationDraft {
+  id      String @id @default(cuid())
+  /// One open draft per Brand. Re-drafting replaces it rather than piling up.
+  brandId String @unique @map("brand_id")
+  /// The assembled facts, as the tool returned them plus what we already held.
+  /// Json because the shape is a briefing for a person to read, not something
+  /// the database needs to query — and it will change as we learn what helps.
+  facts   Json
+  /// false when the draft is not worth handing to a writer — nothing was found,
+  /// or what came back looked like prose rather than facts. Kept rather than
+  /// discarded so "we tried this Brand and got nothing" is visible instead of
+  /// looking like a Brand nobody has drafted yet.
+  sufficient Boolean @default(true)
+  /// Why, when `sufficient` is false — and any caveat worth carrying when it is.
+  note       String?
+  /// What produced it and what it cost. Tokens are exact; the money is derived
+  /// from a rate table (`pricing.ts`) and is an estimate.
+  model        String
+  inputTokens  Int    @map("input_tokens")
+  outputTokens Int    @map("output_tokens")
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  brand Brand @relation(fields: [brandId], references: [id], onDelete: Cascade)
+
+  @@index([sufficient])
+  @@map("brand_annotation_drafts")
 }
 
 // One model a brand makes — the durable object a reader searches for and lands
