@@ -63,8 +63,15 @@ which is precisely the "restart mid-run" case.
   sent.** The rule this ADR states is about what a row *means*: "this Drop
   reached this Channel". A claim against a Channel that does not exist means
   nothing of the kind — no follower saw anything, and there is no repetition to
-  prevent. Those rows are pure cost: `purge:broadcasts` fails on them with "chat
-  not found" on every run, for ever, and every count they appear in is wrong.
+  prevent.
+
+  The cost of leaving them is smaller than #48 first claimed, and worth stating
+  accurately: every broadcast count includes them, and the next person to read
+  this data has to work out for themselves that a third "channel" is a string
+  from a spec file. `purge:broadcasts` does **not** trip over them — it selects
+  only claims whose Drop is `rejected` and unpublished, and these point at live,
+  published Drops, so they were never in its working set. Removing them is
+  tidying, not a fix.
 
   `sweep:claims` (#48) deletes them, and the guard that keeps this from becoming
   a hole in the rule is that it **refuses any chat id the dispatcher currently

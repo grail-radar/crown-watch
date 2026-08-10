@@ -177,14 +177,18 @@ the section above is so insistent that it never does.
 
 A claim row means "this drop reached this channel". A claim against a chat that
 does not exist means nothing of the kind: no follower saw anything, so there is
-no repetition to prevent. What those rows do instead is make every count wrong
-and make `purge:broadcasts` report failures that are not failures — it tries to
-delete posts in a chat Telegram has never heard of, and gets "chat not found"
-every time, for ever.
+no repetition to prevent.
 
 Written for #48: on 2026-08-07 the tests ran against production, and
 `@crownwatch_ua_v2` — a handle that exists only in
 `alert-dispatch.service.spec.ts` — took 30 claims.
+
+**This is tidying, not a fix.** The rows are inert: nothing reaches a reader,
+and `purge:broadcasts` never touches them either, because it selects only claims
+whose drop is `rejected` and unpublished and these point at live, published
+drops. What they cost is that every broadcast count includes them, and the next
+person reading this data has to work out for themselves that a third "channel"
+is a string from a spec file. Worth doing; not urgent.
 
 ```bash
 pnpm --filter @crown-watch/api sweep:claims -- --chat=@crownwatch_ua_v2
@@ -203,6 +207,13 @@ anything else did.
 
 **What it refuses**
 
+- **Running at all when no channel is configured.** Telegram settings are
+  optional and this script is pointed at production by `DATABASE_URL` alone, so
+  a shell without `TELEGRAM_CHANNEL_UA` / `_EN` would leave the guard below with
+  nothing to compare against — and it would then happily delete a live channel's
+  claims. It fails closed instead, and prints what it believes is live so their
+  absence is visible rather than silent. **Set the same values the deployment
+  posts with.**
 - **Any chat id the bot currently posts to.** It reads that list from the
   dispatcher itself, so the guard cannot drift from where alerts actually go.
   Deleting a live channel's claims would offer every one of those drops to it

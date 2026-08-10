@@ -2,8 +2,15 @@ import { Injectable, Logger } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { AlertDispatchService } from './alert-dispatch.service';
 
-/** Enough Drops to recognise what a chat's claims are, not a wall of them. */
-const SAMPLE_SIZE = 5;
+/**
+ * How many Drops a dry run names before it starts summarising.
+ *
+ * High enough that a real sweep lists **every** row rather than a sample: #48's
+ * chat holds 30 claims, and "lists exactly what would be removed" is not
+ * satisfied by five of them and a count. The cap only exists so that pointing
+ * this at a chat with thousands of claims does not fill a terminal.
+ */
+const MAX_LISTED_DROPS = 200;
 
 export interface ClaimSweepRequest {
   /**
@@ -39,6 +46,12 @@ export interface ClaimSweepChannelReport {
 export interface ClaimSweepReport {
   confirmed: boolean;
   channels: ClaimSweepChannelReport[];
+  /**
+   * Every Channel the dispatcher currently posts to, printed so the guard's
+   * state is visible. A silently empty list is the failure mode that would make
+   * this whole script dangerous, so it is shown rather than merely applied.
+   */
+  live: string[];
   /** Requested chat ids that are live Channels, and were therefore not swept. */
   refused: Array<{ chatId: string; reason: string }>;
   /** Requested chat ids with no claims at all — most likely a typo. */
@@ -59,8 +72,14 @@ export interface ClaimSweepReport {
  * On 2026-08-07 the tests ran against production and `@crownwatch_ua_v2` — a
  * chat that exists only in `alert-dispatch.service.spec.ts` — took 30 claims.
  * **No message was ever sent to it, because there is no such chat.** So there is
- * no "already told" fact to preserve, and `purge:broadcasts` fails on those
- * rows with "chat not found" on every run, for ever (#48).
+ * no "already told" fact to preserve, and nothing is lost by removing them.
+ *
+ * What they cost is smaller than #48 first claimed, and worth stating honestly:
+ * every broadcast count includes them, and anyone reading this data has to
+ * work out for themselves that a third "channel" is a spec artefact.
+ * `purge:broadcasts` does **not** trip over them — it selects only claims whose
+ * Drop is `rejected` and unpublished, and these point at live, published Drops,
+ * so they were never in its working set. This is tidying, not a fix.
  *
  * The guard that makes this safe is one line of intent: a chat id that the
  * dispatcher currently posts to is refused outright. Deleting a live Channel's
@@ -88,11 +107,24 @@ export class BroadcastClaimSweepService {
       throw new Error('Name at least one chat id to sweep.');
     }
 
-    // Live Channels first, and before anything is counted: if the request names
-    // one, the run stops here rather than doing the safe part of it. An
-    // operator who mistyped one of two ids should get an error, not a
-    // half-applied sweep they have to reason about afterwards.
-    const live = new Set(this.alerts.channels().flatMap((c) => [c.key, c.chatId]));
+    // Live Channels first. If the request names one, the run stops rather than
+    // doing the safe part of it: an operator who mistyped one of two ids should
+    // get an error, not a half-applied sweep to reason about afterwards.
+    const channelList = this.alerts.channels();
+    if (channelList.length === 0) {
+      // **Fail closed.** Telegram configuration is optional and an unconfigured
+      // bot is a supported boot state, so a shell with `DATABASE_URL` set and no
+      // `TELEGRAM_*` would leave this guard silently empty — and
+      // `--chat=@crownwatch_ua --confirm` would then delete several hundred
+      // real claims without a word. The guard has to be present to be a guard.
+      throw new Error(
+        'No Channels are configured, so I cannot tell a dead chat id from a live ' +
+          'one and will not delete anything. Set TELEGRAM_CHANNEL_UA / _EN (and ' +
+          'TELEGRAM_GROUPS if you use partner groups) to the values the deployment ' +
+          'actually posts with, then run this again.',
+      );
+    }
+    const live = new Set(channelList.flatMap((c) => [c.key, c.chatId]));
     const refused = chatIds
       .filter((chatId) => live.has(chatId))
       .map((chatId) => ({
@@ -127,7 +159,15 @@ export class BroadcastClaimSweepService {
     }
 
     const after = confirmed ? await this.counts() : before;
-    return { confirmed, channels, refused, unmatched, deleted, counts: { before, after } };
+    return {
+      confirmed,
+      channels,
+      live: [...live].sort(),
+      refused,
+      unmatched,
+      deleted,
+      counts: { before, after },
+    };
   }
 
   /** What one chat's claims are, and which Drops they belong to. */
@@ -154,7 +194,7 @@ export class BroadcastClaimSweepService {
       claims: claims.length,
       sent: claims.filter((c) => c.status === 'sent').length,
       drops: drops.size,
-      sample: [...drops.values()].slice(0, SAMPLE_SIZE),
+      sample: [...drops.values()].slice(0, MAX_LISTED_DROPS),
     };
   }
 
@@ -164,6 +204,10 @@ export class BroadcastClaimSweepService {
    * Counted rather than trusted. #48 asks for before-and-after precisely
    * because "it only deleted what I asked for" is the kind of claim that is
    * cheap to make and expensive to be wrong about.
+   *
+   * **A smoke test, not a proof.** These do not share a transaction with the
+   * delete, so a poll running at the same moment moves `drops` and `sources`
+   * legitimately. A difference means "look", not "something broke".
    */
   private async counts(): Promise<ClaimSweepCounts> {
     const [drops, brands, sources, broadcasts] = await this.prisma.$transaction([

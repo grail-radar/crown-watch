@@ -183,6 +183,36 @@ describe('BroadcastClaimSweepService', () => {
       expect(await claimsFor(UK_CHANNEL, drop.id)).toBe(1);
     });
 
+    it('refuses to run at all when it cannot tell which Channels are live', async () => {
+      // The dangerous case, and it is silent rather than loud: Telegram
+      // configuration is optional, this script is pointed at production by
+      // DATABASE_URL alone, and a shell without TELEGRAM_* would leave the
+      // guard comparing against an empty set. `--chat=@crownwatch_ua --confirm`
+      // would then delete every real claim without a word.
+      const unconfigured = new BroadcastClaimSweepService(
+        prisma,
+        new AlertDispatchService(
+          prisma,
+          new ConfigService({ telegram: { botToken: undefined, channels: {} } }),
+          new CapturingTelegram(),
+        ),
+      );
+      const { drop } = await arrangeClaims([UK_CHANNEL]);
+
+      await expect(
+        unconfigured.sweep({ chatIds: [UK_CHANNEL], confirm: true }),
+      ).rejects.toThrow(/no channels are configured/i);
+      expect(await claimsFor(UK_CHANNEL, drop.id)).toBe(1);
+    });
+
+    it('shows what it believes is live, so an absent guard is visible', async () => {
+      await arrangeClaims([GHOST]);
+
+      const report = await sweep.sweep({ chatIds: [GHOST] });
+
+      expect(report.live).toEqual(expect.arrayContaining([UK_CHANNEL, EN_CHANNEL]));
+    });
+
     it('refuses an empty list rather than treating it as "everything"', async () => {
       const { drop } = await arrangeClaims([GHOST]);
 
