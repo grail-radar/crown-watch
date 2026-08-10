@@ -37,6 +37,13 @@ export class ModerationService {
           imageUrl: true,
           sourceUrl: true,
           confidenceScore: true,
+          // Null for an extracted Drop, which is pending because that is where
+          // extracted Drops start. Set only where something demoted a Drop that
+          // would otherwise have published itself — today, a `sourceUrl` the
+          // store would not serve (ADR-0007). Without it a reviewer cannot tell
+          // the two apart, and the second kind needs the link checked before
+          // approving rather than the prose.
+          heldReason: true,
           createdAt: true,
           brand: { select: { name: true, slug: true } },
         },

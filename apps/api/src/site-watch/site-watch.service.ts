@@ -13,6 +13,8 @@ import { DropWriterService } from '../drops/drop-writer.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { getAdapter, parseWatchConfig } from './adapters';
 import { healthFor, isBackedOff, nextAttemptAt } from './backoff';
+import { LinkVerdict } from './link-liveness';
+import { LinkProbe } from './link-probe';
 import { RobotsService } from './robots.service';
 import { SiteFetcher } from './site-fetcher';
 import { WatchWriterService } from './watch-writer.service';
@@ -74,6 +76,11 @@ export interface SiteWatchChangeReport {
   products: number;
   /** Channels this drop was posted to, for the operator running the poll. */
   broadcasts: number;
+  /**
+   * What the store said when asked whether `url` still leads anywhere.
+   * `gone` is the only value that held the Drop back — see {@link vetLink}.
+   */
+  link: LinkVerdict;
 }
 
 /**
@@ -134,6 +141,12 @@ export interface SiteWatchSourceResult {
    */
   groupingOverridesUnmatched: string[];
   dropsCreated: number;
+  /**
+   * Drops this poll wrote but did not publish, because the store would not
+   * serve the product they point at. They are waiting in the moderation queue
+   * rather than lost — see {@link vetLink} and ADR-0007.
+   */
+  deadLinkCount: number;
   /** Telegram messages posted across all channels for this source's drops. */
   broadcastsSent: number;
   /**
@@ -156,6 +169,12 @@ export interface SiteWatchRunResult {
   skippedCount: number;
   /** Sources held back: they changed too much at once to be announced. */
   refusedCount: number;
+  /**
+   * Drops written but not published across the whole run, because the store
+   * would not serve the product page they point at. They are in the moderation
+   * queue, not lost (ADR-0007).
+   */
+  totalDeadLinks: number;
   sources: SiteWatchSourceResult[];
 }
 
@@ -170,8 +189,18 @@ export class SiteWatchService {
     private readonly watches: WatchWriterService,
     private readonly alerts: AlertDispatchService,
     private readonly robots: RobotsService,
+    private readonly links: LinkProbe,
     private readonly config: ConfigService,
   ) {}
+
+  /** How long to wait between requests to somebody else's shop. */
+  private pollDelayMs(override?: number): number {
+    return (
+      override ??
+      this.config.get<number>('siteWatch.pollDelayMs') ??
+      DEFAULT_POLL_DELAY_MS
+    );
+  }
 
   private pause(ms: number): Promise<void> {
     return new Promise((resolve) => setTimeout(resolve, ms));
@@ -187,10 +216,7 @@ export class SiteWatchService {
    */
   async pollAll(options: { delayMs?: number } = {}): Promise<SiteWatchRunResult> {
     const startedAt = new Date();
-    const delayMs =
-      options.delayMs ??
-      this.config.get<number>('siteWatch.pollDelayMs') ??
-      DEFAULT_POLL_DELAY_MS;
+    const delayMs = this.pollDelayMs(options.delayMs);
     const sources = await this.prisma.source.findMany({
       where: { type: SourceType.site_watch },
       orderBy: { createdAt: 'asc' },
@@ -205,7 +231,10 @@ export class SiteWatchService {
     let contactedAStore = false;
     for (const { id } of sources) {
       if (contactedAStore && delayMs > 0) await this.pause(delayMs);
-      const result = await this.pollSource(id);
+      // The run's pace, not the configured one: an operator deliberately
+      // polling slower must get slower link checks too, or the politeness knob
+      // only half works.
+      const result = await this.pollSource(id, { delayMs });
       results.push(result);
       // A skipped source — backing off, or disallowed — made no request, so it
       // should cost the run no time either.
@@ -221,13 +250,15 @@ export class SiteWatchService {
       failureCount: results.filter((r) => r.status === 'error').length,
       skippedCount: results.filter((r) => r.status === 'skipped').length,
       refusedCount: results.filter((r) => r.status === 'refused').length,
+      totalDeadLinks: results.reduce((n, r) => n + r.deadLinkCount, 0),
       sources: results,
     };
 
     this.logger.log(
       `Site-watch run: ${run.sourceCount} source(s), ${run.totalDropsCreated} drop(s), ` +
         `${run.totalBroadcastsSent} broadcast(s), ${run.failureCount} failure(s), ` +
-        `${run.skippedCount} skipped, ${run.refusedCount} refused`,
+        `${run.skippedCount} skipped, ${run.refusedCount} refused, ` +
+        `${run.totalDeadLinks} held for moderation (dead link)`,
     );
     return run;
   }
@@ -243,7 +274,7 @@ export class SiteWatchService {
    */
   async pollSource(
     sourceId: string,
-    options: { force?: boolean; release?: boolean } = {},
+    options: { force?: boolean; release?: boolean; delayMs?: number } = {},
   ): Promise<SiteWatchSourceResult> {
     const source = await this.prisma.source.findUniqueOrThrow({
       where: { id: sourceId },
@@ -265,6 +296,7 @@ export class SiteWatchService {
       groupingOverridesApplied: 0,
       groupingOverridesUnmatched: [],
       dropsCreated: 0,
+      deadLinkCount: 0,
       broadcastsSent: 0,
       changes: [],
     };
@@ -417,6 +449,25 @@ export class SiteWatchService {
         return this.refuse(source, result, changes, limit, alreadyHeld);
       }
 
+      // Ask the store whether the pages we are about to send readers to exist,
+      // for every candidate at once and **before anything is written down**.
+      //
+      // The position matters as much as the check. ADR-0002 accepts a window
+      // between storing a snapshot and dispatching the alerts it implies: a
+      // process that dies inside it leaves the products recorded as seen, so
+      // novelty — decided by product URL — can never fire for them again.
+      // Vetting is network I/O against a shop that may be slow, and doing it
+      // after the snapshot would have widened that window by a timeout per
+      // candidate. Here, a crash costs nothing: the old snapshot is still in
+      // place and the next poll redoes the lot.
+      //
+      // A refused poll never reaches this line, so a store we have just decided
+      // something is wrong with gets no burst of requests.
+      const links = await this.links.check(
+        changes.map((c) => c.lead.url),
+        this.pollDelayMs(options.delayMs),
+      );
+
       // Catalogue, not events — so this runs on the baseline poll too. A store
       // registered today has pages from the moment it is added, even though it
       // deliberately announces nothing.
@@ -452,6 +503,10 @@ export class SiteWatchService {
 
       for (const change of changes) {
         const type = this.dropType(change);
+        // Decided above, before the snapshot was stored. Absent means the poll
+        // never asked, which is not evidence of anything.
+        const link = links.get(change.lead.url) ?? 'unverified';
+        const dead = link === 'gone';
         const drop = await this.drops.create({
           brandId: source.brandId,
           // The Watch's tidied name, not one reference's raw title: the three
@@ -474,15 +529,39 @@ export class SiteWatchService {
           sourceEventId: created.id,
           // A structural diff of the brand's own store — nothing was inferred.
           confidenceScore: 1,
-          publish: true,
+          // ADR-0001 lets this lane publish unmoderated *because* nothing was
+          // inferred. A product page the store will not serve falsifies that
+          // for this one candidate, so it falls back to the lane everything
+          // else uses rather than going out (ADR-0007).
+          publish: !dead,
+          // Recorded on the row, not only in a log line. Nothing re-derives
+          // this: the snapshot has moved on, so no later poll raises the same
+          // candidate, and without this the queue cannot tell a demoted Drop
+          // from an ordinary extracted one.
+          heldReason: dead
+            ? `The store does not serve ${change.lead.url} (checked on this poll). ` +
+              `Held rather than announced — see ADR-0007.`
+            : null,
         });
         result.dropsCreated += 1;
 
         // The drop exists and is public the moment it is written; the broadcast
         // is what puts it on someone's phone. It never throws, so a silent
         // Telegram cannot fail the ingestion run that produced the drop.
-        const broadcast = await this.alerts.broadcastDrop(drop.id);
+        // Nothing unpublished is offered to a Channel — a reader must not be
+        // sent somewhere we have just been told does not exist.
+        const broadcast = dead
+          ? { sentCount: 0 }
+          : await this.alerts.broadcastDrop(drop.id);
         result.broadcastsSent += broadcast.sentCount;
+
+        if (dead) {
+          result.deadLinkCount += 1;
+          this.logger.warn(
+            `[${source.name ?? source.endpoint}] "${change.identity.name}" held for ` +
+              `moderation: the store does not serve ${change.lead.url}`,
+          );
+        }
 
         result.changes.push({
           kind: change.kind,
@@ -491,6 +570,7 @@ export class SiteWatchService {
           url: change.lead.url,
           products: change.products.length,
           broadcasts: broadcast.sentCount,
+          link,
         });
       }
 
@@ -538,6 +618,7 @@ export class SiteWatchService {
       ? Math.floor(configured)
       : DEFAULT_MAX_CHANGES_PER_POLL;
   }
+
 
   /**
    * Stop before publishing, and leave the source exactly where a human can pick
@@ -591,6 +672,10 @@ export class SiteWatchService {
       url: change.lead.url,
       products: change.products.length,
       broadcasts: 0,
+      // Not asked. A refused poll announces nothing, so there is nothing to
+      // vet — and vetting first would turn one refusal into a burst of
+      // requests at a store we have just decided something is wrong with.
+      link: 'unverified' as LinkVerdict,
     }));
 
     await this.prisma.source.update({

@@ -15,6 +15,7 @@ import { CapturingTelegram } from '../../test/capturing-telegram';
 import { CatalogService } from '../catalog/catalog.service';
 import { DropWriterService } from '../drops/drop-writer.service';
 import { PrismaService } from '../prisma/prisma.service';
+import { LinkProbe } from './link-probe';
 import { RobotsService } from './robots.service';
 import { FetchResult, SiteFetcher } from './site-fetcher';
 import { SiteWatchService } from './site-watch.service';
@@ -100,6 +101,7 @@ describe('SiteWatchService', () => {
       new WatchWriterService(prisma),
       alerts,
       robots,
+      new LinkProbe(fetcher, robots),
       config,
     );
     catalog = new CatalogService(prisma);
@@ -162,6 +164,7 @@ describe('SiteWatchService', () => {
       new WatchWriterService(prisma),
       alerts,
       robots,
+      new LinkProbe(fetcher, robots),
       new ConfigService({
         digest: { publicWebUrl: 'https://crownswatch.org' },
         siteWatch: {
@@ -1154,6 +1157,7 @@ describe('SiteWatchService', () => {
         })(),
       ),
       robots,
+      new LinkProbe(fetcher, robots),
       new ConfigService({ siteWatch: { pollDelayMs: 0 } }),
     );
 
@@ -1187,6 +1191,7 @@ describe('SiteWatchService', () => {
         telegram,
       ),
       robots,
+      new LinkProbe(fetcher, robots),
       new ConfigService({ siteWatch: { pollDelayMs: 0 } }),
     );
 

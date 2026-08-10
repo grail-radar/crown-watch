@@ -27,6 +27,14 @@ export interface DropInput {
    * false — queue for human moderation (anything an LLM read from prose)
    */
   publish?: boolean;
+  /**
+   * Why a Drop that would ordinarily have published is waiting instead.
+   *
+   * Only meaningful with `publish: false` on the Tier 4 lane. An extracted Drop
+   * is pending because that is where extracted Drops start, which is not a
+   * reason and is left null.
+   */
+  heldReason?: string | null;
 }
 
 /**
@@ -60,6 +68,9 @@ export class DropWriterService {
         sourceUrl: input.sourceUrl ?? null,
         sourceEventId: input.sourceEventId ?? null,
         confidenceScore: input.confidenceScore ?? null,
+        // Never recorded against a Drop that published: "why is this waiting"
+        // has no answer for something that is not waiting.
+        heldReason: publish ? null : (input.heldReason ?? null),
         moderationStatus: publish
           ? ModerationStatus.approved
           : ModerationStatus.pending,

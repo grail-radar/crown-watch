@@ -328,6 +328,18 @@ model Drop {
   sourceEventId    String?          @map("source_event_id")
   // From LLM extraction (CONTEXT.md §5).
   confidenceScore  Float?           @map("confidence_score")
+  /// Why this Drop is waiting for a human instead of having published itself.
+  ///
+  /// Only ever set on the Tier 4 lane, which otherwise publishes on detection
+  /// (ADR-0001). Null on everything else, including every Drop from extraction
+  /// — those are pending because that is simply where extracted Drops start,
+  /// which is not a reason worth recording.
+  ///
+  /// Durable on purpose. The alternative was a log line and a poll response
+  /// nobody reads under the hourly scheduler, and unlike a held Source
+  /// (ADR-0005) this cannot re-derive itself: the snapshot has moved on, so the
+  /// poll will never raise the same candidate again (ADR-0007).
+  heldReason       String?          @map("held_reason")
   moderationStatus ModerationStatus @default(pending) @map("moderation_status")
   reviewerId       String?          @map("reviewer_id")
   reviewedAt       DateTime?        @map("reviewed_at")
