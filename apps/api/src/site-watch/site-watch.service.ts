@@ -22,6 +22,7 @@ import {
   hashSnapshot,
   normalizeSnapshot,
   ProductSnapshot,
+  signalHash,
 } from './snapshot';
 import { diffWatches, WatchEvent, WatchEventKind } from './watch-events';
 import { GroupingRules } from './watch-grouping';
@@ -110,6 +111,15 @@ export interface SiteWatchSourceResult {
   refusedReason?: string;
   /** true when the store differs from what it showed at the previous poll */
   changed: boolean;
+  /**
+   * Whether this poll's catalogue was written to the landing zone.
+   *
+   * False on a store that has not moved, and — the point of #25 — on one whose
+   * only movement was a price, a currency label or a photograph. None of those
+   * can raise a Drop, so storing the payload would be recording an observation
+   * nobody will ever read.
+   */
+  snapshotStored: boolean;
   /** true when this was the source's first ever snapshot */
   baseline: boolean;
   productCount: number;
@@ -288,6 +298,7 @@ export class SiteWatchService {
       consecutiveFailures: source.consecutiveFailures,
       nextAttemptAt: source.nextAttemptAt?.toISOString() ?? null,
       changed: false,
+      snapshotStored: false,
       baseline: false,
       productCount: 0,
       watchesRecorded: 0,
@@ -391,14 +402,35 @@ export class SiteWatchService {
       const previous = await this.previousSnapshot(source.id);
       const snapshotHash = hashSnapshot(products);
 
+      // Two questions, and they are not the same question.
+      //
+      // `changed` — did the store's answer move at all? That is what an
+      //   operator means by "did anything happen", and what the catalogue
+      //   needs, since a price is real even when it is not news.
+      // `announceable` — did it move in a way anybody could be told about? Only
+      //   a product URL never seen before and availability turning true raise a
+      //   Drop, so only those are worth a stored observation (#25).
+      //
       // Compare against the PREVIOUS poll only. A catalogue legitimately
       // returns to an earlier state — in stock, sold out, in stock again — and
       // that return is precisely the restock we exist to catch.
-      if (previous && hashSnapshot(previous) === snapshotHash) {
-        // Nothing moved, so there is normally nothing to record. Two cases
-        // still need the catalogue rebuilt, and both are about *our* state
-        // changing rather than the store's:
+      const contentMoved = !previous || hashSnapshot(previous) !== snapshotHash;
+      const signalMoved = !previous || signalHash(previous) !== signalHash(products);
+      result.changed = contentMoved;
+
+      if (previous && !signalMoved) {
+        // Nothing here can become a Drop, so no snapshot is stored and no diff
+        // is run. YEMA's alternating market price lists were writing six to
+        // eight payloads a day this way, every one of them a no-op.
         //
+        // The catalogue is a different matter, and is rebuilt for any of three
+        // reasons. The first is about the store; the other two are about *our*
+        // state changing rather than the store's:
+        //
+        //  - the store moved on a field this hash ignores — a price, a currency
+        //    label, a photograph. Real, not news, and the brand page reads
+        //    prices off Variants rather than off snapshots, so skipping this
+        //    would quietly staleness the site instead of the landing zone
         //  - the brand has no Watches at all, which is true of every source
         //    registered before Watches existed
         //  - this brand has grouping overrides, which an operator may have just
@@ -407,12 +439,13 @@ export class SiteWatchService {
         //    leave it unapplied indefinitely (ADR-0003 requires no deploy *and*
         //    no waiting).
         //
-        // Recording is idempotent and announces nothing, so doing it on an
-        // unchanged store costs upserts and interrupts nobody.
+        // Recording is idempotent and announces nothing, so doing it costs
+        // upserts and interrupts nobody. A store that has not moved at all and
+        // needs nothing from us writes literally nothing.
         const known = await this.prisma.watch.count({
           where: { brandId: source.brandId },
         });
-        if (known === 0 || overrides.length > 0 || corrected.length > 0) {
+        if (contentMoved || known === 0 || overrides.length > 0 || corrected.length > 0) {
           const recorded = await this.watches.record(
             source.brandId,
             brand.slug,
@@ -426,7 +459,7 @@ export class SiteWatchService {
           result.groupingOverridesUnmatched = recorded.overridesUnmatched;
         }
         await this.recordSuccess(source.id, result);
-        return result; // store unchanged since last poll
+        return result; // nothing here could have been announced
       }
 
       // What this poll would announce, worked out before anything at all is
@@ -490,6 +523,7 @@ export class SiteWatchService {
 
       const created = await this.storeSnapshot(source.id, products, snapshotHash);
       result.changed = true;
+      result.snapshotStored = true;
 
       if (!previous) {
         // First sight of this store: remember it, announce nothing.
