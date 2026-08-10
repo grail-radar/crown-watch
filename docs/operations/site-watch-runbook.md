@@ -357,13 +357,19 @@ that store's other releases in the same poll published normally.
 
 ### See which ones, and why
 
+The durable record is on the Drop itself. **Re-polling will not show you these
+again** — the snapshot has moved on, so no later poll raises the same candidate.
+Read the moderation queue:
+
 ```bash
-curl -fsS -X POST "$API_BASE_URL/ingestion/site-watch/poll?sourceId=<source_id>" -H "x-admin-token: $ADMIN_TOKEN" | jq '{deadLinkCount, changes: [.changes[] | select(.link == "gone")]}'
+curl -fsS "$API_BASE_URL/moderation/queue?take=200" -H "x-admin-token: $ADMIN_TOKEN" | jq '[.drops[] | select(.heldReason != null) | {id, title, sourceUrl, heldReason}]'
 ```
 
-Each entry carries the `url` that was refused and `broadcasts: 0`. The run log
-line carries the same count for the whole run, and each one is logged as a
-warning naming the Watch and the URL.
+`heldReason` is null for an ordinary drop awaiting review and set only where
+something demoted a Drop that would otherwise have published itself. The run log
+counts them for the whole run, and each is logged as a warning naming the Watch
+and the URL — but those are gone by the time anyone looks, which is why the
+reason is on the row.
 
 ### Decide what it is
 
@@ -376,8 +382,9 @@ warning naming the Watch and the URL.
 ### Approving one
 
 Approval calls straight into the broadcast path, so it publishes and posts to
-both Channels exactly as an on-time Drop would. Check the page loads first —
-this is the last gate before something that cannot be unsent.
+both Channels exactly as an on-time Drop would — nothing was claimed when it was
+held, so ADR-0002's once-ever rule does not suppress it. Check the page loads
+first: this is the last gate before something that cannot be unsent.
 
 Nobody is notified that a Drop is waiting. If `deadLinkCount` is regularly above
 zero for one store, that store's feed and storefront disagree systematically and

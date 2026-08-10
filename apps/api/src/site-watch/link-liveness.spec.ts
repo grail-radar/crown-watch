@@ -5,10 +5,10 @@
  * product is gone" — and the answer is: very few of them. Everything else has
  * to stay `unverified`, or a store that rate-limits us silences a real release.
  */
-import { verdictFor, verdictForFailure } from './link-liveness';
+import { verdictFor } from './link-liveness';
 
 describe('verdictFor', () => {
-  describe('the product is there', () => {
+  describe('the store still serves the store product', () => {
     it.each([200, 201, 203, 204, 206, 299])('reads %i as live', (status) => {
       expect(verdictFor(status)).toBe('live');
     });
@@ -23,7 +23,7 @@ describe('verdictFor', () => {
     );
   });
 
-  describe('the product is gone', () => {
+  describe('the store says there is no such store product', () => {
     it.each([404, 410])('reads %i as gone', (status) => {
       expect(verdictFor(status)).toBe('gone');
     });
@@ -66,13 +66,5 @@ describe('verdictFor', () => {
     expect(verdictFor(0)).toBe('unverified');
     expect(verdictFor(-1)).toBe('unverified');
     expect(verdictFor(999)).toBe('unverified');
-  });
-});
-
-describe('verdictForFailure', () => {
-  it('is unverified — a timeout is our problem, not the product’s', () => {
-    // Same reasoning as an unreadable robots.txt allowing: one flaky moment
-    // must not be able to silence a brand.
-    expect(verdictForFailure()).toBe('unverified');
   });
 });

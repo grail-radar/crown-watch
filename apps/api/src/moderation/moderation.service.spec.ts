@@ -81,6 +81,35 @@ describe('ModerationService', () => {
   const broadcastsFor = (dropId: string) =>
     prisma.dropBroadcast.findMany({ where: { dropId } });
 
+  describe('what the queue tells a reviewer', () => {
+    it('says why a Drop that would have published is waiting', async () => {
+      // A Tier 4 Drop demoted for a dead link needs its *link* checked before
+      // approval, not its prose — and the reviewer cannot know that unless the
+      // queue says so (ADR-0007).
+      const { drop } = await arrangePending({ title: 'Held Diver' });
+      await prisma.drop.update({
+        where: { id: drop.id },
+        data: { heldReason: 'The store does not serve https://brand.example/products/held' },
+      });
+
+      const { drops } = await service.queue(200);
+      const held = drops.find((d) => d.id === drop.id);
+
+      expect(held?.heldReason).toContain('/products/held');
+    });
+
+    it('leaves it null for a Drop that is simply awaiting review', async () => {
+      // An extracted Drop is pending because that is where extracted Drops
+      // start. That is not a reason, and inventing one would make the field
+      // meaningless the day it was added.
+      const { drop } = await arrangePending({ title: 'Ordinary Candidate' });
+
+      const { drops } = await service.queue(200);
+
+      expect(drops.find((d) => d.id === drop.id)?.heldReason).toBeNull();
+    });
+  });
+
   it('announces an approved drop to both channels', async () => {
     const { drop, brand } = await arrangePending();
 

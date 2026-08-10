@@ -18,6 +18,7 @@ import { AlertDispatchService } from '../alerts/alert-dispatch.service';
 import { CapturingTelegram } from '../../test/capturing-telegram';
 import { DropWriterService } from '../drops/drop-writer.service';
 import { PrismaService } from '../prisma/prisma.service';
+import { LinkProbe } from './link-probe';
 import { RobotsService } from './robots.service';
 import { FetchResult, SiteFetcher } from './site-fetcher';
 import { SiteWatchService } from './site-watch.service';
@@ -111,6 +112,7 @@ describe('SiteWatchService — a candidate Drop with a dead link', () => {
       new WatchWriterService(prisma),
       new AlertDispatchService(prisma, config, telegram),
       robots,
+      new LinkProbe(fetcher, robots),
       config,
     );
   });
@@ -226,6 +228,31 @@ describe('SiteWatchService — a candidate Drop with a dead link', () => {
       expect(change?.url).toContain('/products/ghost');
       expect(change?.broadcasts).toBe(0);
       expect(result.deadLinkCount).toBe(1);
+    });
+
+    it('records the reason on the Drop, where it outlives the poll', async () => {
+      // The poll response and the log line are both gone by the time anyone
+      // looks. Unlike a held Source, this refusal cannot re-derive itself —
+      // the snapshot has moved on, so no later poll raises it again.
+      const { source, brandId } = await arrangeRelease(['aquascaphe'], 'ghost');
+      fetcher.productStatus.set('ghost', 404);
+
+      await service.pollSource(source.id);
+
+      const ghost = (await dropsFor(brandId)).find((d) => d.title === 'ghost');
+      expect(ghost?.heldReason).toContain('/products/ghost');
+      expect(ghost?.heldReason).toMatch(/does not serve/i);
+    });
+
+    it('leaves the reason off a Drop that published normally', async () => {
+      // "Why is this waiting" has no answer for something that is not waiting.
+      const { source, brandId } = await arrangeRelease(['aquascaphe'], 'fine');
+
+      await service.pollSource(source.id);
+
+      const drop = (await dropsFor(brandId)).find((d) => d.title === 'fine');
+      expect(drop?.publishedAt).not.toBeNull();
+      expect(drop?.heldReason).toBeNull();
     });
 
     it('lets its healthy siblings publish normally', async () => {

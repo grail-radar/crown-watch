@@ -50,6 +50,11 @@ shop.
 robots.txt that forbids the path — all leave the candidate publishable and are
 reported as `unverified`.
 
+**The check runs before anything is written down, and is capped at twelve links
+per poll.** Both are load-bearing and are explained under Consequences.
+
+**The reason is recorded on the Drop**, not only logged.
+
 **A missing image publishes.** Explicitly decided rather than left implicit.
 
 ## Considered options
@@ -80,14 +85,41 @@ reported as `unverified`.
 - **The moderation queue gains a new kind of occupant**, and it is the only
   place these Drops appear. An operator approving one calls straight into the
   broadcast path, which is the recovery: publish it once the store's page is up.
-  Nobody is notified, so a Drop can sit there — the poll report and the run log
-  both count them (`deadLinkCount`, `totalDeadLinks`) precisely so that is
-  visible.
-- **One extra request per announced candidate.** Bounded by construction: only
-  candidates about to be announced are asked about, the flood guard has already
-  capped those at ten per poll, a baseline poll asks about nothing, and a refused
-  poll asks about nothing. robots.txt is honoured and its answer is cached per
-  origin, so vetting three releases from one store costs one lookup.
+  Because the broadcast was skipped entirely, no `drop_broadcasts` row exists to
+  suppress it under ADR-0002's once-ever rule.
+
+  Nobody is notified, so a Drop can sit there. Three things make it findable:
+  the poll report and run log count them (`deadLinkCount`, `totalDeadLinks`),
+  each is logged as a warning naming the Watch and the URL, and — the only
+  durable one — `drops.held_reason` carries the reason on the row itself.
+
+  **That last one is not optional.** A held Source (ADR-0005) re-derives its
+  refusal on every poll, so an operator who misses one report sees the next.
+  This refusal cannot: the snapshot is stored, so novelty never fires for that
+  product again and no later poll mentions it. A log line and a response body
+  nobody reads under the hourly scheduler would have been the whole record.
+- **Vetting happens before the snapshot is stored.** ADR-0002 accepts a window
+  between storing a snapshot and dispatching the alerts it implies — a process
+  dying inside it leaves products recorded as seen, so they can never raise an
+  event again. Vetting is network I/O against a shop that may be slow, and doing
+  it inside the loop would have widened that window by a timeout per candidate.
+  Done first, a crash costs nothing: the old snapshot is still in place and the
+  next poll redoes the lot.
+- **At most twelve requests per poll, on every path.** A hard cap rather than a
+  consequence of the flood guard, because `release=true` waives that guard — and
+  an operator releasing a held source is exactly when a hundred candidates
+  arrive at once. Past the cap, candidates are not asked about and publish as
+  `unverified`: sampling that fails open is the only safe way to be bounded.
+
+  A scheduled poll never reaches the cap, since the flood guard refuses above
+  ten changes. A baseline poll asks about nothing, and a refused poll asks about
+  nothing. robots.txt is honoured and cached per origin, so vetting three
+  releases from one store costs one lookup.
+- **Each check is a full GET, and reads a body it does not use.** Only the
+  status is read. `SiteFetcher` is one seam shared by the poll, the robots
+  lookup and the store probe, and giving it a method parameter to save a few
+  hundred kilobytes twelve times an hour is not worth widening it. Revisit if
+  the roster grows enough for it to matter.
 - **A Watch and its Variants are never touched.** This refuses an announcement.
   The product came from the store's own feed and stays in the catalogue, where a
   reader can still find it — the brand page and the Watch page are not claims

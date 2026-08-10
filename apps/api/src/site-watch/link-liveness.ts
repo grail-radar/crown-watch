@@ -34,14 +34,3 @@ export function verdictFor(status: number): LinkVerdict {
 
   return 'unverified';
 }
-
-/**
- * What a request that never completed says: nothing.
- *
- * A timeout, a DNS failure, a refused connection. The same call the robots
- * cache makes when it cannot read a robots.txt — one flaky moment must not be
- * able to silence a brand indefinitely.
- */
-export function verdictForFailure(): LinkVerdict {
-  return 'unverified';
-}
