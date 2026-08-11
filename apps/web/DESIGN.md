@@ -1,455 +1,507 @@
 ---
 name: Crown Watch
-description: Microbrand watch drop & waitlist radar — an independent catalogue with an opinion
+description: An independent reference for microbrand watchmaking — paper, ink, one hairline rule, and photographs for colour.
 colors:
-  night: "light-dark(#f5f2ec, #101014)"
-  panel: "light-dark(#fbf9f6, #17171c)"
-  panel-2: "light-dark(#ffffff, #1e1e24)"
-  line: "light-dark(#e0d9cc, #26262e)"
-  ink: "light-dark(#22201b, #ece9e2)"
-  faint: "light-dark(#5f5a50, #918e86)"
-  gold: "light-dark(#7d5f27, #c9a96a)"
-  gold-bright: "light-dark(#5f4718, #e0c690)"
-  on-gold: "light-dark(#fffcf5, #101014)"
-  scrim: "#101014"
+  paper: "light-dark(#ffffff, #0d0d0d)"
+  ink: "light-dark(#0b0b0b, #ededed)"
+  muted: "light-dark(#6b6b6b, #9a9a9a)"
+  rule: "light-dark(#e3e3e3, #272727)"
+  inverse: "light-dark(#ffffff, #0d0d0d)"
+  plate: "light-dark(#f4f4f2, #171717)"
+  danger: "light-dark(#a4142a, #ff8080)"
 typography:
   display:
-    fontFamily: "Fraunces, Georgia, 'Times New Roman', serif"
-    fontSize: "clamp(2.25rem, 5vw, 3.75rem)"
-    fontWeight: 500
-    lineHeight: 1.08
-    letterSpacing: "-0.025em"
+    fontFamily: "Noto Serif Display, Georgia, Times New Roman, serif"
+    fontSize: "clamp(2.5rem, 7vw, 5rem)"
+    fontWeight: 300
+    lineHeight: 1.06
+    letterSpacing: "-0.02em"
+  annotation:
+    fontFamily: "Noto Serif Display, Georgia, Times New Roman, serif"
+    fontSize: "clamp(1.75rem, 3.6vw, 3.25rem)"
+    fontWeight: 300
+    lineHeight: 1.06
+    letterSpacing: "-0.02em"
   headline:
-    fontFamily: "Fraunces, Georgia, 'Times New Roman', serif"
-    fontSize: "1.5rem"
-    fontWeight: 400
-    lineHeight: 1.2
-    letterSpacing: "-0.025em"
+    fontFamily: "Noto Serif Display, Georgia, Times New Roman, serif"
+    fontSize: "clamp(2rem, 5vw, 3.5rem)"
+    fontWeight: 300
+    lineHeight: 1.06
+    letterSpacing: "-0.02em"
   title:
-    fontFamily: "Instrument Sans, ui-sans-serif, system-ui, sans-serif"
-    fontSize: "1rem"
+    fontFamily: "Noto Serif Display, Georgia, Times New Roman, serif"
+    fontSize: "1.5rem"
+    fontWeight: 300
+    lineHeight: 1.06
+    letterSpacing: "-0.02em"
+  price:
+    fontFamily: "Golos Text, ui-sans-serif, system-ui, sans-serif"
+    fontSize: "clamp(1.875rem, 4vw, 2.25rem)"
     fontWeight: 500
-    lineHeight: 1.375
+    lineHeight: 1.2
+    letterSpacing: "normal"
+    fontVariation: "tabular-nums"
   body:
-    fontFamily: "Instrument Sans, ui-sans-serif, system-ui, sans-serif"
-    fontSize: "1.125rem"
+    fontFamily: "Golos Text, ui-sans-serif, system-ui, sans-serif"
+    fontSize: "1rem"
     fontWeight: 400
     lineHeight: 1.625
-  label:
-    fontFamily: "Instrument Sans, ui-sans-serif, system-ui, sans-serif"
+    letterSpacing: "normal"
+  fact:
+    fontFamily: "Golos Text, ui-sans-serif, system-ui, sans-serif"
+    fontSize: "0.875rem"
+    fontWeight: 400
+    lineHeight: 1.5
+    letterSpacing: "normal"
+  micro:
+    fontFamily: "Golos Text, ui-sans-serif, system-ui, sans-serif"
     fontSize: "0.75rem"
-    fontWeight: 500
-    lineHeight: 1.4
-    letterSpacing: "0.2em"
+    fontWeight: 400
+    lineHeight: 1.5
+    letterSpacing: "normal"
 rounded:
-  pill: "9999px"
-  sm: "0.5rem"
-  md: "0.75rem"
-  lg: "1rem"
-  xl: "1.5rem"
+  none: "0px"
 spacing:
-  section-gap: "3.5rem"
-  section-rule: "2.5rem"
-  card-pad: "1rem"
-  gutter: "1.5rem"
-  container: "72rem"
+  tight: "12px"
+  stack: "32px"
+  gutter: "24px"
+  grid-y: "48px"
+  section-gap: "56px"
+  section-pad: "40px"
+  major-gap: "80px"
 components:
-  button-primary:
-    backgroundColor: "{colors.gold}"
-    textColor: "{colors.on-gold}"
-    rounded: "{rounded.md}"
-    padding: "0.625rem 1.25rem"
-    typography: "{typography.title}"
-  button-primary-hover:
-    backgroundColor: "{colors.gold-bright}"
-  button-ghost:
-    backgroundColor: "transparent"
-    textColor: "{colors.gold}"
-    rounded: "{rounded.md}"
-    padding: "0.625rem 1.25rem"
-  button-quiet:
-    backgroundColor: "transparent"
-    textColor: "{colors.faint}"
-    rounded: "{rounded.pill}"
-    padding: "0.625rem 1.25rem"
-  card:
-    backgroundColor: "{colors.panel}"
+  action-fill:
+    backgroundColor: "{colors.ink}"
+    textColor: "{colors.inverse}"
+    typography: "{typography.fact}"
+    rounded: "{rounded.none}"
+    padding: "10px 20px"
+  action-quiet:
     textColor: "{colors.ink}"
-    rounded: "{rounded.xl}"
-    padding: "{spacing.card-pad}"
-  input:
-    backgroundColor: "{colors.panel}"
-    textColor: "{colors.ink}"
-    rounded: "{rounded.md}"
-    padding: "0.625rem 1rem"
-  input-in-panel:
-    backgroundColor: "{colors.night}"
-    textColor: "{colors.ink}"
-    rounded: "{rounded.md}"
-    padding: "0.625rem 1rem"
-  input-label:
+    typography: "{typography.fact}"
+    rounded: "{rounded.none}"
+    padding: "0"
+  field:
     backgroundColor: "transparent"
-    textColor: "{colors.faint}"
-    typography: "{typography.title}"
+    textColor: "{colors.ink}"
+    typography: "{typography.fact}"
+    rounded: "{rounded.none}"
+    padding: "8px 0"
+  nav-link:
+    textColor: "{colors.muted}"
+    typography: "{typography.fact}"
+    rounded: "{rounded.none}"
+  nav-link-hover:
+    textColor: "{colors.ink}"
+  plate:
+    backgroundColor: "{colors.plate}"
+    rounded: "{rounded.none}"
+    width: "100%"
+  curated-mark:
+    backgroundColor: "{colors.ink}"
+    rounded: "{rounded.none}"
+    size: "0.42em"
   dialog:
-    backgroundColor: "{colors.panel}"
+    backgroundColor: "{colors.paper}"
     textColor: "{colors.ink}"
-    rounded: "{rounded.lg}"
-    padding: "1.25rem 1.5rem"
-  chip-curated:
-    backgroundColor: "{colors.gold}"
-    textColor: "{colors.gold}"
-    rounded: "{rounded.pill}"
-    padding: "0.125rem 0.5rem"
-  chip-listed:
-    backgroundColor: "transparent"
-    textColor: "{colors.faint}"
-    rounded: "{rounded.pill}"
-    padding: "0.25rem 0.625rem"
+    typography: "{typography.fact}"
+    rounded: "{rounded.none}"
+    padding: "24px"
 ---
 
 # Design System: Crown Watch
 
 ## Overview
 
-**Creative North Star: "The Auction House Catalogue"**
+**Creative North Star: "The Reference Shelf"**
 
-An independent specialist's catalogue, not a shop. Warm ground, gilt marking what
-matters, sparse type, and a written opinion set under each lot. The system's whole
-job is to make one honest sentence about a brand feel like the most valuable thing
-on the page — because it is. Everything else is furniture arranged so the reader
-reaches that sentence and believes it.
+This is a reference you consult about brands, not a shop that sells them. The
+world is paper white, near-black ink, and one hairline rule — the arrangement a
+serious reference work has used for a century, taken deliberately rather than
+inherited. It was chosen over five invented alternatives with **A Collected Man**
+and **Hodinkee** named as the craft bar, and the anti-reference is explicit: the
+dark, gold-lit luxury-watch page where atmosphere stands in for having a view.
+Nothing here glows. Nothing is dressed up. A page earns attention by saying
+something true in a large enough size to be read.
 
-The atmosphere is **warm, exacting, unhurried**. Nothing here is cold: both
-palettes refuse pure black and pure white, and the neutrals carry a paper warmth
-that keeps a dense catalogue from reading as a database. Precision lives in the
-spacing and the type rather than in ornament — sections are separated by a single
-hairline rule and a generous run of air, never by a box, a shadow, or a color
-block. Nothing is rushed: no countdown, no urgency, no motion that isn't a
-response to the reader's own cursor.
+The defining constraint is that there is **no accent colour at all**. Seven
+tokens carry the entire system and six of them are neutral; the seventh is an
+error red that never decorates anything. Photographs are the only colour on the
+page, and they are a brand's own watches, which is the only colour a reference
+about watches should be spending. That single refusal does most of the work: with
+no brand hue to reach for, hierarchy has to come from size, weight, ground, and
+the space around a thing — which is what makes the layout legible rather than
+styled.
 
-The dark palette is the considered one, and light is not its inversion. A
-champagne accent on paper reads at about 1.9:1 and disappears, so gold becomes an
-antique bronze at 5.31:1 rather than dimming into decoration. This is the system's
-governing habit: when a theme flips, roles are re-derived, never mirrored.
+The surface is flat in the literal sense: every computed `border-radius` in the
+app is `0px` and every computed `box-shadow` is `none`, including the one
+overlay. An object is separated from the page by a hairline rule, by a change of
+ground, or by nothing at all. Two faces divide the labour honestly — a light
+high-contrast serif for the two things a person actually wrote (a Brand's name
+and the judgement about it), and a neutral grotesque for every fact the machines
+gathered. A reader can tell opinion from data without being told which is which.
 
 **Key Characteristics:**
-- Nine indirected color tokens; not one hex value or `dark:` variant in any component
-- Depth drawn in line and tone — the only shadow in the interface is on the overlay layer
-- A serif display voice (Fraunces) against a neutral sans body (Instrument Sans)
-- Gold is scarce and structural: state, judgement, and action, nothing else
-- Generated per-brand art instead of borrowed logos or publishers' photography
-- Absence stated in prose, never rendered as a placeholder or a warning
+- Paper-white ground, near-black ink, one hairline rule (19.68:1 on paper)
+- No accent colour; photographs supply all colour on the page
+- Zero radius, zero shadow, everywhere, in both themes
+- Serif for authored prose, grotesque for gathered fact
+- Light is the considered palette; dark is re-derived, not inverted
+- Filled elements are rare and earned; links are underlines
+- Empty states are plain sentences, never dashed placeholder boxes
 
 ## Colors
 
-A warm two-mode palette of nine tokens: three stacked surfaces, one hairline, two
-text weights, and a single accent that changes metal between themes.
+Six neutrals and one error red, declared once as `light-dark()` pairs and
+indirected through seven `--cw-*` custom properties so a theme swaps the whole
+palette at the root.
 
 ### Primary
 
-- **Champagne & Bronze** — the one accent, and it has two faces. **Champagne Gold**
-  (`#c9a96a`) on dark reads as the warm yellow of a case back; **Antique Bronze**
-  (`#7d5f27`) on paper is the same metal in different light, chosen for legibility
-  (5.31:1) rather than mood. It marks exactly four things: the wordmark's first
-  word, an approved judgement, a state worth trusting (Curated), and the action a
-  reader can take. **Gold Bright** (`#e0c690` dark / `#5f4718` light) is its hover
-  and its emphasis — never a second accent.
-- **On Gold** (`#101014` dark / `#fffcf5` light) — text sitting *on* a gold fill.
-  Deliberately its own token rather than the page color it happened to match while
-  the site was dark-only; reusing the page color here is exactly what makes an
-  inverted palette illegible.
+There is no primary accent, and its absence is the system's defining rule. Where
+another site would place a brand hue, this one places ink, a rule, or a
+photograph.
 
 ### Neutral
 
-- **Night** (`#101014` dark / `#f5f2ec` light) — the page ground. Layered warm
-  charcoal, never true black; warm paper, never white.
-- **Panel** (`#17171c` / `#fbf9f6`) — the resting surface for every card, the
-  digest block, and search fields. One step from the ground, no more.
-- **Panel Two** (`#1e1e24` / `#ffffff`) — the innermost layer: image wells behind
-  photography, the active theme-switch key.
-- **Line** (`#26262e` / `#e0d9cc`) — the hairline that does the work shadows would
-  do elsewhere. Usually at 70–80% opacity so it separates without drawing.
-- **Ink** (`#ece9e2` / `#22201b`) — body and heading text. Warm off-white on dark,
-  warm near-black on paper.
-- **Faint** (`#918e86` / `#5f5a50`) — metadata, provenance, timestamps, and every
-  honest admission of absence. The second voice, not a disabled state.
-- **Scrim** (`#101014`, fixed) — backdrops and badges over photography. Dark in
-  *both* themes on purpose: a scrim exists to sink what is behind it, and a light
-  scrim over a light page does nothing.
+- **Paper** — the page ground. White on light, a near-black that is deliberately
+  *not* pure black on dark, so the plate has somewhere to lighten to.
+- **Ink** — all body text, every heading, filled buttons, the focus outline, the
+  Curated mark, and the `::selection` background. 19.68:1 against paper.
+- **Muted** — facts, captions, provenance lines, inactive navigation, and the
+  supporting sentence under a heading. 5.33:1 against paper: quiet, still legible
+  at 0.75rem.
+- **Rule** — every hairline: section separators, card underlines, the field
+  underline at rest, and link `text-decoration-color` before hover.
+- **Inverse** — text on an ink fill. Equal to paper in both themes; it exists as
+  its own token so a fill never has to name the page's colour.
+- **Plate** — the ground a photograph is mounted on, a hair off paper. Store
+  images arrive as everything from a white packshot to a wrist shot, and a plate
+  that is exactly the page leaves a packshot floating with no edge at all. On
+  dark it lightens *away* from the page rather than darkening, so the photograph
+  still reads as mounted.
 
 ### Tertiary
 
-Four muted signal hues carry Drop type only — emerald (Kickstarter), sky
-(Waitlist open), amber (Restock), and gold itself (Pre-order) — always as a
-10%-fill / 25%-ring pair, never as a solid. They are a taxonomy, not a palette.
+- **Danger** — error text under a form field, and nothing else. It is the only
+  hue in the system and it is never a brand colour, never a badge, never a
+  decoration.
 
 ### Named Rules
 
-**The Nine Token Rule.** Every color in the app resolves through `--cw-*`. A
-component that carries a hex value, or a `dark:` variant, is a defect — a palette
-change must be one file and nothing else.
+**The Seven Tokens Rule.** Every colour in the app comes from one of seven
+`--cw-*` tokens. No component carries a hex value and no component carries a
+`dark:` variant — the theme is resolved once at the root by `light-dark()`, so a
+component written correctly is already correct in both worlds.
 
-**The Scarce Metal Rule.** Gold marks judgement, approved state, and action.
-It never becomes a background wash, a heading color for ordinary headings, or a
-decorative rule. Its rarity is what makes an Annotation look like the point.
+**The No Accent Rule.** There is no accent colour. Photographs are the only
+colour on the page. If a new surface needs emphasis, it gets size, ink, a rule,
+or a fill — never a hue.
 
-**The Re-derive, Never Mirror Rule.** A light palette is not a dark one inverted.
-When a token changes theme, its *role* is re-satisfied — contrast, warmth, and
-legibility measured again — not its value flipped.
+**The Considered Light Rule.** Light is the designed palette; dark is re-derived
+from it, not inverted. Two values are re-thought rather than flipped: the display
+weight steps 300 → 400 (`--dark-display-weight`), because a light serif that is
+elegant on paper turns to wire on black; and the plate lightens away from the
+page instead of darkening.
+
+**The Danger-Is-Not-Decoration Rule.** The one non-neutral token is reserved for
+errors. A status, a badge, a category, or a call to action never reaches for it.
 
 ## Typography
 
-**Display Font:** Fraunces (with Georgia, "Times New Roman", serif)
-**Body Font:** Instrument Sans (with ui-sans-serif, system-ui, sans-serif)
+**Display Font:** Noto Serif Display (300, 400) — fallback Georgia, Times New
+Roman, serif
+**Body Font:** Golos Text (400, 500) — fallback ui-sans-serif, system-ui,
+sans-serif
 
-**Character:** A soft-edged, slightly old-style serif doing the talking, against a
-neutral grotesque doing the recording. The serif is reserved for what a person
-wrote or named — the judgement, the brand, the price, the section that begins an
-argument. The sans handles everything a machine gathered. You can tell who is
-speaking by the shape of the letters, which is the entire point of the pairing.
+Both faces ship `latin` **and** `cyrillic` subsets. That is a requirement, not a
+bonus: Ukrainian is coming to the site, and a display face that cannot set a
+Brand's name in Ukrainian would have to be replaced the week that lands.
+
+**Character:** A high-contrast editorial serif set light and tight against a
+plain, wide-aperture grotesque. The serif reads as a person speaking; the
+grotesque reads as a record. There is no third voice, no mono, and no uppercase
+letterspaced label anywhere in the system.
 
 ### Hierarchy
 
-- **Display** (Fraunces 500, `clamp(2.25rem, 5vw, 3.75rem)`, 1.08, `-0.025em`):
-  the homepage proposition and brand names. One per page.
-- **Headline** (Fraunces 400, 1.5rem, `-0.025em`): section titles that open an
-  argument — "What YEMA makes", "Recent drops".
-- **Annotation** (Fraunces 500, 1.5rem → 1.875rem, 1.375, `-0.025em`): the
-  judgement itself, and the largest prose on any Brand page. Also the price band.
-- **Title** (Instrument Sans 500, 1rem, 1.375): card titles and Drop headlines.
-- **Body** (Instrument Sans 400, 1.125rem, 1.625, `text-faint`): explanatory prose,
-  capped at `max-w-2xl`/`max-w-3xl` (~65–75ch).
-- **Label** (Instrument Sans 500, 0.75rem, `0.2em` tracking, uppercase): the
-  catalogue's lot markers — "OUR TAKE", "WHAT IT COSTS", brand names on cards
-  (`0.18em`), the eyebrow above the homepage headline (`0.3em`).
+- **Display** (300 light / 400 dark, `clamp(2.5rem, 7vw, 5rem)`, 1.06,
+  -0.02em): a Brand's name on its own page. Measured at 80px at full width.
+- **Annotation** (300/400, `clamp(1.75rem, 3.6vw, 3.25rem)`, 1.06, -0.02em): the
+  judgement, and the largest prose a Curated Brand page carries.
+- **Headline** (300/400, `clamp(2rem, 5vw, 3.5rem)`; the homepage runs
+  `clamp(2.5rem, 6.5vw, 4.5rem)`): the h1 of every page that is not a Brand.
+- **Title** (300/400, 1.5rem, 1.06): every section h2 — "What it costs", "What
+  {brand} makes", "Recent drops". Always sits directly under a hairline rule.
+- **Price** (500, 1.875rem → 2.25rem at `sm`, tabular figures): the price band on
+  a Brand page. The only place the grotesque is set large, because a number is a
+  gathered fact and must not borrow the serif's authority.
+- **Body** (400, 1rem, 1.625): supporting prose and empty states. Capped at
+  30–36rem, which measures 55–69ch.
+- **Fact** (400, 0.875rem, muted): the facts line under a Brand name, card
+  titles, prices in cards, navigation, footer.
+- **Micro** (400, 0.75rem, muted): figure captions, source attributions, variant
+  counts, stock state.
 
 ### Named Rules
 
-**The Two Voices Rule.** Serif for what a person judged or named; sans for what
-was gathered. A machine-extracted fact never sets in Fraunces, and the Annotation
-never sets in Instrument Sans.
+**The Two Voices Rule.** The serif carries only what a person wrote — a Brand's
+name and the judgement. Everything gathered by a machine is set in the grotesque.
+A price, a country, a founding year, or a drop title in the serif is a category
+error.
 
-**The Unabridged Judgement Rule.** The Annotation renders exactly as written — no
-truncation, no line clamp, no fade, nothing appended. An Annotation that says the
-lume is poor has to say the lume is poor, in full, or the whole exercise is
-marketing. `break-words` is permitted solely so a long token cannot push the page
-sideways.
+**The Unlabelled Annotation Rule.** The Annotation is rendered exactly as
+written: never truncated, never line-clamped, never faded at the bottom, never
+appended to. It carries no heading above it — the sentence is the largest prose
+on the page and the small line beneath it says who wrote it, which is more than a
+label would. An Annotation that says the lume is poor has to be able to say the
+lume is poor.
 
-**The Uppercase Label Rule.** All-caps appears only at label size with ≥`0.18em`
-tracking. Never on a heading, never on a button, never on a brand's own name in
-running text.
+**The Cyrillic Rule.** Both faces carry Cyrillic and no layout may depend on
+English string lengths. Cyrillic runs roughly a third longer; headings wrap,
+buttons grow, and nothing is sized to a specific English word.
+
+**The No Eyebrow Rule.** There are no uppercase letterspaced kickers, eyebrows,
+or all-caps labels in this system. A section is announced by a rule and a serif
+h2, and by nothing else.
 
 ## Layout
 
-A single centered column, `max-w-6xl` (72rem) with a 1.5rem gutter that never
-changes across breakpoints — the container narrows, the padding doesn't.
+One centred column, `max-w-6xl` (72rem) with a 24px gutter (`px-6`), used by the
+homepage, the drops index, and the Brand page. A single Watch page narrows to
+`max-w-4xl` (56rem), because its subject is one photograph and one list.
 
-**Section rhythm** is the page's structural grammar: `mt-14` of air, a `border-t`
-hairline at 70% opacity, then `pt-10` before the heading. Repeated identically
-down every page, so a reader learns where a new argument begins without a box
-being drawn around it. The homepage hero sits above the first rule with `py-16`
-(`sm:py-20`).
+**Section rhythm.** Every major section on a content page is separated the same
+way: `mt-14` (56px) + `border-t border-rule` + `pt-10` (40px). The homepage's
+top-level sections run one step wider (`mt-20` + rule + `pt-14`). A heading
+always sits immediately below its rule; the rule is what announces the section.
 
-**Grids** step by content weight, not by a single system: Drop cards 1 → 2 → 3
-(`gap-5`), brand cards 1 → 2 → 3 (`gap-3.5`), Watch cards **2** → 3 → 4
-(`gap-4`) — the only grid that stays two-up on the smallest screen, because a
-watch is recognisable at thumbnail size and a single-column catalogue reads as a
-list of links.
+**Grids.** Drop cards run 1 / 2 / 3 columns with a 24px x-gutter and a 48px
+y-gutter — the gutters do the separating that a border used to, which is what
+lets photographs sit next to each other without forty rectangles competing with
+them. Watch cards run 2 / 3 / 4 with a 40px y-gutter. The brand directory runs
+1 / 2 / 3 with a wide 40px x-gutter, each row underlined rather than boxed.
 
-**Breakpoints** are Tailwind defaults; only `sm` (640px) and `lg` (1024px) are
-used. Both mobile and desktop are primary scenes — the header sheds labels rather
-than wrapping (`Get the digest` → `Digest`, Telegram to icon-only, Submit hidden),
-and the Brand hero's avatar and negative-margin overlap scale rather than restack.
+**Breakpoints.** Tailwind defaults, and only two are used in layout: `sm` (640px)
+and `lg` (1024px). `md` (768px) appears only in image `sizes` hints.
 
-## Elevation & Depth
+**Aspect ratios.** Every photograph declares one: 3:2 for the Brand lead (the
+figure column measures 768×540, image plus a 12px caption), 4:3 for the Watch
+page lead, 16:10 for a drop card, 1:1 for a watch card, and a 56px square for an
+accessory thumbnail.
 
-**No shadows on the page.** Not "few" — no surface in the document flow casts
-one. Depth is drawn, not lit: three stacked surface tones (night → panel →
-panel-2) and a 1px hairline are the entire vocabulary. This is a catalogue
-printed on paper, where an object is separated from its ground by a rule and a
-change of stock.
+**Header and footer.** The header is a single 20px-tall padded row with the
+wordmark in the serif at 1.25rem and the nav at `fact` size, closed by a hairline.
+The footer sits 96px below the content on a `2fr 1fr 1fr` grid at `sm` and up.
 
-Two things that look like exceptions are not. The `box-shadow: inset` ring on the
-brand lettermark is a drawn edge rather than a cast shadow, and the `ring-*`
-utilities are visible 1px strokes on badges and the avatar's cutout.
-
-**The one real exception is the overlay layer.** A dialog leaves the page's
-plane, so it is allowed the full lighting treatment: a `scrim/80` backdrop with
-`backdrop-blur-sm` beneath it and `shadow-2xl` on the panel itself. This is the
-only `box-shadow` in the interface, and it is licensed by leaving the document
-flow — not by being important.
-
-**Elevation is an event, not a property.** The only lift in the page system is
-`hover:-translate-y-0.5` (2px) paired with the border warming from `line` to
-`gold/40`, over 300ms. A surface at rest is flat by definition.
+**No horizontal overflow** at 375px or 1024px. The lead figure is a column and not
+a full-width banner on purpose: at container width any honest ratio is 600–700px
+tall, which is a masthead rather than a photograph, and a height clamp cannot
+rescue it because an aspect-ratio box answers a height limit by narrowing.
 
 ### Named Rules
 
-**The Drawn Depth Rule.** Separate surfaces in the page with tone and a hairline.
-Reaching for a `box-shadow` on anything that scrolls with the document means the
-tonal stack was not used properly.
+**The Section Rhythm Rule.** New sections use `mt-14` + `border-t border-rule` +
+`pt-10`. Do not invent a second separator style; the hairline above a serif h2 is
+the only section boundary this world has.
 
-**The Leaving-The-Plane Rule.** Shadow is the privilege of a layer that floats
-over the page, and nothing else earns it. A dialog gets scrim, blur, and
-`shadow-2xl`; a card that happens to matter does not.
+**The Measure Rule.** Prose is capped at 30–36rem (55–69ch). Nothing in this
+system runs the full 72rem as a paragraph.
 
-**The Lift-On-Approach Rule.** 2px and a warmed border, 300ms, and nothing else.
-No scale, no shadow bloom, no color fill on hover of a card.
+**The Laid Out Twice Rule.** The navigation is composed twice — a desktop row and
+a named `Menu` panel below `sm` — rather than shrunk to fit. Shaving gaps until a
+row *almost* fits is how a header ends up with its last control off-screen.
+
+## Elevation & Depth
+
+There is no elevation in this system. Every computed `border-radius` in the app
+is `0px` and every computed `box-shadow` is `none` — in both themes, on every
+surface, including the one modal overlay. There is no shadow vocabulary to
+document because there are no shadows.
+
+Depth is conveyed three ways and only three ways: a **hairline rule**
+(`--cw-rule`, 1px) where two regions must be told apart; a **change of ground**
+(`--cw-plate`, a hair off paper) where a photograph is mounted; and **nothing at
+all** where a grid gutter already does the separating. The release-note dialog —
+the one surface that genuinely floats — is handled with a `bg-ink/60` scrim and a
+1px `border-ink` panel on paper. That is the house treatment for an overlay.
+
+### Named Rules
+
+**The Flat World Rule.** No `box-shadow`, no `drop-shadow`, no `filter: blur()`
+on a surface, ever. If a new element needs to be told apart from the page, use a
+rule, a plate, or space.
+
+**The Three Separators Rule.** A hairline, a change of ground, or nothing at all.
+An element that needs a fourth kind of separation is an element in the wrong
+place.
 
 ## Shapes
 
-Rounded, generous, and consistent by role rather than by size. Cards and empty
-states take `rounded-2xl` (1rem); buttons, inputs, and small tiles `rounded-xl`
-(0.75rem); thumbnails `rounded-lg` (0.5rem); every badge, chip, pill, and the
-theme switch take a full pill (`9999px`). Brand lettermarks are circles.
+Square, everywhere, enforced globally by `* { border-radius: 0 }`. Buttons,
+plates, dialogs, thumbnails, inputs, and the Curated mark are all right-angled
+rectangles. There is no rounded corner in the system to reach for.
 
-Borders are always 1px and usually translucent (`border-line/70`, `/80`). The
-recurring silhouette is **a soft rectangle opened by a full-bleed image well at
-its top edge** — Drop cards at 16:10, Watch cards at 1:1, brand cards with a 3.5rem
-generated banner. Media meets the card's own corner radius with no inset frame.
+Borders are always 1px and always `--cw-rule` at rest, promoted to `--cw-ink`
+where something is active, focused, or complete: a field underline on focus, a
+dialog panel edge, the rule above a success message.
 
-Empty states use a **dashed** border of the same hairline color — the one place
-the stroke changes character, marking "nothing here yet" without a color or an
-icon.
+**Links are underlines, not shapes.** The standing link form is
+`text-decoration: underline` with a 4px offset and `text-decoration-color:
+var(--color-rule)`, darkening to ink on hover. Cards use `group-hover:underline`
+on their title rather than a border or a background change, so the photograph
+stays the loudest thing in a grid.
+
+The one drawn glyph in the whole system is the **Curated mark**: a filled ink
+square of `0.42em`, aligned to the cap height of the name beside it. It is not a
+badge, not a pill, and not a colour; its meaning is stated once in the
+directory's legend.
 
 ## Components
 
 ### Buttons
 
-- **Shape:** softly rounded (`rounded-xl`, 0.75rem); pill only at chip scale.
-- **Primary:** gold fill with `on-gold` text, `0.625rem 1.25rem`, 500 weight.
-  Reserved for the single action a screen wants — join the digest, buy from the
-  brand. Hover deepens the fill to `gold-bright`.
-- **Ghost:** a `gold/40` hairline with gold text on no fill, same metrics. For an
-  honest but weaker action — a brand-site link where the reader still has to find
-  the watch when they arrive. Hover brings the border to full gold.
-- **Quiet:** a `line` hairline with `faint` text, for the secondary path out of a
-  hero. Hover warms the border to `gold/50` and the text to `ink`.
-- **Focus:** `focus-visible:outline-2 outline-offset-2 outline-gold`.
-
-### Chips
-
-- **Drop type:** a 10% tint, a 25% ring, and text in the same hue, at
-  `text-[11px]` with a pill radius. Four hues carry the taxonomy; anything unknown
-  falls back to `panel-2` / `faint` / `line` rather than picking a color.
-- **Curated:** `gold/10` fill, `gold/25` ring, gold text. The only badge granted
-  the accent.
-- **Listed:** a plain `line` border with `faint` text on the Brand page — and
-  **nothing at all** on a directory card. Absence of a badge is the design.
-- **Facts** (country, founded, tally): identical `line`-bordered pills, so a fact
-  never outranks a state.
-
-### Cards / Containers
-
-- **Corner Style:** `rounded-2xl` (1rem), overflow hidden so media meets the corner.
-- **Background:** `panel`, on the `night` ground, with the image well in `panel-2`.
-- **Shadow Strategy:** none. See Elevation & Depth.
-- **Border:** 1px `line` at 70–80%, warming to `gold/40` on hover.
-- **Internal Padding:** 1rem (`p-4`) on Drop cards, 0.75rem on the denser Watch grid.
+- **Shape:** square (0px), no border.
+- **Fill (primary):** ink ground, inverse text, 20px × 10px padding, `fact` size,
+  regular weight, sentence case. Used in exactly three places — the homepage
+  "Browse the brands", the digest submit, and a store purchase link.
+- **Hover / Focus:** hover drops opacity to 0.8 with a transition; disabled sits
+  at 0.5. Focus is the global 2px ink outline at 2px offset. No transform, no
+  shadow, no colour change.
+- **Quiet (default):** a text link with a rule-coloured underline at 4px offset,
+  darkening to ink on hover. This — not a fill — is what a call to action looks
+  like by default, including the header's "Get the digest".
+- **Muted text control:** navigation items, the mobile `Menu` toggle, and the
+  dialog's "Maybe later" are plain muted text that goes to ink on hover.
 
 ### Inputs / Fields
 
-- **Style:** one shared field treatment for every control — text, url, search,
-  select, textarea, password. 1px `line` border, `rounded-xl`, `0.625rem 1rem`,
-  placeholder at `faint/60`. The ground is `panel` on the page and `night` inside
-  a panel block, so a field always sits one step *below* what contains it.
-- **Label:** `text-sm` `faint` above the field with `mb-1.5`, inside a `<label>`
-  wrapper. Required is marked by a single gold asterisk and nothing else — no
-  "(required)", no red.
-- **Focus:** the border warms to `gold/60`. `outline: none` is replaced by that
-  border shift, never simply removed.
-- **Success:** an emerald block **replaces** the form, with its heading in
-  Fraunces and a way back ("Submit another drop") rather than a dead end.
-- **Error:** red text beside or below the control; the form stays filled, mounted,
-  and usable.
+- **Style:** a rule under the input and nothing around it — transparent ground,
+  `border-bottom: 1px solid var(--color-rule)`, 8px vertical padding, no radius,
+  no box. A bordered box would be the only box on the page.
+- **Focus:** the underline goes to ink, plus the global outline. Nothing grows,
+  glows, or shifts.
+- **Placeholder:** muted.
+- **Error:** a `danger` sentence below the form at `fact` size. Fields are not
+  recoloured.
+- **Labels** sit above the field in muted `fact` size; a required marker is an
+  ink asterisk. `select` and `textarea` take the identical treatment.
 
-### Dialog / Overlay
+### Cards / Containers
 
-The one layer permitted to leave the page's plane. A `scrim/80` backdrop with
-`backdrop-blur-sm`, and a `rounded-2xl` `panel` card with a `line` border and
-`shadow-2xl`. Structure is three bands separated by the same hairline the page
-uses: a header (gold `0.16em` label, Fraunces title, `faint` standfirst), a
-`divide-y divide-line/50` list, and an action stack of ghost buttons.
+There are no cards. A "card" in this system is a plate followed by text, with the
+grid gutter doing the separating.
 
-Bottom-sheet on small screens (`items-end`), centered from `sm` up. Dismissal is
-offered three ways — the corner control, Escape, and the backdrop — and the
-"maybe later" path is a full-width `faint` text button, never a styled competitor
-to the action above it.
-
-### Moderation Queue (internal)
-
-The admin surface deliberately invents no vocabulary of its own: it reuses the
-Drop card, the type chip, the shared field, and the same empty state. It adds
-exactly two things — a decision border (`emerald-400/50` approved,
-`red-400/40` plus 60% opacity rejected) and a confidence badge on `scrim/80` over
-the image. An internal tool built from the public system stays honest about what
-the public system can express.
+- **Drop card:** 16:10 plate, then a muted micro line (brand · type · when), the
+  title at body size, and a baseline-aligned row holding the price and a purchase
+  tag pushed to the bottom of the cell. Title underlines on group hover.
+- **Watch card:** 1:1 plate, name at `fact` size, price in tabular figures, and
+  an optional micro line for option count and stock state.
+- **Brand row:** typographic, not pictorial — an optional Curated mark, the name
+  in the serif at 1.125rem, a muted facts line, closed by a bottom hairline. A
+  Listed Brand gets no mark rather than a "not reviewed" label: it is not a lesser
+  tier, and marking the absence would read as a warning about the brand.
+- **Internal padding:** none. Containers do not exist; spacing is vertical rhythm.
 
 ### Navigation
 
-Sans, `text-sm`, `faint` at rest, `ink` on hover, no underline and no active
-treatment — the header is a set of exits, not a location indicator. The digest CTA
-is the only bordered element in the bar. The wordmark sets in Fraunces with
-"Crown" in gold and "Watch" in ink. Below `sm`, labels shorten rather than wrap.
+- **Desktop:** a single row of muted `fact`-size links at 28px gaps, going to ink
+  on hover, ending with an underlined "Get the digest" text link and the theme
+  switch.
+- **Mobile:** everything collapses behind a word — `Menu` / `Close` — rather than
+  a hamburger, because this world draws no icon it does not need. The panel is
+  full-bleed paper, closed by a hairline, at 1.125rem.
+- **Icons** appear only where a word cannot do the job: the Telegram mark, the
+  three theme glyphs, and the dialog close. All are 1.6px-stroke inline SVG at
+  14–16px, drawn in `currentColor`.
 
-### Brand Art (signature)
+### Plate (signature component)
 
-With no logos in the data and no right to decorate with a publisher's photograph,
-every Brand generates its own art from its slug: a three-layer banner (an
-off-center radial glow, a repeating 1px pinstripe, and a diagonal base gradient)
-plus a circular lettermark of up to two initials in Fraunces, tinted to the same
-hue and cut into the banner with a ring in the surface color. Hue comes from the
-slug; lightness and saturation come from the theme, so a band that reads deep and
-saturated in dark becomes a pale tint in light rather than a hole punched in the
-card. Both are `aria-hidden` — they carry nothing a screen reader needs.
+Every image on the site goes through one component, and that is the point. The
+sources are brands' own stores and publishers' article images, arriving as
+everything from a white packshot to a wrist shot on a beach; on a world with no
+card, no border and no radius to hide behind, an unnormalised grid is the failure
+mode.
 
-### The Annotation Block (signature)
+- **Ground:** `--cw-plate`, a hair off paper.
+- **Fit:** `object-fit: contain` by default — every grid on the site. A packshot
+  cropped to fill loses the watch; a wide shot letterboxed on the plate loses
+  nothing.
+- **`cover` is opt-in and used in exactly one place**, the Brand page's lead,
+  where letterboxing would fill the first viewport with plate instead of subject.
+- **Caption:** a lead photograph is wrapped in a `<figure>` with a muted micro
+  `<figcaption>` reading "From {brand}'s own store." — provenance at the image,
+  where a reference work puts it, and phrased so it never claims a photographer.
+- **Failure:** a missing or blocked image renders the bare plate. An empty frame
+  is honest, and publisher CDNs do block hotlinks.
 
-The reason the rest of the system is quiet. A `0.2em` uppercase gold label reading
-"Our take", then the judgement in Fraunces at 1.5–1.875rem on `max-w-3xl`, then a
-`faint` line of provenance: written and approved by a person, and unpurchasable.
-When no Annotation exists, the same block appears with a `faint` label and prose
-admitting it in plain words — never a skeleton, a placeholder, or a warning color.
+### Release-note dialog
+
+The only floating surface. A `bg-ink/60` scrim, a paper panel with a 1px ink
+border, no radius and no shadow, capped at 32rem and bottom-anchored below `sm`.
+Its head is separated by a hairline, its list rows by `divide-y divide-rule`, and
+its channel links are hairline-bordered rows that go to an ink border on hover.
+
+### Theme switch
+
+Three 16px glyph buttons — light, dark, system — with `aria-pressed`. Active is
+ink; inactive is muted going to ink on hover. No track, no pill, no fill.
+
+### Named Rules
+
+**The Earned Fill Rule.** A filled ink rectangle is used only where the action is
+that section's own subject: the digest form's submit, a store purchase link, the
+homepage's one route into the catalogue. The header CTA is a text link, because a
+black rectangle there would be the loudest object in every first viewport on the
+site — outranking, on a Brand page, the brand's own name.
+
+**The Normalised Photograph Rule.** Every image goes through `Plate`. `contain`
+in grids; `cover` only on a lead photograph. Every lead carries a `<figcaption>`
+naming whose photograph it is.
+
+**The Plain Empty State Rule.** An empty state is a sentence in muted body prose
+that says what is missing and why. No dashed box, no placeholder graphic, no
+illustration, no icon.
+
+**The One Focus Rule.** One focus treatment for the whole site: a 2px solid ink
+outline at 2px offset on every link, button, input, select and textarea. It is
+visible on both grounds and is never removed for a custom ring.
 
 ## Do's and Don'ts
 
 ### Do:
-- **Do** resolve every color through the nine `--cw-*` tokens, and add a token to
-  `globals.css` rather than a hex to a component.
-- **Do** separate sections with `mt-14`, a `border-t border-line/70`, and `pt-10`.
-  It is the page's grammar; a new section that skips it reads as part of the last.
-- **Do** set anything a person wrote or named in Fraunces, and anything gathered
-  in Instrument Sans.
-- **Do** state absence in a full sentence, in `faint`, in the place the content
-  would have been — "we just have nothing considered to say about the brand
-  itself, and would rather admit that than pad it".
-- **Do** keep uppercase to label size with ≥`0.18em` tracking.
-- **Do** pair every hover with the same 300ms transition and, on cards, the same
-  2px lift and gold-warmed border.
-- **Do** give any new interactive element a `focus-visible` outline in gold.
-- **Do** replace a form with its success state and leave a way back; keep an error
-  beside a form that stays filled and mounted.
-- **Do** build internal tools out of the public primitives, as the moderation
-  queue does.
-- **Do** leave room for Ukrainian: no layout may depend on an English string's
-  length, and the header's shed-labels-before-wrapping habit is the pattern.
+- **Do** read every colour from the seven `--cw-*` tokens; a component written
+  correctly needs no `dark:` variant.
+- **Do** set a Brand's name and the judgement in the display serif, and every
+  gathered fact in Golos Text.
+- **Do** separate sections with `mt-14` + `border-t border-rule` + `pt-10`, and
+  put the serif h2 immediately under the rule.
+- **Do** cap prose at 30–36rem (55–69ch).
+- **Do** route every image through `Plate`, `contain` by default, and caption a
+  lead with "From {brand}'s own store."
+- **Do** write empty states as plain sentences that admit what is missing.
+- **Do** state a Listed Brand's absence at the size of every other fact, and lead
+  its page with the photograph instead.
+- **Do** compose a responsive layout twice when one arrangement cannot serve both
+  375px and desktop.
+- **Do** let both faces' Cyrillic carry the layout — size nothing to an English
+  word.
 
 ### Don't:
-- **Don't** add a `box-shadow` to anything that scrolls with the document. Depth is
-  tone and a hairline; shadow belongs to the overlay layer alone.
-- **Don't** spend gold on anything but judgement, approved state, or action — no
-  gold headings, gold rules, or gold backgrounds.
-- **Don't** truncate, clamp, fade, or append to an Annotation.
-- **Don't** badge a Listed Brand on a directory card. Absence is deliberate; a grey
-  "unreviewed" chip would read as a warning about the brand rather than about us.
-- **Don't** introduce marketplace chrome: star ratings, urgency badges, countdown
-  timers, "only 2 left", sale ribbons, or strike-through pricing. Nothing here is
-  being sold.
-- **Don't** introduce dark-SaaS neon: gradients as decoration, glassmorphism,
-  glow, or any synthetic hue. The dark palette is warm and material.
-- **Don't** render a metric, counter, or stat tile. The product forbids the numbers;
-  the visual system must not build furniture that invites them back.
-- **Don't** decorate a Brand with a publisher's photograph or a scraped logo. Brand
-  art is generated, and attribution links out.
-- **Don't** write a `dark:` variant. The palette switches beneath the component.
+- **Don't** introduce an accent colour, a brand hue, or a coloured badge.
+  Photographs are the only colour on this page.
+- **Don't** add a `border-radius` or a `box-shadow` to anything, including
+  overlays. Use a hairline, a plate, or space.
+- **Don't** truncate, line-clamp, fade, or append to an Annotation, and don't put
+  a label above it.
+- **Don't** put a filled ink button anywhere the action is not that section's own
+  subject — the header CTA stays a text link.
+- **Don't** crop a grid image with `cover`; `cover` belongs to the Brand lead
+  alone.
+- **Don't** wrap a field in a box. A rule under the input is the whole field.
+- **Don't** use uppercase letterspaced kickers, eyebrows, or all-caps labels.
+- **Don't** draw an icon where a word will do — the mobile menu says `Menu`.
+- **Don't** style a Listed Brand as an error, a warning, or a missing Curated one.
+- **Don't** use `--cw-danger` for anything but error text.
+- **Don't** replace an empty state with a dashed placeholder box or an
+  illustration.

@@ -45,9 +45,9 @@ FIRST VIEWPORT: two compositions, one world. Curated: Brand name at display
 scale on paper, the judgement directly beneath it at 1.75-3.25rem in the same
 serif with no label above it, the facts as one small grey line, then the plate.
 Listed — the branch every live page currently renders, since no Brand is
-Curated yet: name, facts, then the photograph at full width leading the
-viewport, and the missing judgement admitted under it in one plain line at the
-size of every other fact.
+Curated yet: name, facts, then the photograph as a 3:2 figure column leading
+the viewport, and the missing judgement admitted under it in one plain line at
+the size of every other fact.
 FORM: The category standard, taken deliberately over six dealt directions; bar
 set by A Collected Man and Hodinkee. Seed d14b9f0b.
 FINISH: unreviewed and undocumented is unfinished; this build ends with the

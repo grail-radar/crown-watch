@@ -111,7 +111,7 @@ export function SiteNav() {
           <Link
             href="/#digest"
             onClick={() => setOpen(false)}
-            className="mt-6 block bg-ink px-4 py-3 text-center text-inverse"
+            className="mt-6 block text-lg underline decoration-rule underline-offset-4"
           >
             Get the digest
           </Link>

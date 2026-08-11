@@ -41,10 +41,11 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
  *
  * **Two compositions, one world.** A Curated Brand leads with the judgement at
  * display scale: it is the page, and everything under it is support. A Listed
- * Brand leads with the catalogue instead and states the absence in one small
- * line where the judgement would be. Most Brands are Listed, and a page whose
- * largest element is an admission of having nothing to say is a worse page than
- * one that shows the goods and notes the gap plainly.
+ * Brand leads with the brand's own photograph and admits the absence beneath it
+ * in one small line. No Brand in the catalogue is Curated yet, so the second is
+ * the page every reader currently lands on — and a page whose largest element
+ * is an admission of having nothing to say is a worse page than one that shows
+ * the work and notes the gap plainly.
  */
 export default async function BrandPage({ params }: Props) {
   const { slug } = await params;
@@ -96,7 +97,7 @@ export default async function BrandPage({ params }: Props) {
         fit="cover"
         priority
         sizes="(min-width: 768px) 768px, 100vw"
-        caption={`Photographed by ${brand.name}, from their own store.`}
+        caption={`From ${brand.name}'s own store.`}
       />
     </section>
   ) : null;
@@ -296,20 +297,12 @@ export default async function BrandPage({ params }: Props) {
                   href={`/watches/${brand.slug}/${accessory.slug}`}
                   className="group flex h-full items-center gap-4 border-b border-rule pb-4"
                 >
-                  <span className="h-14 w-14 shrink-0 bg-plate">
-                    {accessory.imageUrl && (
-                      // Not next/image: third-party store URLs on arbitrary
-                      // hosts, which the optimiser needs configuring per domain.
-                      // eslint-disable-next-line @next/next/no-img-element
-                      <img
-                        src={accessory.imageUrl}
-                        alt=""
-                        loading="lazy"
-                        referrerPolicy="no-referrer"
-                        className="plate-img"
-                      />
-                    )}
-                  </span>
+                  <Plate
+                    src={accessory.imageUrl}
+                    alt=""
+                    className="h-14 w-14 shrink-0"
+                    sizes="56px"
+                  />
                   <span className="min-w-0 flex-1">
                     <span className="block truncate text-sm transition group-hover:underline group-hover:underline-offset-4">
                       {accessory.name}

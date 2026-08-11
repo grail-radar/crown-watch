@@ -207,7 +207,7 @@ export function AdminClient({ apiUrl }: { apiUrl: string }) {
                       href={d.sourceUrl}
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="mt-2 inline-block text-xs text-muted underline decoration-line underline-offset-4 transition hover:text-ink"
+                      className="mt-2 inline-block text-xs text-muted underline decoration-rule underline-offset-4 transition hover:text-ink"
                     >
                       Check original coverage ↗
                     </a>
@@ -234,7 +234,7 @@ export function AdminClient({ apiUrl }: { apiUrl: string }) {
                         <button
                           onClick={() => void act(d.id, 'reject')}
                           disabled={busy === d.id}
-                          className="border border-rule px-3 py-2 text-sm text-muted transition hover:border-red-400/50 hover:text-danger disabled:opacity-50"
+                          className="border border-rule px-3 py-2 text-sm text-muted transition hover:border-danger hover:text-danger disabled:opacity-50"
                         >
                           Reject
                         </button>

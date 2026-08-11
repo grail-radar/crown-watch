@@ -115,7 +115,7 @@ export default async function BrandOgImage({
         >
           {verdict
             ? 'Written and approved by a person. Nobody can pay to appear here.'
-            : 'New releases, waitlists and restocks from independent watchmakers.'}
+            : 'New drops, waitlists and restocks from independent watchmakers.'}
         </div>
       </div>
     ),

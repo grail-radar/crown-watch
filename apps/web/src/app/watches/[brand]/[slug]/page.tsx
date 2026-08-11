@@ -95,11 +95,10 @@ export default async function WatchPage({ params }: Props) {
         <Plate
           src={watch.imageUrl}
           alt={`${watch.brand.name} ${watch.name}`}
-          className="aspect-[3/2]"
-          fit="cover"
+          className="aspect-[4/3]"
           priority
           sizes="(min-width: 896px) 896px, 100vw"
-          caption={`Photographed by ${watch.brand.name}, from their own store.`}
+          caption={`From ${watch.brand.name}'s own store.`}
         />
       </div>
 

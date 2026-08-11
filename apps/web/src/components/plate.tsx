@@ -11,8 +11,11 @@ import { useState } from 'react';
  * no card, no border and no radius to hide behind, an unnormalised grid is the
  * failure mode — so one rule is applied to all of them:
  *
- * - `contain`, never `cover`. A packshot cropped to fill loses the watch; a
- *   wide shot letterboxed on the plate loses nothing.
+ * - `contain` by default, which is every grid on the site: a packshot cropped
+ *   to fill loses the watch, and a wide shot letterboxed on the plate loses
+ *   nothing. `cover` is opt-in and used in exactly one place — the Brand
+ *   page's lead — where letterboxing would fill the first viewport with plate
+ *   instead of subject.
  * - a plate ground a hair off the page, so a white packshot still has an edge
  *   and a dark one does not read as a hole.
  *
