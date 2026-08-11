@@ -9,6 +9,6 @@ import { ExtractionService } from './extraction.service';
   imports: [DropsModule],
   controllers: [ExtractionController],
   providers: [ExtractionService, AnthropicService, AdminGuard],
-  exports: [ExtractionService],
+  exports: [ExtractionService, AnthropicService],
 })
 export class ExtractionModule {}

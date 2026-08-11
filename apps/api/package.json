@@ -27,6 +27,7 @@
     "retract:drops": "ts-node --transpile-only src/scripts/retract-drops.ts",
     "purge:broadcasts": "ts-node --transpile-only src/scripts/purge-broadcasts.ts",
     "sweep:claims": "ts-node --transpile-only src/scripts/sweep-broadcast-claims.ts",
+    "draft:annotations": "ts-node --transpile-only src/scripts/draft-annotations.ts",
     "probe:stores": "ts-node --transpile-only src/scripts/probe-stores.ts",
     "telegram:destinations": "ts-node --transpile-only src/scripts/telegram-destinations.ts"
   },

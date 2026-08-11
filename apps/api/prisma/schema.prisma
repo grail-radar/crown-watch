@@ -42,6 +42,18 @@ enum WatchKind {
   accessory
 }
 
+// How an attempt to assemble a Brand's facts went.
+//
+// `failed` means we could not ask — a transient API error. It stays in the
+// queue, because "we could not reach the model" is not an answer about the
+// Brand. `empty` means we did ask and got nothing usable, which is an answer:
+// asking again on the next run would spend money to be told the same thing.
+enum DraftStatus {
+  usable
+  empty
+  failed
+}
+
 // Whether a human has approved what we say about a Brand.
 //
 // `listed` is the honest default and not a lesser tier: the Brand is fully
@@ -203,9 +215,50 @@ model Brand {
   watchlists Watchlist[]
   watches    Watch[]
   groupingOverrides WatchGroupingOverride[]
+  annotationDraft   BrandAnnotationDraft?
 
   @@index([status])
   @@map("brands")
+}
+
+// The facts a human needs in front of them to write a Brand's Annotation.
+//
+// **Never the Annotation itself.** A model is good at assembling facts and bad
+// at judgement, and judgement is the only part worth reading (CONTEXT.md §2) —
+// so there is no column here for a sentence, and the tool the model answers
+// through has no field for one either (ADR-0009).
+//
+// A table of its own rather than columns on Brand, and that is what makes
+// rejecting a draft safe: drafting never writes to the Brand at all, so
+// throwing one away is a delete and cannot leave a Brand half-annotated (#30).
+model BrandAnnotationDraft {
+  id      String @id @default(cuid())
+  /// One open draft per Brand. Re-drafting replaces it rather than piling up.
+  brandId String @unique @map("brand_id")
+  /// The assembled facts, as the tool returned them plus what we already held.
+  /// Json because the shape is a briefing for a person to read, not something
+  /// the database needs to query — and it will change as we learn what helps.
+  facts   Json
+  /// How the attempt went. `empty` and `failed` are both kept rather than
+  /// discarded, so "we tried this Brand" never looks like "nobody has tried".
+  /// They differ in what happens next: a `failed` Brand is asked again on the
+  /// next run, an `empty` one is not — we already know the answer.
+  status DraftStatus @default(usable)
+  /// Why, for anything other than `usable` — and any caveat worth carrying.
+  note   String?
+  /// Which language model produced it, and what it cost. Named for the LLM
+  /// rather than `model`, which in this codebase's vocabulary means a Watch
+  /// (CONTEXT.md §9). Tokens are exact; the money is derived from a rate table.
+  draftedByModel String @map("drafted_by_model")
+  inputTokens  Int    @map("input_tokens")
+  outputTokens Int    @map("output_tokens")
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  brand Brand @relation(fields: [brandId], references: [id], onDelete: Cascade)
+
+  @@index([status])
+  @@map("brand_annotation_drafts")
 }
 
 // One model a brand makes — the durable object a reader searches for and lands

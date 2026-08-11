@@ -35,6 +35,8 @@ export interface AppConfig {
   anthropic: {
     apiKey: string | undefined;
     model: string;
+    /** Model used to assemble Annotation drafts; falls back to `model`. */
+    draftModel: string;
     maxItemsPerRun: number;
   };
   digest: {
@@ -104,6 +106,14 @@ export default (): AppConfig => ({
     // sufficient for this well-scoped task). Set ANTHROPIC_MODEL to
     // claude-opus-4-8 to trade cost for maximum extraction quality.
     model: process.env.ANTHROPIC_MODEL ?? 'claude-haiku-4-5',
+    // Annotation drafting is occasional and read by a person who will notice a
+    // wrong movement supplier, so it is worth paying for a better model here
+    // without changing the hourly extraction pass. Defaults to the same model,
+    // so this costs nothing until somebody sets it.
+    draftModel:
+      process.env.ANTHROPIC_DRAFT_MODEL ??
+      process.env.ANTHROPIC_MODEL ??
+      'claude-haiku-4-5',
     maxItemsPerRun: parseInt(process.env.EXTRACTION_MAX_ITEMS ?? '25', 10),
   },
   digest: {
