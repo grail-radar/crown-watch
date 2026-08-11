@@ -1,6 +1,7 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
+import { Plate } from '@/components/plate';
 import { getWatch } from '@/lib/api';
 import { formatPrice } from '@/lib/format';
 import { SITE_URL } from '@/lib/site';
@@ -67,64 +68,64 @@ export default async function WatchPage({ params }: Props) {
         dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
       />
 
-      <div className="pt-10">
+      <div className="pt-8">
         <Link
           href={`/brands/${watch.brand.slug}`}
-          className="text-sm text-faint transition hover:text-ink"
+          className="text-sm text-muted transition hover:text-ink"
         >
           ← {watch.brand.name}
         </Link>
       </div>
 
-      <header className="mt-6">
-        <p className="text-xs uppercase tracking-[0.2em] text-gold">
-          {watch.brand.name}
+      <header className="mt-10">
+        <h1 className="display text-[clamp(2rem,5vw,3.5rem)]">{watch.name}</h1>
+        <p className="mt-4 text-sm text-muted">
+          <Link
+            href={`/brands/${watch.brand.slug}`}
+            className="text-ink transition hover:underline hover:underline-offset-4"
+          >
+            {watch.brand.name}
+          </Link>
+          {cheapest?.price &&
+            ` · from ${formatPrice(cheapest.price, null, cheapest.currency)}`}
         </p>
-        <h1 className="mt-2 font-display text-3xl tracking-tight sm:text-4xl">
-          {watch.name}
-        </h1>
-        {cheapest?.price && (
-          <p className="mt-3 text-lg text-faint">
-            from {formatPrice(cheapest.price, null, cheapest.currency)}
-          </p>
-        )}
       </header>
 
-      {watch.imageUrl && (
-        // Not next/image: these are third-party store URLs on arbitrary hosts,
-        // which the optimiser would need configuring for one domain at a time.
-        // eslint-disable-next-line @next/next/no-img-element
-        <img
+      <div className="mt-10">
+        <Plate
           src={watch.imageUrl}
           alt={`${watch.brand.name} ${watch.name}`}
-          className="mt-8 w-full rounded-2xl border border-line bg-panel object-cover"
+          className="aspect-[4/3]"
+          priority
+          sizes="(min-width: 896px) 896px, 100vw"
+          caption={`From ${watch.brand.name}'s own store.`}
         />
-      )}
+      </div>
 
-      <section className="mt-10">
-        <h2 className="font-display text-xl tracking-tight">
+      <section className="mt-14 border-t border-rule pt-10">
+        <h2 className="display text-2xl">
           {watch.variants.length === 1
             ? 'Where to buy it'
             : `${watch.variants.length} ways to buy it`}
         </h2>
 
-        <ul className="mt-4 divide-y divide-line/50 rounded-2xl border border-line">
+        <ul className="mt-6">
           {watch.variants.map((variant) => (
             <li
               key={variant.id}
-              className="flex flex-wrap items-center justify-between gap-3 p-4"
+              className="flex flex-wrap items-baseline justify-between gap-x-6 gap-y-2 border-b border-rule py-4"
             >
               <div className="min-w-0">
-                <p className="truncate text-sm text-ink">
+                <p className="truncate text-sm">
                   {variant.reference ?? watch.name}
                 </p>
-                <p className="mt-0.5 text-xs text-faint">
+                <p className="mt-1 text-xs text-muted">
                   {variant.available ? 'In stock' : 'Out of stock'}
                 </p>
               </div>
-              <div className="flex items-center gap-4">
+              <div className="flex items-baseline gap-6 text-sm">
                 {variant.price && (
-                  <span className="text-sm text-ink">
+                  <span className="tabular-nums">
                     {formatPrice(variant.price, null, variant.currency)}
                   </span>
                 )}
@@ -132,7 +133,8 @@ export default async function WatchPage({ params }: Props) {
                   href={variant.productUrl}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="rounded-full border border-gold/40 px-3.5 py-1.5 text-sm text-gold transition hover:border-gold hover:text-gold-bright"
+                  aria-label={`Buy the ${variant.reference ?? watch.name} — opens the brand's store in a new tab`}
+                  className="underline decoration-ink underline-offset-4 transition hover:opacity-70"
                 >
                   Buy ↗
                 </a>
@@ -141,14 +143,14 @@ export default async function WatchPage({ params }: Props) {
           ))}
         </ul>
 
-        <p className="mt-4 text-xs text-faint">
+        <p className="mt-6 max-w-xl text-xs leading-relaxed text-muted">
           Prices and availability as of our last check of{' '}
           {watch.brand.website ? (
             <a
               href={watch.brand.website}
               target="_blank"
               rel="noopener noreferrer"
-              className="text-gold transition hover:text-gold-bright"
+              className="text-ink underline decoration-rule underline-offset-4 transition hover:decoration-ink"
             >
               {watch.brand.name}
             </a>

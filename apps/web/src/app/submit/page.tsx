@@ -20,21 +20,18 @@ export default function SubmitPage() {
   return (
     <main className="mx-auto w-full max-w-3xl px-6 pb-24">
       <div className="pt-10">
-        <Link href="/" className="text-sm text-faint transition hover:text-ink">
+        <Link href="/" className="text-sm text-muted transition hover:text-ink">
           ← Back to the radar
         </Link>
       </div>
 
-      <header className="py-10">
-        <p className="text-xs font-medium uppercase tracking-[0.3em] text-faint">
-          Community
-        </p>
-        <h1 className="mt-4 font-display text-4xl font-medium tracking-tight sm:text-5xl">
+      <header className="border-b border-rule py-12">
+        <h1 className="display text-[clamp(2.25rem,5vw,3.5rem)]">
           Submit a drop
         </h1>
-        <p className="mt-4 text-lg leading-relaxed text-faint">
+        <p className="mt-6 max-w-[34rem] leading-relaxed text-muted">
           The radar watches five publications, but the best microbrand news
-          often travels by word of mouth first. If you spotted a release,
+          often travels by word of mouth first. If you spotted a launch,
           waitlist opening or restock we missed, send it over.
         </p>
       </header>

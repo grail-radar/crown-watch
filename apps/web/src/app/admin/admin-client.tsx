@@ -1,7 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useState } from 'react';
-import { dropTypeBadgeClass, dropTypeLabel, formatPrice, monogram, relTime } from '@/lib/format';
+import { dropTypeLabel, formatPrice, monogram, relTime } from '@/lib/format';
 
 interface QueueDrop {
   id: string;
@@ -92,8 +92,8 @@ export function AdminClient({ apiUrl }: { apiUrl: string }) {
   if (!authed) {
     return (
       <main className="mx-auto w-full max-w-md px-6 py-24">
-        <h1 className="font-display text-3xl tracking-tight">Moderation</h1>
-        <p className="mt-2 text-sm text-faint">
+        <h1 className="display text-3xl">Moderation</h1>
+        <p className="mt-2 text-sm text-muted">
           Enter the admin token (the API&apos;s <code>ADMIN_TOKEN</code>) to review
           pending drops.
         </p>
@@ -109,17 +109,17 @@ export function AdminClient({ apiUrl }: { apiUrl: string }) {
             value={token}
             onChange={(e) => setToken(e.target.value)}
             placeholder="Admin token"
-            className="w-full rounded-xl border border-line bg-panel px-4 py-2.5 text-sm outline-none transition placeholder:text-faint/60 focus:border-gold/60"
+            className="w-full border border-rule bg-plate px-4 py-2.5 text-sm outline-none transition placeholder:text-muted focus:border-ink"
           />
           <button
             type="submit"
             disabled={loading || !token.trim()}
-            className="shrink-0 rounded-xl bg-gold px-4 py-2.5 text-sm font-medium text-on-gold transition hover:bg-gold-bright disabled:opacity-50"
+            className="shrink-0 bg-ink px-4 py-2.5 text-sm font-medium text-inverse transition hover:opacity-80 disabled:opacity-50"
           >
             {loading ? 'Checking…' : 'Unlock'}
           </button>
         </form>
-        {error && <p className="mt-4 text-sm text-red-400">{error}</p>}
+        {error && <p className="mt-4 text-sm text-danger">{error}</p>}
       </main>
     );
   }
@@ -130,25 +130,25 @@ export function AdminClient({ apiUrl }: { apiUrl: string }) {
     <main className="mx-auto w-full max-w-6xl px-6 pb-24 pt-12">
       <div className="mb-8 flex flex-wrap items-baseline justify-between gap-3">
         <div>
-          <h1 className="font-display text-3xl tracking-tight">Moderation queue</h1>
-          <p className="mt-1 text-sm text-faint">
+          <h1 className="display text-3xl">Moderation queue</h1>
+          <p className="mt-1 text-sm text-muted">
             {remaining} of {total} pending — approving publishes to the live feed.
           </p>
         </div>
         <button
           onClick={() => void load(token)}
           disabled={loading}
-          className="rounded-xl border border-line px-4 py-2 text-sm text-faint transition hover:border-gold/50 hover:text-ink disabled:opacity-50"
+          className="border border-rule px-4 py-2 text-sm text-muted transition hover:border-ink hover:text-ink disabled:opacity-50"
         >
           {loading ? 'Refreshing…' : 'Refresh'}
         </button>
       </div>
 
-      {error && <p className="mb-6 text-sm text-red-400">{error}</p>}
+      {error && <p className="mb-6 text-sm text-danger">{error}</p>}
 
       {queue.length === 0 ? (
-        <p className="rounded-2xl border border-dashed border-line p-10 text-center text-faint">
-          Queue is clear — nothing pending. 🎉
+        <p className="max-w-xl text-muted">
+          Queue is clear — nothing pending.
         </p>
       ) : (
         <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3">
@@ -158,15 +158,15 @@ export function AdminClient({ apiUrl }: { apiUrl: string }) {
             return (
               <article
                 key={d.id}
-                className={`overflow-hidden rounded-2xl border bg-panel transition ${
+                className={`overflow-hidden border bg-plate transition ${
                   decision === 'approved'
-                    ? 'border-emerald-400/50'
+                    ? 'border-ink'
                     : decision === 'rejected'
-                      ? 'border-red-400/40 opacity-60'
-                      : 'border-line/80'
+                      ? 'border-rule opacity-50'
+                      : 'border-rule'
                 }`}
               >
-                <div className="relative aspect-[16/10] bg-panel-2">
+                <div className="relative aspect-[16/10] bg-plate">
                   {d.imageUrl ? (
                     // eslint-disable-next-line @next/next/no-img-element
                     <img
@@ -178,29 +178,27 @@ export function AdminClient({ apiUrl }: { apiUrl: string }) {
                     />
                   ) : (
                     <div className="flex h-full w-full items-center justify-center">
-                      <span className="font-display text-5xl text-gold/30">
+                      <span className="display text-4xl text-muted">
                         {monogram(d.brand.name)}
                       </span>
                     </div>
                   )}
-                  <span
-                    className={`absolute left-3 top-3 inline-flex items-center rounded-full px-2.5 py-1 text-[11px] font-medium ring-1 ${dropTypeBadgeClass(d.type)}`}
-                  >
+                  <span className="absolute left-3 top-3 bg-paper px-2 py-1 text-xs text-ink">
                     {dropTypeLabel(d.type)}
                   </span>
                   {d.confidenceScore !== null && (
-                    <span className="absolute right-3 top-3 rounded-full bg-scrim/80 px-2.5 py-1 text-[11px] text-faint">
+                    <span className="absolute right-3 top-3 bg-paper px-2 py-1 text-xs text-muted">
                       conf {Math.round(d.confidenceScore * 100)}%
                     </span>
                   )}
                 </div>
 
                 <div className="p-4">
-                  <p className="text-[11px] font-medium uppercase tracking-[0.18em] text-gold">
+                  <p className="text-xs text-muted">
                     {d.brand.name}
                   </p>
                   <p className="mt-1 font-medium leading-snug">{d.title}</p>
-                  <div className="mt-2 flex items-center justify-between text-xs text-faint">
+                  <div className="mt-2 flex items-center justify-between text-xs text-muted">
                     <span>{price ?? '—'}</span>
                     <span>{relTime(d.createdAt)}</span>
                   </div>
@@ -209,7 +207,7 @@ export function AdminClient({ apiUrl }: { apiUrl: string }) {
                       href={d.sourceUrl}
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="mt-2 inline-block text-xs text-faint underline decoration-line underline-offset-4 transition hover:text-ink"
+                      className="mt-2 inline-block text-xs text-muted underline decoration-rule underline-offset-4 transition hover:text-ink"
                     >
                       Check original coverage ↗
                     </a>
@@ -219,7 +217,7 @@ export function AdminClient({ apiUrl }: { apiUrl: string }) {
                     {decision ? (
                       <p
                         className={`text-sm font-medium ${
-                          decision === 'approved' ? 'text-emerald-300' : 'text-red-300'
+                          decision === 'approved' ? 'text-ink' : 'text-danger'
                         }`}
                       >
                         {decision === 'approved' ? 'Published ✓' : 'Rejected'}
@@ -229,14 +227,14 @@ export function AdminClient({ apiUrl }: { apiUrl: string }) {
                         <button
                           onClick={() => void act(d.id, 'approve')}
                           disabled={busy === d.id}
-                          className="flex-1 rounded-xl bg-gold px-3 py-2 text-sm font-medium text-on-gold transition hover:bg-gold-bright disabled:opacity-50"
+                          className="flex-1 bg-ink px-3 py-2 text-sm font-medium text-inverse transition hover:opacity-80 disabled:opacity-50"
                         >
                           {busy === d.id ? '…' : 'Approve & publish'}
                         </button>
                         <button
                           onClick={() => void act(d.id, 'reject')}
                           disabled={busy === d.id}
-                          className="rounded-xl border border-line px-3 py-2 text-sm text-faint transition hover:border-red-400/50 hover:text-red-300 disabled:opacity-50"
+                          className="border border-rule px-3 py-2 text-sm text-muted transition hover:border-danger hover:text-danger disabled:opacity-50"
                         >
                           Reject
                         </button>

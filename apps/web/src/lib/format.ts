@@ -11,17 +11,12 @@ export function dropTypeLabel(type: string): string {
   return TYPE_LABELS[type] ?? type.replace(/_/g, ' ');
 }
 
-/** Badge color classes per drop type (muted, editorial). */
-const TYPE_BADGES: Record<string, string> = {
-  kickstarter_launch: 'bg-emerald-400/10 text-emerald-300 ring-emerald-400/25',
-  waitlist_open: 'bg-sky-400/10 text-sky-300 ring-sky-400/25',
-  restock: 'bg-amber-400/10 text-amber-300 ring-amber-400/25',
-  pre_order: 'bg-gold/10 text-gold-bright ring-gold/30',
-};
-
-export function dropTypeBadgeClass(type: string): string {
-  return TYPE_BADGES[type] ?? 'bg-panel-2 text-faint ring-line';
-}
+/*
+ * There is deliberately no per-type colour here any more. Four tinted chips
+ * were four accent colours on a site whose only colour is its photographs, and
+ * a Restock is not a warning: the type is a fact about the event and reads as
+ * one word beside the date.
+ */
 
 /** "299–349 USD" → localized "\$299–\$349" when a currency is known. */
 export function formatPrice(

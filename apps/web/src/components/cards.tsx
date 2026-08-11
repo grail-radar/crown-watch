@@ -6,26 +6,36 @@ import type {
 } from '@/lib/api';
 import {
   brandTally,
-  dropTypeBadgeClass,
   dropTypeLabel,
   formatPrice,
-  monogram,
   relTime,
 } from '@/lib/format';
-import { BrandAvatar, BrandBanner } from './brand-art';
-import { DropImage } from './drop-image';
+import { Plate } from './plate';
 import { PurchaseTag } from './purchase-button';
 
-export function TypeBadge({ type }: { type: string }) {
+/**
+ * The mark on a Brand we have written about.
+ *
+ * A drawn square rather than a badge or a colour: this world has one ink and no
+ * chips, and "there is a view on this one" is worth exactly this much space in
+ * a directory. Its meaning is stated once in the directory's legend.
+ */
+export function CuratedMark() {
   return (
     <span
-      className={`inline-flex items-center rounded-full px-2.5 py-1 text-[11px] font-medium tracking-wide ring-1 ${dropTypeBadgeClass(type)}`}
-    >
-      {dropTypeLabel(type)}
-    </span>
+      aria-hidden="true"
+      className="mt-[0.42em] inline-block h-[0.42em] w-[0.42em] shrink-0 self-start bg-ink"
+    />
   );
 }
 
+/**
+ * One event about a Watch.
+ *
+ * No card: a plate, then text under it. The grid's gutters do the separating
+ * that a border used to, which is what lets the photographs sit next to each
+ * other without forty rectangles competing with them.
+ */
 export function DropCard({
   drop,
   brand,
@@ -44,57 +54,52 @@ export function DropCard({
   const href = drop.watch
     ? `/watches/${drop.watch.brandSlug}/${drop.watch.watchSlug}`
     : `/drops/${drop.id}`;
-  const media = (
-    <div className="relative aspect-[16/10] overflow-hidden bg-panel-2">
-      <DropImage
-        src={drop.imageUrl}
-        alt={`${brand.name} — ${drop.title}`}
-        fallback={monogram(brand.name)}
-      />
-      <div className="absolute left-3 top-3">
-        <TypeBadge type={drop.type} />
-      </div>
-    </div>
-  );
 
   return (
-    <article className="group overflow-hidden rounded-2xl border border-line/80 bg-panel transition duration-300 hover:-translate-y-0.5 hover:border-gold/40">
+    <article className="group flex h-full flex-col">
       <Link href={href} aria-label={`${brand.name} — ${drop.title}`}>
-        {media}
+        <Plate
+          src={drop.imageUrl}
+          alt={`${brand.name} — ${drop.title}`}
+          className="aspect-[16/10]"
+          sizes="(min-width: 1024px) 33vw, (min-width: 640px) 50vw, 100vw"
+        />
       </Link>
 
-      <div className="p-4">
-        {showBrand && (
-          <Link
-            href={`/brands/${brand.slug}`}
-            className="text-[11px] font-medium uppercase tracking-[0.18em] text-gold transition hover:text-gold-bright"
-          >
-            {brand.name}
-          </Link>
-        )}
+      <div className="mt-4 flex flex-1 flex-col">
+        <p className="text-xs text-muted">
+          {showBrand && (
+            <>
+              <Link
+                href={`/brands/${brand.slug}`}
+                className="text-ink transition hover:underline hover:underline-offset-4"
+              >
+                {brand.name}
+              </Link>
+              {' · '}
+            </>
+          )}
+          {dropTypeLabel(drop.type)}
+          {added && ` · ${added}`}
+        </p>
 
         <Link
           href={href}
-          className="mt-1 block font-medium leading-snug text-ink decoration-gold/50 underline-offset-4 transition hover:underline"
+          className="mt-2 block leading-snug transition group-hover:underline group-hover:underline-offset-4"
         >
           {drop.title}
         </Link>
 
-        <div className="mt-3 flex items-center justify-between gap-2 text-xs text-faint">
-          <span>{price ?? dropTypeLabel(drop.type)}</span>
-          <span className="flex items-center gap-2">
-            {added && <span>{added}</span>}
-            {/* Lets a reader see which drops they can act on without opening
-                each one. Renders nothing when there is nowhere honest to send
-                them. */}
-            <PurchaseTag purchase={drop.purchase} brandName={brand.name} />
-          </span>
+        <div className="mt-auto flex items-baseline justify-between gap-3 pt-4 text-sm">
+          <span className="tabular-nums text-muted">{price ?? ''}</span>
+          {/* Lets a reader see which drops they can act on without opening
+              each one. Renders nothing when there is nowhere honest to send
+              them. */}
+          <PurchaseTag purchase={drop.purchase} brandName={brand.name} />
         </div>
 
         {drop.sourceName && (
-          <div className="mt-3 border-t border-line/70 pt-2.5 text-[11px] text-faint">
-            via {drop.sourceName} ↗
-          </div>
+          <p className="mt-2 text-xs text-muted">via {drop.sourceName} ↗</p>
         )}
       </div>
     </article>
@@ -102,8 +107,8 @@ export function DropCard({
 }
 
 /**
- * One Watch as the brand page lists it — a photo, what it is called, and what
- * the cheapest way to have it costs.
+ * One Watch as the brand page lists it — a photograph, what it is called, and
+ * what the cheapest way to have it costs.
  *
  * However many store products sit beneath it, this is one card: the API
  * collapses them, so YEMA's three listings for the Superman Bronze CMM.10 read
@@ -120,43 +125,40 @@ export function WatchCard({
   return (
     <Link
       href={`/watches/${brand.slug}/${watch.slug}`}
-      className="flex h-full flex-col overflow-hidden rounded-2xl border border-line bg-panel transition duration-300 hover:-translate-y-0.5 hover:border-gold/40"
+      className="group flex h-full flex-col"
     >
-      <span className="block aspect-square overflow-hidden bg-panel-2">
-        {watch.imageUrl ? (
-          // Not next/image: third-party store URLs on arbitrary hosts, which
-          // the optimiser needs configuring for one domain at a time.
-          // eslint-disable-next-line @next/next/no-img-element
-          <img
-            src={watch.imageUrl}
-            alt={`${brand.name} ${watch.name}`}
-            className="h-full w-full object-cover"
-          />
-        ) : (
-          <span className="flex h-full items-center justify-center font-display text-2xl text-faint">
-            {monogram(brand.name)}
-          </span>
-        )}
+      <Plate
+        src={watch.imageUrl}
+        alt={`${brand.name} ${watch.name}`}
+        className="aspect-square"
+        sizes="(min-width: 1024px) 25vw, (min-width: 640px) 33vw, 50vw"
+      />
+      <span className="mt-4 block text-sm leading-snug transition group-hover:underline group-hover:underline-offset-4">
+        {watch.name}
       </span>
-      <span className="flex flex-1 flex-col p-3">
-        <span className="line-clamp-2 text-sm leading-snug text-ink">
-          {watch.name}
-        </span>
-        <span className="mt-1.5 text-xs text-faint">
-          {price
-            ? `${watch.variantCount > 1 ? 'from ' : ''}${price}`
-            : 'Price not listed'}
-        </span>
-        <span className="mt-0.5 text-xs text-faint">
+      <span className="mt-1.5 block text-sm tabular-nums text-muted">
+        {price ? `${watch.variantCount > 1 ? 'from ' : ''}${price}` : 'Price not listed'}
+      </span>
+      {(watch.variantCount > 1 || !watch.available) && (
+        <span className="mt-0.5 block text-xs text-muted">
           {watch.variantCount > 1 && `${watch.variantCount} options`}
           {watch.variantCount > 1 && !watch.available && ' · '}
           {!watch.available && 'Out of stock'}
         </span>
-      </span>
+      )}
     </Link>
   );
 }
 
+/**
+ * One Brand in the directory.
+ *
+ * Typographic rather than pictorial. The old card carried art generated from
+ * the slug because no logo exists in the data; on paper that decoration
+ * competed with the only pictures worth showing, which are the watches. What a
+ * reader needs here is the name, whether we have a view, and enough facts to
+ * decide whether to open it.
+ */
 export function BrandCard({ brand }: { brand: BrandSummary }) {
   // Only the facts we actually hold. A card promising four drops in front of a
   // page showing two watches is the same inconsistency #28 fixed, one click
@@ -170,36 +172,18 @@ export function BrandCard({ brand }: { brand: BrandSummary }) {
   return (
     <Link
       href={`/brands/${brand.slug}`}
-      className="group overflow-hidden rounded-2xl border border-line/80 bg-panel transition duration-300 hover:-translate-y-0.5 hover:border-gold/40"
+      className="group flex h-full items-start gap-2.5 border-b border-rule py-5"
     >
-      {/* Generated from the slug, so two brands with no drops are still told
-          apart at a glance — which a grid of identical lettermarks could not. */}
-      <BrandBanner slug={brand.slug} className="h-14" />
-
-      <span className="flex items-start gap-3 px-4 pb-4">
-        <BrandAvatar
-          name={brand.name}
-          slug={brand.slug}
-          className="-mt-5 h-11 w-11 text-sm ring-2 ring-panel"
-        />
-        <span className="min-w-0 flex-1 pt-0.5">
-          <span className="flex items-center gap-2">
-            <span className="truncate font-medium">{brand.name}</span>
-            {/* Only Curated carries a badge. Listed gets none rather than a
-                grey "unreviewed" chip: it is not a lesser tier, and marking
-                the absence on a directory card would read as a warning. */}
-            {brand.status === 'curated' && (
-              <span className="rounded-full bg-gold/10 px-2 py-0.5 text-[10px] font-medium text-gold ring-1 ring-gold/25">
-                Curated
-              </span>
-            )}
-          </span>
-          <span className="mt-1 block truncate text-xs text-faint">
-            {facts.join(' · ')}
-          </span>
+      {/* Only Curated carries a mark. Listed gets none rather than a "not
+          reviewed" label: it is not a lesser tier, and marking the absence on
+          a directory card would read as a warning about the brand. */}
+      {brand.status === 'curated' && <CuratedMark />}
+      <span className="min-w-0 flex-1">
+        <span className="display block truncate text-lg transition group-hover:underline group-hover:underline-offset-4">
+          {brand.name}
         </span>
-        <span className="pt-0.5 text-faint transition group-hover:translate-x-0.5 group-hover:text-gold">
-          →
+        <span className="mt-1 block truncate text-sm text-muted">
+          {facts.join(' · ')}
         </span>
       </span>
     </Link>

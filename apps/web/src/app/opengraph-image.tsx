@@ -4,9 +4,15 @@ export const alt = 'Crown Watch — Microbrand watch drop & waitlist radar';
 export const size = { width: 1200, height: 630 };
 export const contentType = 'image/png';
 
-const gold = '#C9A96A';
-const ink = '#ECE9E2';
-const faint = '#918E85';
+/*
+ * The share card is the same world as the site: paper, ink, one hairline, no
+ * accent and no ornament. It is always the light palette — a social card has no
+ * reader preference to follow, and the light one is the considered palette.
+ */
+const paper = '#FFFFFF';
+const ink = '#0B0B0B';
+const muted = '#6B6B6B';
+const rule = '#E3E3E3';
 
 export default function OgImage() {
   return new ImageResponse(
@@ -16,73 +22,54 @@ export default function OgImage() {
           width: '100%',
           height: '100%',
           display: 'flex',
-          backgroundColor: '#101014',
-          padding: 72,
+          flexDirection: 'column',
+          justifyContent: 'space-between',
+          backgroundColor: paper,
+          padding: 80,
         }}
       >
-        <div
-          style={{
-            display: 'flex',
-            flexDirection: 'column',
-            justifyContent: 'space-between',
-            flex: 1,
-          }}
-        >
+        <div style={{ display: 'flex', fontSize: 28, color: ink }}>
+          Crown Watch
+        </div>
+
+        <div style={{ display: 'flex', flexDirection: 'column' }}>
           <div
             style={{
               display: 'flex',
-              fontSize: 22,
-              letterSpacing: 8,
-              color: faint,
+              fontSize: 76,
+              color: ink,
+              maxWidth: 940,
+              lineHeight: 1.08,
+              letterSpacing: -1.5,
             }}
           >
-            INDEPENDENT HOROLOGY, TRACKED DAILY
+            Which microbrands exist, and which are worth your attention.
           </div>
-          <div style={{ display: 'flex', flexDirection: 'column' }}>
-            <div style={{ display: 'flex', fontSize: 92, color: ink }}>
-              <span style={{ color: gold }}>Crown</span>
-              <span style={{ marginLeft: 24 }}>Watch</span>
-            </div>
-            <div
-              style={{
-                display: 'flex',
-                marginTop: 22,
-                fontSize: 34,
-                color: faint,
-                maxWidth: 700,
-                lineHeight: 1.35,
-              }}
-            >
-              The microbrand watch drop &amp; waitlist radar — every launch,
-              waitlist and restock in one feed.
-            </div>
-          </div>
-          <div style={{ display: 'flex', fontSize: 20, color: faint }}>
-            wornandwound · aBlogtoWatch · Monochrome · Fratello · Hodinkee
+          <div
+            style={{
+              display: 'flex',
+              marginTop: 32,
+              fontSize: 28,
+              color: muted,
+              maxWidth: 760,
+              lineHeight: 1.4,
+            }}
+          >
+            An independent reference for small watchmakers. Nothing here is paid
+            for or sponsored.
           </div>
         </div>
-        {/* watch-bezel motif */}
+
         <div
           style={{
             display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            width: 320,
+            paddingTop: 28,
+            borderTop: `1px solid ${rule}`,
+            fontSize: 22,
+            color: muted,
           }}
         >
-          <div
-            style={{
-              display: 'flex',
-              width: 260,
-              height: 260,
-              borderRadius: 260,
-              border: `10px solid ${gold}`,
-              alignItems: 'center',
-              justifyContent: 'center',
-            }}
-          >
-            <div style={{ display: 'flex', fontSize: 96, color: gold }}>C</div>
-          </div>
+          Worn &amp; Wound · aBlogtoWatch · Monochrome · Fratello · Hodinkee
         </div>
       </div>
     ),

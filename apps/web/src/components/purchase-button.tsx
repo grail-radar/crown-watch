@@ -8,9 +8,10 @@ import type { PurchaseLink } from '@/lib/api';
  * no rule about what counts as buyable. Given `null` it renders nothing, which
  * is the correct answer for a drop we only have a magazine article for.
  *
- * A store link is the primary action. A brand-site link is deliberately quieter:
- * it is honest but weaker, since the reader still has to find the watch when
- * they arrive, and dressing it up as a buy button would overpromise.
+ * A store link is the primary action and is the one filled element on a page.
+ * A brand-site link is deliberately quieter: it is honest but weaker, since the
+ * reader still has to find the watch when they arrive, and dressing it up as a
+ * buy button would overpromise.
  */
 export function PurchaseButton({
   purchase,
@@ -36,10 +37,10 @@ export function PurchaseButton({
           ? `Buy ${brandName} — opens the brand's store in a new tab`
           : `Visit ${brandName}'s own site — opens in a new tab`
       }
-      className={`rounded-xl px-5 py-2.5 text-sm font-medium transition ${
+      className={`inline-block text-sm transition ${
         isStore
-          ? 'bg-gold text-on-gold hover:bg-gold-bright'
-          : 'border border-gold/40 text-gold hover:border-gold hover:text-gold-bright'
+          ? 'bg-ink px-5 py-2.5 text-inverse hover:opacity-80'
+          : 'text-ink underline decoration-rule underline-offset-4 hover:decoration-ink'
       } ${className}`}
     >
       {label} ↗
@@ -68,10 +69,10 @@ export function PurchaseTag({
           ? `Buy ${brandName} — opens the brand's store in a new tab`
           : `Visit ${brandName}'s own site — opens in a new tab`
       }
-      className={`shrink-0 rounded-full px-3 py-1 text-[11px] font-medium transition ${
+      className={`shrink-0 underline underline-offset-4 transition ${
         isStore
-          ? 'bg-gold/15 text-gold hover:bg-gold/25'
-          : 'border border-line text-faint hover:border-gold/40 hover:text-gold'
+          ? 'text-ink decoration-ink'
+          : 'text-muted decoration-rule hover:text-ink'
       }`}
     >
       {isStore ? 'Buy ↗' : 'Brand site ↗'}

@@ -1,0 +1,361 @@
+{
+  "schemaVersion": 2,
+  "generatedAt": "2026-08-11T00:00:00.000Z",
+  "title": "Design System: Crown Watch",
+  "extensions": {
+    "colorMeta": {
+      "paper": {
+        "role": "neutral",
+        "displayName": "Paper White",
+        "canonical": "light-dark(#ffffff, #0d0d0d)",
+        "light": "#ffffff",
+        "dark": "#0d0d0d",
+        "note": "The page ground. Dark is a near-black rather than pure black, so the plate has somewhere to lighten to.",
+        "tonalRamp": ["#0d0d0d", "#1a1a1a", "#2e2e2e", "#4a4a4a", "#707070", "#a3a3a3", "#d6d6d6", "#ffffff"]
+      },
+      "ink": {
+        "role": "neutral",
+        "displayName": "Near-Black Ink",
+        "canonical": "light-dark(#0b0b0b, #ededed)",
+        "light": "#0b0b0b",
+        "dark": "#ededed",
+        "contrastOnPaper": "19.68:1",
+        "note": "All text, every heading, the one filled button, the focus outline, the Curated mark, and the ::selection background.",
+        "tonalRamp": ["#0b0b0b", "#1f1f1f", "#3a3a3a", "#565656", "#737373", "#969696", "#c2c2c2", "#ededed"]
+      },
+      "muted": {
+        "role": "neutral",
+        "displayName": "Reference Grey",
+        "canonical": "light-dark(#6b6b6b, #9a9a9a)",
+        "light": "#6b6b6b",
+        "dark": "#9a9a9a",
+        "contrastOnPaper": "5.33:1",
+        "note": "Gathered facts, captions, provenance, inactive navigation. Quiet, still legible at 0.75rem.",
+        "tonalRamp": ["#1f1f1f", "#333333", "#474747", "#5a5a5a", "#6b6b6b", "#8a8a8a", "#9a9a9a", "#c9c9c9"]
+      },
+      "rule": {
+        "role": "neutral",
+        "displayName": "Hairline",
+        "canonical": "light-dark(#e3e3e3, #272727)",
+        "light": "#e3e3e3",
+        "dark": "#272727",
+        "note": "Every 1px separator, the field underline at rest, and link decoration colour before hover.",
+        "tonalRamp": ["#141414", "#272727", "#3d3d3d", "#5c5c5c", "#8a8a8a", "#b8b8b8", "#e3e3e3", "#f5f5f5"]
+      },
+      "inverse": {
+        "role": "neutral",
+        "displayName": "Fill Text",
+        "canonical": "light-dark(#ffffff, #0d0d0d)",
+        "light": "#ffffff",
+        "dark": "#0d0d0d",
+        "note": "Text on an ink fill. Equal to paper in both themes, but named separately so a fill never has to name the page's colour.",
+        "tonalRamp": ["#0d0d0d", "#1a1a1a", "#2e2e2e", "#4a4a4a", "#707070", "#a3a3a3", "#d6d6d6", "#ffffff"]
+      },
+      "plate": {
+        "role": "neutral",
+        "displayName": "Photograph Plate",
+        "canonical": "light-dark(#f4f4f2, #171717)",
+        "light": "#f4f4f2",
+        "dark": "#171717",
+        "note": "The ground a photograph is mounted on, a hair off paper. On dark it lightens away from the page rather than darkening, so an image still reads as mounted.",
+        "tonalRamp": ["#121211", "#171717", "#2b2b2a", "#454544", "#6d6d6b", "#a0a09d", "#d3d3d0", "#f4f4f2"]
+      },
+      "danger": {
+        "role": "tertiary",
+        "displayName": "Error Red",
+        "canonical": "light-dark(#a4142a, #ff8080)",
+        "light": "#a4142a",
+        "dark": "#ff8080",
+        "note": "The only hue in the system. Error text under a form, and nothing else — never a badge, a status, or a decoration.",
+        "tonalRamp": ["#2d0509", "#4a0a13", "#6d0e1e", "#a4142a", "#c73a4f", "#e06a78", "#ff8080", "#ffc4c4"]
+      }
+    },
+    "typographyMeta": {
+      "display": {
+        "displayName": "Display",
+        "purpose": "A Brand's name on its own page. Measured at 80px, weight 300, letter-spacing -1.6px at full width. Steps to weight 400 on dark."
+      },
+      "annotation": {
+        "displayName": "Annotation",
+        "purpose": "The judgement — the largest prose a Curated Brand page carries. Never truncated, clamped, or labelled."
+      },
+      "headline": {
+        "displayName": "Headline",
+        "purpose": "The h1 of every page that is not a Brand. The homepage runs a wider clamp(2.5rem, 6.5vw, 4.5rem)."
+      },
+      "title": {
+        "displayName": "Section Title",
+        "purpose": "Every section h2, always sitting directly under a hairline rule."
+      },
+      "price": {
+        "displayName": "Price Figure",
+        "purpose": "The price band on a Brand page — the only place the grotesque is set large, because a number is a gathered fact and must not borrow the serif's authority."
+      },
+      "body": {
+        "displayName": "Body",
+        "purpose": "Supporting prose and empty states, capped at 30-36rem (55-69ch)."
+      },
+      "fact": {
+        "displayName": "Fact",
+        "purpose": "The facts line under a Brand name, card titles, card prices, navigation, footer."
+      },
+      "micro": {
+        "displayName": "Micro",
+        "purpose": "Figure captions, source attribution, option counts, stock state."
+      }
+    },
+    "fonts": [
+      {
+        "name": "Noto Serif Display",
+        "role": "display",
+        "weights": [300, 400],
+        "subsets": ["latin", "cyrillic"],
+        "loader": "next/font/google",
+        "cssVariable": "--font-display-serif",
+        "note": "Cyrillic is a requirement, not a bonus: a Ukrainian locale is coming and a display face that cannot set a Brand's name in Ukrainian would have to be replaced."
+      },
+      {
+        "name": "Golos Text",
+        "role": "text",
+        "weights": [400, 500],
+        "subsets": ["latin", "cyrillic"],
+        "loader": "next/font/google",
+        "cssVariable": "--font-text"
+      }
+    ],
+    "shadows": [],
+    "elevation": {
+      "strategy": "none",
+      "note": "Every computed border-radius in the app is 0px and every computed box-shadow is none, in both themes and on every surface including the one modal overlay. Depth is a hairline rule, a change of ground (plate), or nothing at all. The dialog uses a bg-ink/60 scrim plus a 1px ink border in place of a shadow."
+    },
+    "motion": [
+      {
+        "name": "transition-default",
+        "value": "150ms cubic-bezier(0.4, 0, 0.2, 1)",
+        "purpose": "The single transition in the system (Tailwind's `transition`). Applied to colour, opacity, and text-decoration-color on hover. Nothing translates, scales, or animates on entry."
+      }
+    ],
+    "focus": {
+      "value": "outline: 2px solid var(--color-ink); outline-offset: 2px",
+      "purpose": "One focus treatment for the whole site, applied to a, button, input, select and textarea via :focus-visible. Visible on both grounds."
+    },
+    "breakpoints": [
+      { "name": "sm", "value": "640px" },
+      { "name": "lg", "value": "1024px" }
+    ],
+    "containers": [
+      { "name": "page", "value": "72rem", "note": "max-w-6xl with a 24px gutter — homepage, drops index, Brand page." },
+      { "name": "watch", "value": "56rem", "note": "max-w-4xl — one Watch page, whose subject is one photograph and one list." },
+      { "name": "measure", "value": "30-36rem", "note": "All prose. Measures 55-69ch." }
+    ],
+    "aspectRatios": [
+      { "name": "brand-lead", "value": "3 / 2", "note": "Figure column, 768x540 including a 12px caption. Deliberately not a full-width banner." },
+      { "name": "watch-lead", "value": "4 / 3" },
+      { "name": "drop-card", "value": "16 / 10" },
+      { "name": "watch-card", "value": "1 / 1" }
+    ]
+  },
+  "components": [
+    {
+      "name": "Filled Action",
+      "kind": "button",
+      "refersTo": "action-fill",
+      "description": "The one filled element. Used only where the action is that section's own subject — the digest submit, a store purchase link, the homepage's route into the catalogue.",
+      "html": "<a class=\"ds-action-fill\" href=\"#\">Buy from Baltic ↗</a>",
+      "css": ".ds-action-fill { display: inline-block; background: var(--color-ink, #0b0b0b); color: var(--color-inverse, #ffffff); font-family: \"Golos Text\", ui-sans-serif, system-ui, sans-serif; font-size: 0.875rem; font-weight: 400; line-height: 1.5; padding: 10px 20px; border: none; border-radius: 0; text-decoration: none; box-shadow: none; transition: opacity 150ms cubic-bezier(0.4, 0, 0.2, 1); } .ds-action-fill:hover { opacity: 0.8; } .ds-action-fill:focus-visible { outline: 2px solid var(--color-ink, #0b0b0b); outline-offset: 2px; } .ds-action-fill[disabled], .ds-action-fill:disabled { opacity: 0.5; }"
+    },
+    {
+      "name": "Quiet Link",
+      "kind": "button",
+      "refersTo": "action-quiet",
+      "description": "The default call to action, including the header CTA. A rule-coloured underline at 4px offset that darkens to ink on hover. A fill here would be the loudest object in every first viewport on the site.",
+      "html": "<a class=\"ds-link-quiet\" href=\"#\">Get the digest</a>",
+      "css": ".ds-link-quiet { color: var(--color-ink, #0b0b0b); font-family: \"Golos Text\", ui-sans-serif, system-ui, sans-serif; font-size: 0.875rem; line-height: 1.5; white-space: nowrap; text-decoration: underline; text-decoration-color: var(--color-rule, #e3e3e3); text-underline-offset: 4px; border-radius: 0; transition: text-decoration-color 150ms cubic-bezier(0.4, 0, 0.2, 1); } .ds-link-quiet:hover { text-decoration-color: var(--color-ink, #0b0b0b); } .ds-link-quiet:focus-visible { outline: 2px solid var(--color-ink, #0b0b0b); outline-offset: 2px; }"
+    },
+    {
+      "name": "Field",
+      "kind": "input",
+      "refersTo": "field",
+      "description": "One field treatment for every control on the site: a rule under the input, nothing around it. A bordered box would be the only box on the page.",
+      "html": "<label class=\"ds-field\"><span class=\"ds-field-label\">Brand <span class=\"ds-field-required\">*</span></span><input class=\"ds-field-input\" type=\"text\" placeholder=\"e.g. Baltic\" /></label>",
+      "css": ".ds-field { display: block; max-width: 20rem; font-family: \"Golos Text\", ui-sans-serif, system-ui, sans-serif; } .ds-field-label { display: block; margin-bottom: 6px; font-size: 0.875rem; line-height: 1.5; color: var(--color-muted, #6b6b6b); } .ds-field-required { color: var(--color-ink, #0b0b0b); } .ds-field-input { width: 100%; background: transparent; color: var(--color-ink, #0b0b0b); font: inherit; font-size: 0.875rem; padding: 8px 0; border: none; border-bottom: 1px solid var(--color-rule, #e3e3e3); border-radius: 0; box-shadow: none; outline: none; transition: border-color 150ms cubic-bezier(0.4, 0, 0.2, 1); } .ds-field-input::placeholder { color: var(--color-muted, #6b6b6b); } .ds-field-input:hover { border-bottom-color: var(--color-muted, #6b6b6b); } .ds-field-input:focus { border-bottom-color: var(--color-ink, #0b0b0b); } .ds-field-input:focus-visible { outline: 2px solid var(--color-ink, #0b0b0b); outline-offset: 2px; }"
+    },
+    {
+      "name": "Site Navigation",
+      "kind": "nav",
+      "refersTo": "nav-link",
+      "description": "The header row: muted links going to ink on hover, an underlined CTA rather than a fill, and the three-glyph theme switch. Below 640px the whole row is replaced by a named Menu word, not a hamburger.",
+      "html": "<nav class=\"ds-nav\" aria-label=\"Site\"><a class=\"ds-nav-link\" href=\"#\">Drops</a><a class=\"ds-nav-link\" href=\"#\">Brands</a><a class=\"ds-nav-link\" href=\"#\">Submit</a><a class=\"ds-nav-link ds-nav-link--icon\" href=\"#\"><svg viewBox=\"0 0 24 24\" fill=\"currentColor\" aria-hidden=\"true\"><path d=\"M21.9 4.6 18.9 19c-.2 1-.8 1.3-1.7.8l-4.6-3.4-2.2 2.1c-.2.2-.5.5-1 .5l.3-4.7 8.5-7.7c.4-.3-.1-.5-.6-.2L6.9 13.1l-4.5-1.4c-1-.3-1-1 .2-1.4l17.6-6.8c.8-.3 1.5.2 1.2 1.1Z\"/></svg>Telegram</a><a class=\"ds-nav-cta\" href=\"#\">Get the digest</a><span class=\"ds-nav-theme\" role=\"group\" aria-label=\"Colour theme\"><button type=\"button\" class=\"ds-theme-btn is-active\" aria-pressed=\"true\" title=\"Light theme\"><svg viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.6\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\"><path d=\"M12 3v1.5M12 19.5V21M3 12h1.5M19.5 12H21M5.6 5.6l1.1 1.1M17.3 17.3l1.1 1.1M18.4 5.6l-1.1 1.1M6.7 17.3l-1.1 1.1M12 7.5a4.5 4.5 0 100 9 4.5 4.5 0 000-9z\"/></svg></button><button type=\"button\" class=\"ds-theme-btn\" aria-pressed=\"false\" title=\"Dark theme\"><svg viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.6\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\"><path d=\"M20 13.2A8.2 8.2 0 1110.8 4a6.6 6.6 0 009.2 9.2z\"/></svg></button><button type=\"button\" class=\"ds-theme-btn\" aria-pressed=\"false\" title=\"System theme\"><svg viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.6\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\"><path d=\"M4 5.5h16v10H4zM9 20h6M12 15.5V20\"/></svg></button></span></nav>",
+      "css": ".ds-nav { display: flex; align-items: center; gap: 28px; font-family: \"Golos Text\", ui-sans-serif, system-ui, sans-serif; font-size: 0.875rem; line-height: 1.5; color: var(--color-muted, #6b6b6b); flex-wrap: wrap; } .ds-nav-link { color: var(--color-muted, #6b6b6b); text-decoration: none; border-radius: 0; transition: color 150ms cubic-bezier(0.4, 0, 0.2, 1); } .ds-nav-link:hover { color: var(--color-ink, #0b0b0b); } .ds-nav-link--icon { display: inline-flex; align-items: center; gap: 6px; } .ds-nav-link--icon svg { width: 16px; height: 16px; } .ds-nav-cta { color: var(--color-ink, #0b0b0b); white-space: nowrap; text-decoration: underline; text-decoration-color: var(--color-rule, #e3e3e3); text-underline-offset: 4px; transition: text-decoration-color 150ms cubic-bezier(0.4, 0, 0.2, 1); } .ds-nav-cta:hover { text-decoration-color: var(--color-ink, #0b0b0b); } .ds-nav-theme { display: inline-flex; align-items: center; gap: 4px; } .ds-theme-btn { padding: 6px; background: none; border: none; border-radius: 0; color: var(--color-muted, #6b6b6b); cursor: pointer; transition: color 150ms cubic-bezier(0.4, 0, 0.2, 1); } .ds-theme-btn svg { width: 16px; height: 16px; display: block; } .ds-theme-btn:hover, .ds-theme-btn.is-active { color: var(--color-ink, #0b0b0b); } .ds-nav a:focus-visible, .ds-theme-btn:focus-visible { outline: 2px solid var(--color-ink, #0b0b0b); outline-offset: 2px; }"
+    },
+    {
+      "name": "Plate",
+      "kind": "custom",
+      "refersTo": "plate",
+      "description": "The signature component. Every image on the site is mounted on a plate a hair off paper: contain by default in every grid, cover opt-in in exactly one place (the Brand lead). A lead carries a figcaption naming whose photograph it is, and never claims a photographer.",
+      "html": "<figure class=\"ds-plate-figure\"><div class=\"ds-plate ds-plate--lead\"><img class=\"ds-plate-img ds-plate-img--cover\" alt=\"A watch by Baltic\" src=\"data:image/svg+xml;utf8,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 300 200'%3E%3Crect width='300' height='200' fill='%23e6e6e2'/%3E%3Ccircle cx='150' cy='100' r='52' fill='none' stroke='%236b6b6b' stroke-width='6'/%3E%3Cpath d='M150 70v32l20 12' fill='none' stroke='%236b6b6b' stroke-width='5' stroke-linecap='round'/%3E%3C/svg%3E\" /></div><figcaption class=\"ds-plate-caption\">From Baltic&rsquo;s own store.</figcaption></figure>",
+      "css": ".ds-plate-figure { margin: 0; max-width: 24rem; } .ds-plate { position: relative; overflow: hidden; background: var(--color-plate, #f4f4f2); border: none; border-radius: 0; box-shadow: none; } .ds-plate--lead { aspect-ratio: 3 / 2; } .ds-plate-img { width: 100%; height: 100%; object-fit: contain; display: block; } .ds-plate-img--cover { object-fit: cover; } .ds-plate-caption { margin-top: 12px; font-family: \"Golos Text\", ui-sans-serif, system-ui, sans-serif; font-size: 0.75rem; line-height: 1.5; color: var(--color-muted, #6b6b6b); }"
+    },
+    {
+      "name": "Section Head",
+      "kind": "custom",
+      "description": "The only section boundary in the world: 56px of space, a hairline rule, 40px of space, then a serif h2 sitting directly under it. No kicker, no eyebrow, no all-caps label.",
+      "html": "<section class=\"ds-section\"><div class=\"ds-section-head\"><h2 class=\"ds-section-title\">What it costs</h2><span class=\"ds-section-aside\">Showing 12 of 34</span></div><p class=\"ds-price\">$390 &ndash; $1,140</p><p class=\"ds-section-note\">The cheapest and the dearest we hold a price for, read from the brand&rsquo;s own store at our last check.</p></section>",
+      "css": ".ds-section { margin-top: 56px; border-top: 1px solid var(--color-rule, #e3e3e3); padding-top: 40px; font-family: \"Golos Text\", ui-sans-serif, system-ui, sans-serif; } .ds-section-head { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 12px; } .ds-section-title { margin: 0; font-family: \"Noto Serif Display\", Georgia, \"Times New Roman\", serif; font-weight: 300; font-size: 1.5rem; line-height: 1.06; letter-spacing: -0.02em; color: var(--color-ink, #0b0b0b); } .ds-section-aside { font-size: 0.875rem; color: var(--color-muted, #6b6b6b); } .ds-price { margin: 12px 0 0; font-size: 2.25rem; font-weight: 500; font-variant-numeric: tabular-nums; color: var(--color-ink, #0b0b0b); } .ds-section-note { margin: 12px 0 0; max-width: 30rem; font-size: 0.875rem; line-height: 1.625; color: var(--color-muted, #6b6b6b); }"
+    },
+    {
+      "name": "Drop Card",
+      "kind": "card",
+      "description": "One event about a Watch. No card: a plate, then text under it. The grid gutter does the separating a border used to, which is what lets the photographs sit next to each other without forty rectangles competing with them.",
+      "html": "<article class=\"ds-drop\"><a class=\"ds-drop-media\" href=\"#\" aria-label=\"Baltic — Aquascaphe Titanium\"><span class=\"ds-plate ds-plate--drop\"><img class=\"ds-plate-img\" alt=\"\" src=\"data:image/svg+xml;utf8,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 320 200'%3E%3Crect width='320' height='200' fill='%23eeeeea'/%3E%3Ccircle cx='160' cy='100' r='48' fill='none' stroke='%236b6b6b' stroke-width='6'/%3E%3Cpath d='M160 72v30l18 11' fill='none' stroke='%236b6b6b' stroke-width='5' stroke-linecap='round'/%3E%3C/svg%3E\" /></span></a><p class=\"ds-drop-meta\"><a class=\"ds-drop-brand\" href=\"#\">Baltic</a> &middot; Pre-order &middot; 3 days ago</p><a class=\"ds-drop-title\" href=\"#\">Aquascaphe Titanium GMT, in two new dials</a><div class=\"ds-drop-foot\"><span class=\"ds-drop-price\">$1,140</span><a class=\"ds-drop-buy\" href=\"#\">Buy &#8599;</a></div><p class=\"ds-drop-source\">via Worn &amp; Wound &#8599;</p></article>",
+      "css": ".ds-drop { display: flex; flex-direction: column; max-width: 22rem; font-family: \"Golos Text\", ui-sans-serif, system-ui, sans-serif; color: var(--color-ink, #0b0b0b); } .ds-drop a { text-decoration: none; color: inherit; border-radius: 0; } .ds-drop .ds-plate { display: block; background: var(--color-plate, #f4f4f2); overflow: hidden; } .ds-plate--drop { aspect-ratio: 16 / 10; } .ds-drop .ds-plate-img { width: 100%; height: 100%; object-fit: contain; display: block; } .ds-drop-meta { margin: 16px 0 0; font-size: 0.75rem; line-height: 1.5; color: var(--color-muted, #6b6b6b); } .ds-drop-brand { color: var(--color-ink, #0b0b0b); transition: text-decoration-color 150ms; } .ds-drop-brand:hover { text-decoration: underline; text-underline-offset: 4px; } .ds-drop-title { display: block; margin-top: 8px; font-size: 1rem; line-height: 1.375; } .ds-drop:hover .ds-drop-title { text-decoration: underline; text-underline-offset: 4px; } .ds-drop-foot { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; padding-top: 16px; margin-top: auto; font-size: 0.875rem; } .ds-drop-price { color: var(--color-muted, #6b6b6b); font-variant-numeric: tabular-nums; } .ds-drop-buy { flex-shrink: 0; color: var(--color-ink, #0b0b0b); text-decoration: underline; text-decoration-color: var(--color-ink, #0b0b0b); text-underline-offset: 4px; } .ds-drop-source { margin: 8px 0 0; font-size: 0.75rem; color: var(--color-muted, #6b6b6b); } .ds-drop a:focus-visible { outline: 2px solid var(--color-ink, #0b0b0b); outline-offset: 2px; }"
+    },
+    {
+      "name": "Watch Card",
+      "kind": "card",
+      "description": "One Watch as a Brand page lists it — a square plate, what it is called, and what the cheapest way to have it costs. However many store products sit beneath it, this is one card reading \"3 options\" rather than three cards reading the same name.",
+      "html": "<a class=\"ds-watch\" href=\"#\"><span class=\"ds-plate ds-plate--square\"><img class=\"ds-plate-img\" alt=\"YEMA Superman Bronze\" src=\"data:image/svg+xml;utf8,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 200 200'%3E%3Crect width='200' height='200' fill='%23f0efe9'/%3E%3Ccircle cx='100' cy='100' r='54' fill='none' stroke='%236b6b6b' stroke-width='7'/%3E%3Cpath d='M100 66v36l22 13' fill='none' stroke='%236b6b6b' stroke-width='5' stroke-linecap='round'/%3E%3C/svg%3E\" /></span><span class=\"ds-watch-name\">Superman Bronze CMM.10</span><span class=\"ds-watch-price\">from $749</span><span class=\"ds-watch-note\">3 options &middot; Out of stock</span></a>",
+      "css": ".ds-watch { display: flex; flex-direction: column; max-width: 15rem; font-family: \"Golos Text\", ui-sans-serif, system-ui, sans-serif; color: var(--color-ink, #0b0b0b); text-decoration: none; border-radius: 0; } .ds-watch .ds-plate { display: block; background: var(--color-plate, #f4f4f2); overflow: hidden; } .ds-plate--square { aspect-ratio: 1 / 1; } .ds-watch .ds-plate-img { width: 100%; height: 100%; object-fit: contain; display: block; } .ds-watch-name { display: block; margin-top: 16px; font-size: 0.875rem; line-height: 1.375; } .ds-watch:hover .ds-watch-name { text-decoration: underline; text-underline-offset: 4px; } .ds-watch-price { display: block; margin-top: 6px; font-size: 0.875rem; color: var(--color-muted, #6b6b6b); font-variant-numeric: tabular-nums; } .ds-watch-note { display: block; margin-top: 2px; font-size: 0.75rem; color: var(--color-muted, #6b6b6b); } .ds-watch:focus-visible { outline: 2px solid var(--color-ink, #0b0b0b); outline-offset: 2px; }"
+    },
+    {
+      "name": "Brand Directory Row",
+      "kind": "card",
+      "refersTo": "curated-mark",
+      "description": "One Brand in the directory — typographic rather than pictorial, closed by a hairline. Only a Curated Brand carries the mark: a Listed one gets none rather than a \"not reviewed\" label, because it is not a lesser tier and marking the absence would read as a warning about the brand.",
+      "html": "<div class=\"ds-brand-list\"><a class=\"ds-brand-row\" href=\"#\"><span class=\"ds-curated-mark\" aria-hidden=\"true\"></span><span class=\"ds-brand-body\"><span class=\"ds-brand-name\">Baltic</span><span class=\"ds-brand-facts\">France &middot; est. 2017 &middot; 14 watches, 6 drops</span></span></a><a class=\"ds-brand-row\" href=\"#\"><span class=\"ds-brand-body\"><span class=\"ds-brand-name\">Lorier</span><span class=\"ds-brand-facts\">United States &middot; est. 2017 &middot; On the radar</span></span></a></div>",
+      "css": ".ds-brand-list { max-width: 24rem; font-family: \"Golos Text\", ui-sans-serif, system-ui, sans-serif; } .ds-brand-row { display: flex; align-items: flex-start; gap: 10px; padding: 20px 0; border-bottom: 1px solid var(--color-rule, #e3e3e3); border-radius: 0; text-decoration: none; color: var(--color-ink, #0b0b0b); } .ds-curated-mark { display: inline-block; width: 0.42em; height: 0.42em; margin-top: 0.42em; flex-shrink: 0; align-self: flex-start; background: var(--color-ink, #0b0b0b); border-radius: 0; font-size: 1.125rem; } .ds-brand-body { min-width: 0; flex: 1; } .ds-brand-name { display: block; font-family: \"Noto Serif Display\", Georgia, \"Times New Roman\", serif; font-weight: 300; font-size: 1.125rem; line-height: 1.06; letter-spacing: -0.02em; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; } .ds-brand-row:hover .ds-brand-name { text-decoration: underline; text-underline-offset: 4px; } .ds-brand-facts { display: block; margin-top: 4px; font-size: 0.875rem; color: var(--color-muted, #6b6b6b); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; } .ds-brand-row:focus-visible { outline: 2px solid var(--color-ink, #0b0b0b); outline-offset: 2px; }"
+    },
+    {
+      "name": "Release Dialog",
+      "kind": "custom",
+      "refersTo": "dialog",
+      "description": "The only floating surface in the world, and it floats without a shadow: an ink scrim at 60%, a paper panel with a 1px ink border, no radius. Rows are separated by hairlines; the channel links go to an ink border on hover.",
+      "html": "<div class=\"ds-scrim\"><div class=\"ds-dialog\" role=\"dialog\" aria-modal=\"true\" aria-labelledby=\"ds-dialog-title\"><button type=\"button\" class=\"ds-dialog-close\" aria-label=\"Close\"><svg viewBox=\"0 0 20 20\" fill=\"none\" aria-hidden=\"true\"><path d=\"M5 5l10 10M15 5L5 15\" stroke=\"currentColor\" stroke-width=\"1.6\" stroke-linecap=\"round\"/></svg></button><div class=\"ds-dialog-head\"><h2 id=\"ds-dialog-title\" class=\"ds-dialog-title\">Crown Watch is now on Telegram</h2><p class=\"ds-dialog-sub\">Drop alerts now reach your phone the moment we spot them &mdash; in English and Ukrainian.</p></div><ul class=\"ds-dialog-list\"><li><p class=\"ds-dialog-item\">Restock alerts</p><p class=\"ds-dialog-item-body\">A sold-out reference coming back in stock is its own alert.</p></li><li><p class=\"ds-dialog-item\">Never the same drop twice</p><p class=\"ds-dialog-item-body\">Each drop is posted once and only once. No repeats, no noise.</p></li></ul><div class=\"ds-dialog-foot\"><a class=\"ds-dialog-channel\" href=\"#\"><span class=\"ds-dialog-channel-label\"><svg viewBox=\"0 0 24 24\" fill=\"currentColor\" aria-hidden=\"true\"><path d=\"M21.9 4.6 18.9 19c-.2 1-.8 1.3-1.7.8l-4.6-3.4-2.2 2.1c-.2.2-.5.5-1 .5l.3-4.7 8.5-7.7c.4-.3-.1-.5-.6-.2L6.9 13.1l-4.5-1.4c-1-.3-1-1 .2-1.4l17.6-6.8c.8-.3 1.5.2 1.2 1.1Z\"/></svg>Join English channel</span><span class=\"ds-dialog-handle\">@crownwatch_en</span></a><button type=\"button\" class=\"ds-dialog-later\">Maybe later</button></div></div></div>",
+      "css": ".ds-scrim { display: flex; align-items: center; justify-content: center; padding: 16px; background: color-mix(in srgb, var(--color-ink, #0b0b0b) 60%, transparent); font-family: \"Golos Text\", ui-sans-serif, system-ui, sans-serif; } .ds-dialog { position: relative; width: 100%; max-width: 32rem; overflow: hidden; background: var(--color-paper, #ffffff); color: var(--color-ink, #0b0b0b); border: 1px solid var(--color-ink, #0b0b0b); border-radius: 0; box-shadow: none; } .ds-dialog-close { position: absolute; right: 16px; top: 16px; padding: 4px; background: none; border: none; border-radius: 0; color: var(--color-muted, #6b6b6b); cursor: pointer; transition: color 150ms; } .ds-dialog-close svg { width: 16px; height: 16px; display: block; } .ds-dialog-close:hover { color: var(--color-ink, #0b0b0b); } .ds-dialog-head { padding: 24px; border-bottom: 1px solid var(--color-rule, #e3e3e3); } .ds-dialog-title { margin: 0; padding-right: 32px; font-family: \"Noto Serif Display\", Georgia, \"Times New Roman\", serif; font-weight: 300; font-size: 1.5rem; line-height: 1.06; letter-spacing: -0.02em; } .ds-dialog-sub { margin: 12px 0 0; font-size: 0.875rem; line-height: 1.625; color: var(--color-muted, #6b6b6b); } .ds-dialog-list { margin: 0; padding: 0 24px; list-style: none; } .ds-dialog-list li { padding: 16px 0; border-top: 1px solid var(--color-rule, #e3e3e3); } .ds-dialog-list li:first-child { border-top: none; } .ds-dialog-item { margin: 0; font-size: 0.875rem; } .ds-dialog-item-body { margin: 4px 0 0; font-size: 0.75rem; line-height: 1.625; color: var(--color-muted, #6b6b6b); } .ds-dialog-foot { padding: 16px 24px 20px; } .ds-dialog-channel { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 12px 16px; border: 1px solid var(--color-rule, #e3e3e3); border-radius: 0; text-decoration: none; color: var(--color-ink, #0b0b0b); transition: border-color 150ms; } .ds-dialog-channel:hover { border-color: var(--color-ink, #0b0b0b); } .ds-dialog-channel-label { display: flex; align-items: center; gap: 10px; font-size: 0.875rem; } .ds-dialog-channel-label svg { width: 16px; height: 16px; } .ds-dialog-handle { font-size: 0.75rem; color: var(--color-muted, #6b6b6b); } .ds-dialog-later { width: 100%; margin-top: 8px; padding-top: 8px; background: none; border: none; border-radius: 0; font-size: 0.75rem; color: var(--color-muted, #6b6b6b); cursor: pointer; transition: color 150ms; } .ds-dialog-later:hover { color: var(--color-ink, #0b0b0b); } .ds-dialog a:focus-visible, .ds-dialog button:focus-visible { outline: 2px solid var(--color-ink, #0b0b0b); outline-offset: 2px; }"
+    }
+  ],
+  "narrative": {
+    "northStar": "The Reference Shelf",
+    "overview": "This is a reference you consult about brands, not a shop that sells them. The world is paper white, near-black ink, and one hairline rule — the arrangement a serious reference work has used for a century, taken deliberately rather than inherited. It was chosen over five invented alternatives with A Collected Man and Hodinkee named as the craft bar, and the anti-reference is explicit: the dark, gold-lit luxury-watch page where atmosphere stands in for having a view. Nothing here glows. Nothing is dressed up. A page earns attention by saying something true in a large enough size to be read.\n\nThe defining constraint is that there is no accent colour at all. Seven tokens carry the entire system and six of them are neutral; the seventh is an error red that never decorates anything. Photographs are the only colour on the page, and they are a brand's own watches, which is the only colour a reference about watches should be spending. That single refusal does most of the work: with no brand hue to reach for, hierarchy has to come from size, weight, ground, and the space around a thing — which is what makes the layout legible rather than styled.\n\nThe surface is flat in the literal sense: every computed border-radius in the app is 0px and every computed box-shadow is none, in both themes, on every surface, including the one overlay. An object is separated from the page by a hairline rule, by a change of ground, or by nothing at all. Two faces divide the labour honestly — a light high-contrast serif for the two things a person actually wrote (a Brand's name and the judgement about it), and a neutral grotesque for every fact the machines gathered. A reader can tell opinion from data without being told which is which.",
+    "keyCharacteristics": [
+      "Paper-white ground, near-black ink, one hairline rule (19.68:1 on paper)",
+      "No accent colour; photographs supply all colour on the page",
+      "Zero radius, zero shadow, everywhere, in both themes",
+      "Serif for authored prose, grotesque for gathered fact",
+      "Light is the considered palette; dark is re-derived, not inverted",
+      "Filled elements are rare and earned; links are underlines",
+      "Empty states are plain sentences, never dashed placeholder boxes"
+    ],
+    "rules": [
+      {
+        "name": "The Seven Tokens Rule",
+        "body": "Every colour in the app comes from one of seven --cw-* tokens. No component carries a hex value and no component carries a dark: variant — the theme is resolved once at the root by light-dark(), so a component written correctly is already correct in both worlds.",
+        "section": "colors"
+      },
+      {
+        "name": "The No Accent Rule",
+        "body": "There is no accent colour. Photographs are the only colour on the page. If a new surface needs emphasis, it gets size, ink, a rule, or a fill — never a hue.",
+        "section": "colors"
+      },
+      {
+        "name": "The Considered Light Rule",
+        "body": "Light is the designed palette; dark is re-derived from it, not inverted. Two values are re-thought rather than flipped: the display weight steps 300 → 400 (--dark-display-weight), because a light serif that is elegant on paper turns to wire on black; and the plate lightens away from the page instead of darkening.",
+        "section": "colors"
+      },
+      {
+        "name": "The Danger-Is-Not-Decoration Rule",
+        "body": "The one non-neutral token is reserved for errors. A status, a badge, a category, or a call to action never reaches for it.",
+        "section": "colors"
+      },
+      {
+        "name": "The Two Voices Rule",
+        "body": "The serif carries only what a person wrote — a Brand's name and the judgement. Everything gathered by a machine is set in the grotesque. A price, a country, a founding year, or a drop title in the serif is a category error.",
+        "section": "typography"
+      },
+      {
+        "name": "The Unlabelled Annotation Rule",
+        "body": "The Annotation is rendered exactly as written: never truncated, never line-clamped, never faded at the bottom, never appended to. It carries no heading above it — the sentence is the largest prose on the page and the small line beneath it says who wrote it, which is more than a label would. An Annotation that says the lume is poor has to be able to say the lume is poor.",
+        "section": "typography"
+      },
+      {
+        "name": "The Cyrillic Rule",
+        "body": "Both faces carry Cyrillic and no layout may depend on English string lengths. Cyrillic runs roughly a third longer; headings wrap, buttons grow, and nothing is sized to a specific English word.",
+        "section": "typography"
+      },
+      {
+        "name": "The No Eyebrow Rule",
+        "body": "There are no uppercase letterspaced kickers, eyebrows, or all-caps labels in this system. A section is announced by a rule and a serif h2, and by nothing else.",
+        "section": "typography"
+      },
+      {
+        "name": "The Section Rhythm Rule",
+        "body": "New sections use mt-14 + border-t border-rule + pt-10. Do not invent a second separator style; the hairline above a serif h2 is the only section boundary this world has.",
+        "section": "layout"
+      },
+      {
+        "name": "The Measure Rule",
+        "body": "Prose is capped at 30-36rem (55-69ch). Nothing in this system runs the full 72rem as a paragraph.",
+        "section": "layout"
+      },
+      {
+        "name": "The Laid Out Twice Rule",
+        "body": "The navigation is composed twice — a desktop row and a named Menu panel below sm — rather than shrunk to fit. Shaving gaps until a row almost fits is how a header ends up with its last control off-screen.",
+        "section": "layout"
+      },
+      {
+        "name": "The Flat World Rule",
+        "body": "No box-shadow, no drop-shadow, no filter: blur() on a surface, ever. If a new element needs to be told apart from the page, use a rule, a plate, or space.",
+        "section": "elevation"
+      },
+      {
+        "name": "The Three Separators Rule",
+        "body": "A hairline, a change of ground, or nothing at all. An element that needs a fourth kind of separation is an element in the wrong place.",
+        "section": "elevation"
+      },
+      {
+        "name": "The Earned Fill Rule",
+        "body": "A filled ink rectangle is used only where the action is that section's own subject: the digest form's submit, a store purchase link, the homepage's one route into the catalogue. The header CTA is a text link, because a black rectangle there would be the loudest object in every first viewport on the site — outranking, on a Brand page, the brand's own name.",
+        "section": "components"
+      },
+      {
+        "name": "The Normalised Photograph Rule",
+        "body": "Every image goes through Plate. contain in grids; cover only on a lead photograph. Every lead carries a figcaption naming whose photograph it is.",
+        "section": "components"
+      },
+      {
+        "name": "The Plain Empty State Rule",
+        "body": "An empty state is a sentence in muted body prose that says what is missing and why. No dashed box, no placeholder graphic, no illustration, no icon.",
+        "section": "components"
+      },
+      {
+        "name": "The One Focus Rule",
+        "body": "One focus treatment for the whole site: a 2px solid ink outline at 2px offset on every link, button, input, select and textarea. It is visible on both grounds and is never removed for a custom ring.",
+        "section": "components"
+      }
+    ],
+    "dos": [
+      "Do read every colour from the seven --cw-* tokens; a component written correctly needs no dark: variant.",
+      "Do set a Brand's name and the judgement in the display serif, and every gathered fact in Golos Text.",
+      "Do separate sections with mt-14 + border-t border-rule + pt-10, and put the serif h2 immediately under the rule.",
+      "Do cap prose at 30-36rem (55-69ch).",
+      "Do route every image through Plate, contain by default, and caption a lead with \"From {brand}'s own store.\"",
+      "Do write empty states as plain sentences that admit what is missing.",
+      "Do state a Listed Brand's absence at the size of every other fact, and lead its page with the photograph instead.",
+      "Do compose a responsive layout twice when one arrangement cannot serve both 375px and desktop.",
+      "Do let both faces' Cyrillic carry the layout — size nothing to an English word."
+    ],
+    "donts": [
+      "Don't introduce an accent colour, a brand hue, or a coloured badge. Photographs are the only colour on this page.",
+      "Don't add a border-radius or a box-shadow to anything, including overlays. Use a hairline, a plate, or space.",
+      "Don't truncate, line-clamp, fade, or append to an Annotation, and don't put a label above it.",
+      "Don't put a filled ink button anywhere the action is not that section's own subject — the header CTA stays a text link.",
+      "Don't crop a grid image with cover; cover belongs to the Brand lead alone.",
+      "Don't wrap a field in a box. A rule under the input is the whole field.",
+      "Don't use uppercase letterspaced kickers, eyebrows, or all-caps labels.",
+      "Don't draw an icon where a word will do — the mobile menu says Menu.",
+      "Don't style a Listed Brand as an error, a warning, or a missing Curated one.",
+      "Don't use --cw-danger for anything but error text.",
+      "Don't replace an empty state with a dashed placeholder box or an illustration."
+    ]
+  }
+}

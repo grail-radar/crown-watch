@@ -13,22 +13,18 @@ const RELEASE_KEY = 'crown-watch:release:2026-07-telegram';
 
 const HIGHLIGHTS = [
   {
-    icon: '🆕',
-    title: 'New releases, the moment they land',
+    title: 'New drops, the moment they land',
     body: 'We watch brands’ own stores directly — you hear about a watch when it appears, not when an article gets written about it.',
   },
   {
-    icon: '♻️',
     title: 'Restock alerts',
     body: 'A sold-out reference coming back in stock is its own alert. That’s the one people miss.',
   },
   {
-    icon: '🔗',
     title: 'Everything in one message',
     body: 'Brand, model, price, and a link straight to the source — no digging.',
   },
   {
-    icon: '🔕',
     title: 'Never the same drop twice',
     body: 'Each drop is posted once and only once. No repeats, no noise.',
   },
@@ -74,7 +70,7 @@ export function ReleaseNote() {
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-end justify-center bg-scrim/80 p-4 backdrop-blur-sm sm:items-center"
+      className="fixed inset-0 z-50 flex items-end justify-center bg-ink/60 p-4 sm:items-center"
       onClick={dismiss}
     >
       <div
@@ -82,14 +78,14 @@ export function ReleaseNote() {
         aria-modal="true"
         aria-labelledby="release-note-title"
         onClick={(e) => e.stopPropagation()}
-        className="relative w-full max-w-lg overflow-hidden rounded-2xl border border-line bg-panel shadow-2xl"
+        className="relative w-full max-w-lg overflow-hidden border border-ink bg-paper"
       >
         <button
           ref={closeRef}
           type="button"
           onClick={dismiss}
           aria-label="Close"
-          className="absolute right-3 top-3 rounded-lg p-1.5 text-faint transition hover:bg-panel-2 hover:text-ink"
+          className="absolute right-4 top-4 p-1 text-muted transition hover:text-ink"
         >
           <svg viewBox="0 0 20 20" fill="none" className="h-4 w-4" aria-hidden="true">
             <path
@@ -101,32 +97,21 @@ export function ReleaseNote() {
           </svg>
         </button>
 
-        <div className="border-b border-line/70 px-6 py-5">
-          <p className="text-[11px] font-medium uppercase tracking-[0.16em] text-gold">
-            New
-          </p>
-          <h2
-            id="release-note-title"
-            className="mt-1.5 font-display text-2xl leading-tight tracking-tight"
-          >
+        <div className="border-b border-rule px-6 py-6">
+          <h2 id="release-note-title" className="display pr-8 text-2xl">
             Crown Watch is now on Telegram
           </h2>
-          <p className="mt-2 text-sm leading-relaxed text-faint">
+          <p className="mt-3 text-sm leading-relaxed text-muted">
             Drop alerts now reach your phone the moment we spot them — in
             English and Ukrainian.
           </p>
         </div>
 
-        <ul className="divide-y divide-line/50 px-6">
+        <ul className="divide-y divide-rule px-6">
           {HIGHLIGHTS.map((item) => (
-            <li key={item.title} className="flex gap-3 py-3.5">
-              <span aria-hidden="true" className="mt-0.5 text-base leading-none">
-                {item.icon}
-              </span>
-              <div>
-                <p className="text-sm font-medium text-ink">{item.title}</p>
-                <p className="mt-1 text-xs leading-relaxed text-faint">{item.body}</p>
-              </div>
+            <li key={item.title} className="py-4">
+              <p className="text-sm">{item.title}</p>
+              <p className="mt-1 text-xs leading-relaxed text-muted">{item.body}</p>
             </li>
           ))}
         </ul>
@@ -138,21 +123,19 @@ export function ReleaseNote() {
               href={channel.url}
               target="_blank"
               rel="noopener noreferrer"
-              className="flex items-center justify-between gap-3 rounded-xl border border-gold/40 px-4 py-3 transition hover:border-gold hover:bg-gold/5"
+              className="flex items-center justify-between gap-3 border border-rule px-4 py-3 transition hover:border-ink"
             >
               <span className="flex items-center gap-2.5">
-                <TelegramIcon className="h-4 w-4 text-gold" />
-                <span className="text-sm font-medium text-ink">
-                  Join {channel.label}
-                </span>
+                <TelegramIcon className="h-4 w-4" />
+                <span className="text-sm">Join {channel.label}</span>
               </span>
-              <span className="text-xs text-faint">{channel.handle}</span>
+              <span className="text-xs text-muted">{channel.handle}</span>
             </a>
           ))}
           <button
             type="button"
             onClick={dismiss}
-            className="w-full pt-1 text-center text-xs text-faint transition hover:text-ink"
+            className="w-full pt-2 text-center text-xs text-muted transition hover:text-ink"
           >
             Maybe later
           </button>

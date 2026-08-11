@@ -59,7 +59,7 @@ export function ThemeSwitch() {
     <div
       role="group"
       aria-label="Colour theme"
-      className="flex items-center rounded-full border border-line/70 p-0.5"
+      className="flex items-center gap-1"
     >
       {OPTIONS.map((option) => {
         const active = preference === option.value;
@@ -70,10 +70,8 @@ export function ThemeSwitch() {
             onClick={() => choose(option.value)}
             aria-pressed={preference === null ? undefined : active}
             title={`${option.label} theme`}
-            className={`rounded-full p-1.5 transition focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-gold ${
-              active
-                ? 'bg-panel-2 text-gold'
-                : 'text-faint hover:text-ink'
+            className={`p-1.5 transition ${
+              active ? 'text-ink' : 'text-muted hover:text-ink'
             }`}
           >
             <svg
