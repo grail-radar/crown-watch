@@ -1,0 +1,288 @@
+{
+  "schemaVersion": 2,
+  "generatedAt": "2026-08-11T00:00:00.000Z",
+  "title": "Design System: Crown Watch",
+  "extensions": {
+    "colorMeta": {
+      "gold": {
+        "role": "primary",
+        "displayName": "Champagne & Bronze",
+        "canonical": "light-dark(#7d5f27, #c9a96a)",
+        "note": "Champagne Gold (#c9a96a) on dark, Antique Bronze (#7d5f27) on paper. Not a dimmed variant — the role is re-derived for contrast (5.31:1 on paper, where champagne would read ~1.9:1).",
+        "tonalRamp": ["#2b1f0b", "#3f2f11", "#54401a", "#7d5f27", "#a17c3d", "#c9a96a", "#e0c690", "#f3e6c9"]
+      },
+      "gold-bright": {
+        "role": "primary",
+        "displayName": "Lit Gold",
+        "canonical": "light-dark(#5f4718, #e0c690)",
+        "note": "Hover and emphasis for the accent. Never a second accent in its own right.",
+        "tonalRamp": ["#2b1f0b", "#3f2f11", "#5f4718", "#8a6a28", "#b08f4c", "#d4b57f", "#e0c690", "#f7efdb"]
+      },
+      "on-gold": {
+        "role": "primary",
+        "displayName": "On Gold",
+        "canonical": "light-dark(#fffcf5, #101014)",
+        "note": "Text on a gold fill. Its own token, not the page color — reusing the ground here is what makes an inverted palette illegible.",
+        "tonalRamp": ["#101014", "#26262e", "#3f3f49", "#5f5a50", "#918e86", "#c9c4b9", "#ece9e2", "#fffcf5"]
+      },
+      "night": {
+        "role": "neutral",
+        "displayName": "Warm Night / Warm Paper",
+        "canonical": "light-dark(#f5f2ec, #101014)",
+        "note": "The page ground. Never true black, never white — the warmth is what keeps a dense catalogue from reading as a database.",
+        "tonalRamp": ["#101014", "#17171c", "#1e1e24", "#26262e", "#5f5a50", "#c9c4b9", "#e8e3d9", "#f5f2ec"]
+      },
+      "panel": {
+        "role": "neutral",
+        "displayName": "Resting Surface",
+        "canonical": "light-dark(#fbf9f6, #17171c)",
+        "note": "One step off the ground. Every card, the digest block, search fields.",
+        "tonalRamp": ["#101014", "#17171c", "#1e1e24", "#26262e", "#5f5a50", "#c9c4b9", "#efece7", "#fbf9f6"]
+      },
+      "panel-2": {
+        "role": "neutral",
+        "displayName": "Inner Surface",
+        "canonical": "light-dark(#ffffff, #1e1e24)",
+        "note": "Image wells behind photography and the active theme-switch key. The innermost of three layers.",
+        "tonalRamp": ["#101014", "#17171c", "#1e1e24", "#26262e", "#5f5a50", "#c9c4b9", "#f4f4f6", "#ffffff"]
+      },
+      "line": {
+        "role": "neutral",
+        "displayName": "Hairline",
+        "canonical": "light-dark(#e0d9cc, #26262e)",
+        "note": "Does the work shadows do elsewhere. Usually at 70–80% opacity; dashed when it marks an empty state.",
+        "tonalRamp": ["#101014", "#1e1e24", "#26262e", "#3f3f49", "#8f8878", "#c4bcab", "#e0d9cc", "#f2ede3"]
+      },
+      "ink": {
+        "role": "neutral",
+        "displayName": "Warm Ink",
+        "canonical": "light-dark(#22201b, #ece9e2)",
+        "note": "Body and heading text, warm at both ends of the switch.",
+        "tonalRamp": ["#131210", "#22201b", "#3a372f", "#5f5a50", "#918e86", "#c9c4b9", "#ece9e2", "#f8f6f1"]
+      },
+      "faint": {
+        "role": "neutral",
+        "displayName": "Second Voice",
+        "canonical": "light-dark(#5f5a50, #918e86)",
+        "note": "Metadata, provenance, timestamps, and every honest admission of absence. A second voice, not a disabled state.",
+        "tonalRamp": ["#131210", "#22201b", "#3a372f", "#5f5a50", "#7a766c", "#918e86", "#b8b4ab", "#dcd8cf"]
+      },
+      "scrim": {
+        "role": "neutral",
+        "displayName": "Fixed Scrim",
+        "canonical": "#101014",
+        "note": "Backdrops and badges over photography. Dark in BOTH themes on purpose: a light scrim over a light page does nothing.",
+        "tonalRamp": ["#0a0a0d", "#101014", "#17171c", "#1e1e24", "#26262e", "#3f3f49", "#5a5a66", "#7c7c88"]
+      }
+    },
+    "typographyMeta": {
+      "display": {
+        "displayName": "Display — Fraunces",
+        "purpose": "The homepage proposition and brand names. One per page. Serif because a person wrote or named it."
+      },
+      "headline": {
+        "displayName": "Headline — Fraunces",
+        "purpose": "Section titles that open an argument: 'What YEMA makes', 'Recent drops'."
+      },
+      "title": {
+        "displayName": "Title — Instrument Sans",
+        "purpose": "Card titles and Drop headlines. Sans because a machine gathered it."
+      },
+      "body": {
+        "displayName": "Body — Instrument Sans",
+        "purpose": "Explanatory prose in `faint`, capped near 65–75ch."
+      },
+      "label": {
+        "displayName": "Label — Instrument Sans, 0.2em, uppercase",
+        "purpose": "The catalogue's lot markers: 'OUR TAKE', 'WHAT IT COSTS', brand names on cards. All-caps appears nowhere else."
+      }
+    },
+    "shadows": [
+      {
+        "name": "none",
+        "value": "none",
+        "purpose": "The page system has no shadows at all. Depth is three surface tones plus a 1px hairline."
+      },
+      {
+        "name": "lettermark-ring",
+        "value": "inset 0 0 0 1px hsl(var(--brand-h) var(--art-ring-s) var(--art-ring-l) / var(--art-ring-a))",
+        "purpose": "A drawn edge rather than a cast shadow: the brand lettermark's inner ring."
+      },
+      {
+        "name": "overlay",
+        "value": "0 25px 50px -12px rgb(0 0 0 / 0.25)",
+        "purpose": "Tailwind's shadow-2xl on the dialog panel — the only real cast shadow in the interface. Licensed by leaving the document flow, paired with a scrim/80 backdrop and backdrop-blur-sm."
+      }
+    ],
+    "motion": [
+      {
+        "name": "state",
+        "value": "transition duration-300",
+        "purpose": "Every card hover: 2px lift plus a border warming from line to gold/40. The only elevation event in the system."
+      },
+      {
+        "name": "micro",
+        "value": "transition (150ms default)",
+        "purpose": "Text and border color shifts on links, chips, and nav items."
+      }
+    ],
+    "breakpoints": [
+      { "name": "sm", "value": "640px" },
+      { "name": "lg", "value": "1024px" },
+      { "name": "container", "value": "72rem (max-w-6xl), 1.5rem gutter at every width" }
+    ]
+  },
+  "components": [
+    {
+      "name": "Primary Button",
+      "kind": "button",
+      "refersTo": "button-primary",
+      "description": "The single action a screen wants — join the digest, buy from the brand.",
+      "html": "<button class=\"ds-btn-primary\">Join the digest</button>",
+      "css": ".ds-btn-primary { background: var(--color-gold, #c9a96a); color: var(--color-on-gold, #101014); font: 500 0.875rem/1.375 'Instrument Sans', ui-sans-serif, system-ui, sans-serif; padding: 0.625rem 1.25rem; border: none; border-radius: 0.75rem; cursor: pointer; transition: background 0.15s ease; } .ds-btn-primary:hover { background: var(--color-gold-bright, #e0c690); } .ds-btn-primary:focus-visible { outline: 2px solid var(--color-gold, #c9a96a); outline-offset: 2px; } .ds-btn-primary:disabled { opacity: 0.5; cursor: default; }"
+    },
+    {
+      "name": "Ghost Button",
+      "kind": "button",
+      "refersTo": "button-ghost",
+      "description": "An honest but weaker action — a brand-site link where the reader still has to find the watch on arrival. Dressing it as a buy button would overpromise.",
+      "html": "<a class=\"ds-btn-ghost\" href=\"#\">Visit Baltic ↗</a>",
+      "css": ".ds-btn-ghost { display: inline-block; background: transparent; color: var(--color-gold, #c9a96a); font: 500 0.875rem/1.375 'Instrument Sans', ui-sans-serif, system-ui, sans-serif; padding: 0.625rem 1.25rem; border: 1px solid color-mix(in srgb, var(--color-gold, #c9a96a) 40%, transparent); border-radius: 0.75rem; text-decoration: none; transition: border-color 0.15s ease, color 0.15s ease; } .ds-btn-ghost:hover { border-color: var(--color-gold, #c9a96a); color: var(--color-gold-bright, #e0c690); } .ds-btn-ghost:focus-visible { outline: 2px solid var(--color-gold, #c9a96a); outline-offset: 2px; }"
+    },
+    {
+      "name": "Drop Card",
+      "kind": "card",
+      "refersTo": "card",
+      "description": "One event about a Watch. A full-bleed image well opens the card; the type chip sits over it; the brand sets in gold label caps above the headline.",
+      "html": "<article class=\"ds-card\"><div class=\"ds-card-media\"><span class=\"ds-chip-restock\">Restock</span></div><div class=\"ds-card-body\"><a class=\"ds-card-brand\" href=\"#\">Baltic</a><a class=\"ds-card-title\" href=\"#\">Aquascaphe Bronze returns in a new dial</a><div class=\"ds-card-meta\"><span>$650</span><span>2 days ago</span></div></div></article>",
+      "css": ".ds-card { overflow: hidden; border: 1px solid color-mix(in srgb, var(--color-line, #26262e) 80%, transparent); border-radius: 1rem; background: var(--color-panel, #17171c); transition: transform 0.3s ease, border-color 0.3s ease; } .ds-card:hover { transform: translateY(-2px); border-color: color-mix(in srgb, var(--color-gold, #c9a96a) 40%, transparent); } .ds-card-media { position: relative; aspect-ratio: 16/10; background: var(--color-panel-2, #1e1e24); } .ds-card-body { padding: 1rem; } .ds-card-brand { display: inline-block; color: var(--color-gold, #c9a96a); font: 500 11px/1.4 'Instrument Sans', ui-sans-serif, system-ui, sans-serif; letter-spacing: 0.18em; text-transform: uppercase; text-decoration: none; } .ds-card-title { display: block; margin-top: 0.25rem; color: var(--color-ink, #ece9e2); font: 500 1rem/1.375 'Instrument Sans', ui-sans-serif, system-ui, sans-serif; text-decoration: none; } .ds-card-title:hover { text-decoration: underline; text-decoration-color: color-mix(in srgb, var(--color-gold, #c9a96a) 50%, transparent); text-underline-offset: 4px; } .ds-card-meta { display: flex; justify-content: space-between; margin-top: 0.75rem; color: var(--color-faint, #918e86); font: 400 0.75rem/1.4 'Instrument Sans', ui-sans-serif, system-ui, sans-serif; } .ds-chip-restock { position: absolute; left: 0.75rem; top: 0.75rem; padding: 0.25rem 0.625rem; border-radius: 9999px; background: rgba(251,191,36,0.1); color: #fcd34d; box-shadow: inset 0 0 0 1px rgba(251,191,36,0.25); font: 500 11px/1.4 'Instrument Sans', ui-sans-serif, system-ui, sans-serif; letter-spacing: 0.02em; }"
+    },
+    {
+      "name": "Curated Chip",
+      "kind": "chip",
+      "refersTo": "chip-curated",
+      "description": "A Brand whose Annotation a person approved. The only badge granted the accent — and the only Brand state that gets a badge at all.",
+      "html": "<span class=\"ds-chip-curated\">Curated</span>",
+      "css": ".ds-chip-curated { display: inline-flex; align-items: center; padding: 0.125rem 0.5rem; border-radius: 9999px; background: color-mix(in srgb, var(--color-gold, #c9a96a) 10%, transparent); color: var(--color-gold, #c9a96a); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--color-gold, #c9a96a) 25%, transparent); font: 500 10px/1.4 'Instrument Sans', ui-sans-serif, system-ui, sans-serif; }"
+    },
+    {
+      "name": "Listed Chip",
+      "kind": "chip",
+      "refersTo": "chip-listed",
+      "description": "Present and openly unreviewed. A plain hairline pill on the Brand page — and nothing at all on a directory card, where the absence of a badge is the design.",
+      "html": "<span class=\"ds-chip-listed\">Listed</span>",
+      "css": ".ds-chip-listed { display: inline-flex; align-items: center; padding: 0.25rem 0.625rem; border-radius: 9999px; border: 1px solid var(--color-line, #26262e); color: var(--color-faint, #918e86); background: transparent; font: 400 0.75rem/1.4 'Instrument Sans', ui-sans-serif, system-ui, sans-serif; }"
+    },
+    {
+      "name": "Search Input",
+      "kind": "input",
+      "refersTo": "input",
+      "description": "Instant client-side filter over the brand directory. Focus warms the border rather than removing the outline outright.",
+      "html": "<input class=\"ds-input\" type=\"search\" placeholder=\"Search brands…\" aria-label=\"Search brands\" />",
+      "css": ".ds-input { width: 100%; max-width: 24rem; padding: 0.625rem 1rem; border: 1px solid var(--color-line, #26262e); border-radius: 0.75rem; background: var(--color-panel, #17171c); color: var(--color-ink, #ece9e2); font: 400 0.875rem/1.375 'Instrument Sans', ui-sans-serif, system-ui, sans-serif; outline: none; transition: border-color 0.15s ease; } .ds-input::placeholder { color: color-mix(in srgb, var(--color-faint, #918e86) 60%, transparent); } .ds-input:focus { border-color: color-mix(in srgb, var(--color-gold, #c9a96a) 60%, transparent); }"
+    },
+    {
+      "name": "Header Navigation",
+      "kind": "nav",
+      "description": "A set of exits, not a location indicator: no active state, no underline. The wordmark sets in Fraunces with the first word in gold. Below 640px, labels shorten rather than wrap.",
+      "html": "<header class=\"ds-nav\"><a class=\"ds-wordmark\" href=\"/\"><span>Crown</span> Watch</a><nav class=\"ds-nav-links\"><a href=\"/drops\">Drops</a><a href=\"/#brands\">Brands</a><a class=\"ds-nav-cta\" href=\"/#digest\">Get the digest</a></nav></header>",
+      "css": ".ds-nav { display: flex; align-items: center; justify-content: space-between; gap: 0.75rem; padding: 1rem 1.5rem; border-bottom: 1px solid color-mix(in srgb, var(--color-line, #26262e) 70%, transparent); } .ds-wordmark { color: var(--color-ink, #ece9e2); font: 400 1.125rem/1.2 Fraunces, Georgia, serif; letter-spacing: -0.025em; text-decoration: none; white-space: nowrap; } .ds-wordmark span { color: var(--color-gold, #c9a96a); } .ds-nav-links { display: flex; align-items: center; gap: 1.5rem; font: 400 0.875rem/1.375 'Instrument Sans', ui-sans-serif, system-ui, sans-serif; } .ds-nav-links a { color: var(--color-faint, #918e86); text-decoration: none; transition: color 0.15s ease; } .ds-nav-links a:hover { color: var(--color-ink, #ece9e2); } .ds-nav-cta { padding: 0.375rem 0.875rem; border: 1px solid color-mix(in srgb, var(--color-gold, #c9a96a) 40%, transparent); border-radius: 9999px; color: var(--color-gold, #c9a96a) !important; white-space: nowrap; } .ds-nav-cta:hover { border-color: var(--color-gold, #c9a96a); color: var(--color-gold-bright, #e0c690) !important; }"
+    },
+    {
+      "name": "Annotation Block",
+      "kind": "custom",
+      "description": "The signature component and the reason the rest of the system is quiet. A gold label, the judgement in Fraunces, and a line of provenance. Never truncated, clamped, or faded.",
+      "html": "<section class=\"ds-annotation\"><h2 class=\"ds-annotation-label\">Our take</h2><p class=\"ds-annotation-body\">Real in-house movements at a price nobody else manages, let down by quality control that varies more than it should — buy the Superman, budget for a regulation.</p><p class=\"ds-annotation-note\">Written and approved by a person. Nobody can pay to appear here, to change what it says, or to have it removed.</p></section>",
+      "css": ".ds-annotation { border-top: 1px solid color-mix(in srgb, var(--color-line, #26262e) 70%, transparent); padding-top: 2.5rem; } .ds-annotation-label { margin: 0; color: var(--color-gold, #c9a96a); font: 500 0.75rem/1.4 'Instrument Sans', ui-sans-serif, system-ui, sans-serif; letter-spacing: 0.2em; text-transform: uppercase; } .ds-annotation-body { max-width: 48rem; margin: 1rem 0 0; overflow-wrap: break-word; color: var(--color-ink, #ece9e2); font: 500 1.875rem/1.375 Fraunces, Georgia, serif; letter-spacing: -0.025em; } .ds-annotation-note { max-width: 48rem; margin: 1rem 0 0; color: var(--color-faint, #918e86); font: 400 0.75rem/1.6 'Instrument Sans', ui-sans-serif, system-ui, sans-serif; }"
+    },
+    {
+      "name": "Form Field",
+      "kind": "input",
+      "refersTo": "input-in-panel",
+      "description": "One shared treatment for every control on the site — text, url, select, textarea, password. The label sits above in faint; required is a single gold asterisk and nothing else.",
+      "html": "<label class=\"ds-field\"><span class=\"ds-field-label\">Brand <span class=\"ds-req\">*</span></span><input class=\"ds-field-input\" placeholder=\"e.g. Baltic\" /></label>",
+      "css": ".ds-field { display: block; } .ds-field-label { display: block; margin-bottom: 0.375rem; color: var(--color-faint, #918e86); font: 400 0.875rem/1.375 'Instrument Sans', ui-sans-serif, system-ui, sans-serif; } .ds-req { color: var(--color-gold, #c9a96a); } .ds-field-input { width: 100%; padding: 0.625rem 1rem; border: 1px solid var(--color-line, #26262e); border-radius: 0.75rem; background: var(--color-night, #101014); color: var(--color-ink, #ece9e2); font: 400 0.875rem/1.375 'Instrument Sans', ui-sans-serif, system-ui, sans-serif; outline: none; transition: border-color 0.15s ease; } .ds-field-input::placeholder { color: color-mix(in srgb, var(--color-faint, #918e86) 60%, transparent); } .ds-field-input:focus { border-color: color-mix(in srgb, var(--color-gold, #c9a96a) 60%, transparent); }"
+    },
+    {
+      "name": "Form Success",
+      "kind": "custom",
+      "description": "Replaces the form rather than appending to it. Emerald-tinted, headed in Fraunces, and always carrying a way back — never a dead end.",
+      "html": "<div class=\"ds-success\"><h2 class=\"ds-success-title\">Thanks — it’s in the queue</h2><p class=\"ds-success-body\">Every submission is checked by a human before it appears on the radar, so give it a little time. Spotted another one? <button class=\"ds-success-again\">Submit another drop</button></p></div>",
+      "css": ".ds-success { padding: 1.5rem; border: 1px solid rgba(52,211,153,0.3); border-radius: 1rem; background: rgba(52,211,153,0.1); } .ds-success-title { margin: 0; color: #6ee7b7; font: 400 1.25rem/1.3 Fraunces, Georgia, serif; letter-spacing: -0.02em; } .ds-success-body { margin: 0.5rem 0 0; color: var(--color-faint, #918e86); font: 400 0.875rem/1.6 'Instrument Sans', ui-sans-serif, system-ui, sans-serif; } .ds-success-again { padding: 0; border: none; background: none; color: var(--color-gold, #c9a96a); font: inherit; text-decoration: underline; text-underline-offset: 4px; cursor: pointer; } .ds-success-again:hover { color: var(--color-gold-bright, #e0c690); }"
+    },
+    {
+      "name": "Dialog",
+      "kind": "custom",
+      "description": "The only layer allowed to leave the page's plane, and so the only one allowed a shadow. Bottom-sheet below 640px, centered above it; dismissable by control, Escape, or backdrop.",
+      "html": "<div class=\"ds-dialog-scrim\"><div class=\"ds-dialog\" role=\"dialog\" aria-modal=\"true\" aria-labelledby=\"d-title\"><div class=\"ds-dialog-head\"><p class=\"ds-dialog-eyebrow\">New</p><h2 class=\"ds-dialog-title\" id=\"d-title\">Crown Watch is now on Telegram</h2><p class=\"ds-dialog-lede\">Drop alerts now reach your phone the moment we spot them — in English and Ukrainian.</p></div><div class=\"ds-dialog-actions\"><a class=\"ds-dialog-action\" href=\"#\"><span>Join English</span><span class=\"ds-dialog-handle\">@crownwatch_en</span></a><button class=\"ds-dialog-later\" type=\"button\">Maybe later</button></div></div></div>",
+      "css": ".ds-dialog-scrim { display: flex; align-items: center; justify-content: center; padding: 1rem; background: color-mix(in srgb, var(--color-scrim, #101014) 80%, transparent); backdrop-filter: blur(4px); } .ds-dialog { position: relative; width: 100%; max-width: 32rem; overflow: hidden; border: 1px solid var(--color-line, #26262e); border-radius: 1rem; background: var(--color-panel, #17171c); box-shadow: 0 25px 50px -12px rgb(0 0 0 / 0.25); } .ds-dialog-head { padding: 1.25rem 1.5rem; border-bottom: 1px solid color-mix(in srgb, var(--color-line, #26262e) 70%, transparent); } .ds-dialog-eyebrow { margin: 0; color: var(--color-gold, #c9a96a); font: 500 11px/1.4 'Instrument Sans', ui-sans-serif, system-ui, sans-serif; letter-spacing: 0.16em; text-transform: uppercase; } .ds-dialog-title { margin: 0.375rem 0 0; color: var(--color-ink, #ece9e2); font: 400 1.5rem/1.2 Fraunces, Georgia, serif; letter-spacing: -0.025em; } .ds-dialog-lede { margin: 0.5rem 0 0; color: var(--color-faint, #918e86); font: 400 0.875rem/1.6 'Instrument Sans', ui-sans-serif, system-ui, sans-serif; } .ds-dialog-actions { display: flex; flex-direction: column; gap: 0.5rem; padding: 1rem 1.5rem 1.25rem; } .ds-dialog-action { display: flex; align-items: center; justify-content: space-between; gap: 0.75rem; padding: 0.75rem 1rem; border: 1px solid color-mix(in srgb, var(--color-gold, #c9a96a) 40%, transparent); border-radius: 0.75rem; color: var(--color-ink, #ece9e2); font: 500 0.875rem/1.375 'Instrument Sans', ui-sans-serif, system-ui, sans-serif; text-decoration: none; transition: border-color 0.15s ease, background 0.15s ease; } .ds-dialog-action:hover { border-color: var(--color-gold, #c9a96a); background: color-mix(in srgb, var(--color-gold, #c9a96a) 5%, transparent); } .ds-dialog-handle { color: var(--color-faint, #918e86); font-size: 0.75rem; font-weight: 400; } .ds-dialog-later { width: 100%; padding-top: 0.25rem; border: none; background: none; color: var(--color-faint, #918e86); font: 400 0.75rem/1.4 'Instrument Sans', ui-sans-serif, system-ui, sans-serif; cursor: pointer; } .ds-dialog-later:hover { color: var(--color-ink, #ece9e2); }"
+    },
+    {
+      "name": "Moderation Card",
+      "kind": "card",
+      "description": "Internal. The public Drop card with two additions only: a decision border (emerald approved, red at 60% opacity rejected) and a confidence badge on scrim over the image.",
+      "html": "<article class=\"ds-mod-card is-approved\"><div class=\"ds-mod-media\"><span class=\"ds-mod-conf\">conf 82%</span></div><div class=\"ds-mod-body\"><p class=\"ds-mod-brand\">Baltic</p><p class=\"ds-mod-title\">Aquascaphe Bronze returns in a new dial</p><p class=\"ds-mod-decision\">Published ✓</p></div></article>",
+      "css": ".ds-mod-card { overflow: hidden; border: 1px solid color-mix(in srgb, var(--color-line, #26262e) 80%, transparent); border-radius: 1rem; background: var(--color-panel, #17171c); transition: border-color 0.15s ease, opacity 0.15s ease; } .ds-mod-card.is-approved { border-color: rgba(52,211,153,0.5); } .ds-mod-card.is-rejected { border-color: rgba(248,113,113,0.4); opacity: 0.6; } .ds-mod-media { position: relative; aspect-ratio: 16/10; background: var(--color-panel-2, #1e1e24); } .ds-mod-conf { position: absolute; right: 0.75rem; top: 0.75rem; padding: 0.25rem 0.625rem; border-radius: 9999px; background: color-mix(in srgb, var(--color-scrim, #101014) 80%, transparent); color: var(--color-faint, #918e86); font: 400 11px/1.4 'Instrument Sans', ui-sans-serif, system-ui, sans-serif; } .ds-mod-body { padding: 1rem; } .ds-mod-brand { margin: 0; color: var(--color-gold, #c9a96a); font: 500 11px/1.4 'Instrument Sans', ui-sans-serif, system-ui, sans-serif; letter-spacing: 0.18em; text-transform: uppercase; } .ds-mod-title { margin: 0.25rem 0 0; color: var(--color-ink, #ece9e2); font: 500 1rem/1.375 'Instrument Sans', ui-sans-serif, system-ui, sans-serif; } .ds-mod-decision { margin: 1rem 0 0; color: #6ee7b7; font: 500 0.875rem/1.375 'Instrument Sans', ui-sans-serif, system-ui, sans-serif; }"
+    },
+    {
+      "name": "Empty State",
+      "kind": "custom",
+      "description": "Absence stated in a sentence, inside a dashed hairline — the one place the stroke changes character. Never a skeleton, a spinner, or a warning color.",
+      "html": "<p class=\"ds-empty\">We haven’t indexed Baltic’s catalogue yet — we follow them through the press rather than their own store. Drops still land below.</p>",
+      "css": ".ds-empty { margin: 0; padding: 2.5rem; border: 1px dashed var(--color-line, #26262e); border-radius: 1rem; text-align: center; color: var(--color-faint, #918e86); font: 400 1rem/1.6 'Instrument Sans', ui-sans-serif, system-ui, sans-serif; }"
+    },
+    {
+      "name": "Theme Switch",
+      "kind": "custom",
+      "description": "Light / dark / system as three pill-grouped icon buttons with aria-pressed. The active key takes the inner surface and gold ink.",
+      "html": "<div class=\"ds-theme\" role=\"group\" aria-label=\"Colour theme\"><button type=\"button\" aria-pressed=\"false\"><svg viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.6\" stroke-linecap=\"round\" aria-hidden=\"true\"><path d=\"M12 3v1.5M12 19.5V21M3 12h1.5M19.5 12H21M5.6 5.6l1.1 1.1M17.3 17.3l1.1 1.1M18.4 5.6l-1.1 1.1M6.7 17.3l-1.1 1.1M12 7.5a4.5 4.5 0 100 9 4.5 4.5 0 000-9z\"/></svg></button><button type=\"button\" aria-pressed=\"true\" class=\"is-active\"><svg viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.6\" stroke-linecap=\"round\" aria-hidden=\"true\"><path d=\"M20 13.2A8.2 8.2 0 1110.8 4a6.6 6.6 0 009.2 9.2z\"/></svg></button><button type=\"button\" aria-pressed=\"false\"><svg viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.6\" stroke-linecap=\"round\" aria-hidden=\"true\"><path d=\"M4 5.5h16v10H4zM9 20h6M12 15.5V20\"/></svg></button></div>",
+      "css": ".ds-theme { display: inline-flex; align-items: center; padding: 2px; border: 1px solid color-mix(in srgb, var(--color-line, #26262e) 70%, transparent); border-radius: 9999px; } .ds-theme button { display: flex; padding: 0.375rem; border: none; border-radius: 9999px; background: transparent; color: var(--color-faint, #918e86); cursor: pointer; transition: color 0.15s ease, background 0.15s ease; } .ds-theme button svg { width: 1rem; height: 1rem; } .ds-theme button:hover { color: var(--color-ink, #ece9e2); } .ds-theme button.is-active { background: var(--color-panel-2, #1e1e24); color: var(--color-gold, #c9a96a); } .ds-theme button:focus-visible { outline: 2px solid var(--color-gold, #c9a96a); outline-offset: 2px; }"
+    }
+  ],
+  "narrative": {
+    "northStar": "The Auction House Catalogue",
+    "overview": "An independent specialist's catalogue, not a shop. Warm ground, gilt marking what matters, sparse type, and a written opinion set under each lot. The system's whole job is to make one honest sentence about a brand feel like the most valuable thing on the page — because it is. Everything else is furniture arranged so the reader reaches that sentence and believes it.\n\nThe atmosphere is warm, exacting, unhurried. Nothing here is cold: both palettes refuse pure black and pure white, and the neutrals carry a paper warmth that keeps a dense catalogue from reading as a database. Precision lives in the spacing and the type rather than in ornament — sections are separated by a single hairline rule and a generous run of air, never by a box, a shadow, or a color block. Nothing is rushed: no countdown, no urgency, no motion that isn't a response to the reader's own cursor.\n\nThe dark palette is the considered one, and light is not its inversion. A champagne accent on paper reads at about 1.9:1 and disappears, so gold becomes an antique bronze at 5.31:1 rather than dimming into decoration. This is the system's governing habit: when a theme flips, roles are re-derived, never mirrored.",
+    "keyCharacteristics": [
+      "Nine indirected color tokens; not one hex value or `dark:` variant in any component",
+      "Depth drawn in line and tone — the only shadow in the interface is on the overlay layer",
+      "A serif display voice (Fraunces) against a neutral sans body (Instrument Sans)",
+      "Gold is scarce and structural: state, judgement, and action, nothing else",
+      "Generated per-brand art instead of borrowed logos or publishers' photography",
+      "Absence stated in prose, never rendered as a placeholder or a warning"
+    ],
+    "rules": [
+      { "name": "The Nine Token Rule", "body": "Every color in the app resolves through `--cw-*`. A component that carries a hex value, or a `dark:` variant, is a defect — a palette change must be one file and nothing else.", "section": "colors" },
+      { "name": "The Scarce Metal Rule", "body": "Gold marks judgement, approved state, and action. It never becomes a background wash, a heading color for ordinary headings, or a decorative rule. Its rarity is what makes an Annotation look like the point.", "section": "colors" },
+      { "name": "The Re-derive, Never Mirror Rule", "body": "A light palette is not a dark one inverted. When a token changes theme, its role is re-satisfied — contrast, warmth, and legibility measured again — not its value flipped.", "section": "colors" },
+      { "name": "The Two Voices Rule", "body": "Serif for what a person judged or named; sans for what was gathered. A machine-extracted fact never sets in Fraunces, and the Annotation never sets in Instrument Sans.", "section": "typography" },
+      { "name": "The Unabridged Judgement Rule", "body": "The Annotation renders exactly as written — no truncation, no line clamp, no fade, nothing appended. An Annotation that says the lume is poor has to say the lume is poor, in full, or the whole exercise is marketing.", "section": "typography" },
+      { "name": "The Uppercase Label Rule", "body": "All-caps appears only at label size with at least 0.18em tracking. Never on a heading, never on a button, never on a brand's own name in running text.", "section": "typography" },
+      { "name": "The Drawn Depth Rule", "body": "Separate surfaces in the page with tone and a hairline. Reaching for a box-shadow on anything that scrolls with the document means the tonal stack was not used properly.", "section": "elevation" },
+      { "name": "The Leaving-The-Plane Rule", "body": "Shadow is the privilege of a layer that floats over the page, and nothing else earns it. A dialog gets scrim, blur, and shadow-2xl; a card that happens to matter does not.", "section": "elevation" },
+      { "name": "The Lift-On-Approach Rule", "body": "2px and a warmed border, 300ms, and nothing else. No scale, no shadow bloom, no color fill on hover of a card.", "section": "elevation" }
+    ],
+    "dos": [
+      "Do resolve every color through the nine --cw-* tokens, and add a token to globals.css rather than a hex to a component.",
+      "Do separate sections with mt-14, a border-t border-line/70, and pt-10. It is the page's grammar; a new section that skips it reads as part of the last.",
+      "Do set anything a person wrote or named in Fraunces, and anything gathered in Instrument Sans.",
+      "Do state absence in a full sentence, in faint, in the place the content would have been.",
+      "Do keep uppercase to label size with at least 0.18em tracking.",
+      "Do pair every hover with the same 300ms transition and, on cards, the same 2px lift and gold-warmed border.",
+      "Do give any new interactive element a focus-visible outline in gold.",
+      "Do replace a form with its success state and leave a way back; keep an error beside a form that stays filled and mounted.",
+      "Do build internal tools out of the public primitives, as the moderation queue does.",
+      "Do leave room for Ukrainian: no layout may depend on an English string's length."
+    ],
+    "donts": [
+      "Don't add a box-shadow to anything that scrolls with the document. Depth is tone and a hairline; shadow belongs to the overlay layer alone.",
+      "Don't spend gold on anything but judgement, approved state, or action — no gold headings, gold rules, or gold backgrounds.",
+      "Don't truncate, clamp, fade, or append to an Annotation.",
+      "Don't badge a Listed Brand on a directory card. Absence is deliberate; a grey \"unreviewed\" chip would read as a warning about the brand rather than about us.",
+      "Don't introduce marketplace chrome: star ratings, urgency badges, countdown timers, \"only 2 left\", sale ribbons, or strike-through pricing. Nothing here is being sold.",
+      "Don't introduce dark-SaaS neon: gradients as decoration, glassmorphism, glow, or any synthetic hue. The dark palette is warm and material.",
+      "Don't render a metric, counter, or stat tile. The product forbids the numbers; the visual system must not build furniture that invites them back.",
+      "Don't decorate a Brand with a publisher's photograph or a scraped logo. Brand art is generated, and attribution links out.",
+      "Don't write a dark: variant. The palette switches beneath the component."
+    ]
+  }
+}
