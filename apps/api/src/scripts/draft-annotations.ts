@@ -16,6 +16,10 @@
  * Re-draft one Brand you did not like:
  *   pnpm --filter @crown-watch/api draft:annotations -- --brand=baltic --confirm
  *
+ * Ask again about the Brands that came back with nothing — for after the asking
+ * has changed, not as a way to hope for a better answer to the same question:
+ *   pnpm --filter @crown-watch/api draft:annotations -- --retry-empty --confirm
+ *
  * Throw one away (the Brand is untouched either way):
  *   pnpm --filter @crown-watch/api draft:annotations -- --reject=baltic
  */
@@ -37,6 +41,7 @@ async function main(): Promise<void> {
   const brandSlugs = options('brand');
   const reject = option('reject');
   const confirm = flag('confirm');
+  const retryEmpty = flag('retry-empty');
 
   logger.log(
     `Database: ${databaseHost(process.env.DATABASE_URL) ?? '(none configured)'}`,
@@ -60,7 +65,7 @@ async function main(): Promise<void> {
       return;
     }
 
-    const run = await drafts.draft({ limit, confirm, brandSlugs });
+    const run = await drafts.draft({ limit, confirm, brandSlugs, retryEmpty });
 
     if (run.candidates === 0) {
       process.stdout.write(

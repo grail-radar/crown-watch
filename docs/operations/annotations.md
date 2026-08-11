@@ -70,7 +70,7 @@ we track) and `sources`, which says what it was allowed to read.
 | `status` | What happened | Asked again? |
 | --- | --- | --- |
 | `usable` | A briefing worth opening | No |
-| `empty` | We asked; too little came back to brief anyone | No — that *is* the answer |
+| `empty` | We asked; too little came back to brief anyone | No — that *is* the answer, unless you pass `--retry-empty` |
 | `failed` | We could not ask at all (an API error) | Yes, on the next run |
 
 `note` says why, and it's worth reading on a `usable` draft too: it's where
@@ -130,6 +130,17 @@ with nothing to repair. Re-draft a Brand by naming it, which overrides the
 ```bash
 pnpm --filter @crown-watch/api draft:annotations -- --brand=<slug> --confirm
 ```
+
+## Asking the empty ones again
+
+```bash
+pnpm --filter @crown-watch/api draft:annotations -- --retry-empty --limit=100 --confirm
+```
+
+For when **the asking has changed** — a better threshold, a site we can now
+read, a website filled in on a Brand that had none. Not for hoping a second
+attempt answers the same question differently; that is what `empty` already
+told you, and it costs money to be told twice.
 
 ---
 
