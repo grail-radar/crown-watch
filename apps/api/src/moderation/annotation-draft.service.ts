@@ -94,6 +94,15 @@ export interface DraftRequest {
    * back. Without it, the run picks Brands with no Annotation and no answer.
    */
   brandSlugs?: string[];
+  /**
+   * Ask again about the Brands that came back with nothing.
+   *
+   * `empty` normally means "we asked, that was the answer" and is not retried.
+   * This is the escape hatch for when the *asking* has changed — a better
+   * threshold, a page we can now read — and the old answer no longer stands
+   * for what a fresh one would be.
+   */
+  retryEmpty?: boolean;
 }
 
 /** What a run would cost before any of it is spent. */
@@ -178,6 +187,7 @@ export class AnnotationDraftService {
       limit,
       confirmed,
       request.brandSlugs,
+      request.retryEmpty === true,
     );
 
     const run: DraftRun = {
@@ -238,9 +248,10 @@ export class AnnotationDraftService {
   /**
    * Which Brands are worth drafting.
    *
-   * A Brand a person has already written about is skipped — 37 are unannotated,
-   * and re-drafting the rest produces nothing. A Brand we already *answered* is
-   * skipped too, whether the answer was usable or empty.
+   * A Brand a person has already written about is skipped — dozens are
+   * unannotated, and re-drafting the rest produces nothing. A Brand we already
+   * *answered* is skipped too, whether the answer was usable or empty, unless
+   * the caller says the asking has changed ({@link DraftRequest.retryEmpty}).
    *
    * A Brand we could not *ask* about stays in the queue: a transient API error
    * is not an answer, and excluding it would quietly drop a Brand from the
@@ -250,9 +261,13 @@ export class AnnotationDraftService {
     limit: number,
     confirmed: boolean,
     slugs?: string[],
+    retryEmpty = false,
   ) {
     const named = slugs && slugs.length > 0;
     const wanted = named ? slugs!.length : limit;
+    const answered: DraftStatus[] = retryEmpty
+      ? [DraftStatus.failed, DraftStatus.empty]
+      : [DraftStatus.failed];
     return this.prisma.brand.findMany({
       where: named
         ? { slug: { in: slugs } }
@@ -260,7 +275,7 @@ export class AnnotationDraftService {
             annotation: null,
             OR: [
               { annotationDraft: { is: null } },
-              { annotationDraft: { status: DraftStatus.failed } },
+              { annotationDraft: { status: { in: answered } } },
             ],
           },
       orderBy: named ? { name: 'asc' } : { createdAt: 'asc' },
@@ -373,13 +388,18 @@ export class AnnotationDraftService {
         note: 'The model returned nothing through the tool.',
       };
     }
-    const found = [
-      facts.movementSupplier,
-      facts.inHouseMovement,
-      facts.signatureWatch,
-      facts.assembledIn,
-      facts.knownFor.length > 0 ? facts.knownFor : null,
-    ].filter((v) => v !== null && v !== undefined).length;
+    // Each tag counts. Counting the whole list as one fact threw away real
+    // briefings on the first production run: YEMA came back with "diving,
+    // motorsports, military, aviation" — four accurate tags, exactly what a
+    // writer opens the draft for — and was recorded as "only 1 usable fact".
+    const found =
+      [
+        facts.movementSupplier,
+        facts.inHouseMovement,
+        facts.signatureWatch,
+        facts.assembledIn,
+      ].filter((v) => v !== null && v !== undefined).length +
+      facts.knownFor.length;
 
     if (found >= MIN_FACTS) {
       // Worth carrying even on a good draft: a writer should know the site was

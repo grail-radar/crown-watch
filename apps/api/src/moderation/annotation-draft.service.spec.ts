@@ -382,6 +382,31 @@ describe('AnnotationDraftService', () => {
       expect(draft?.note).toMatch(/1 usable fact/i);
     });
 
+    it('counts each tag, because four of them is a briefing', async () => {
+      // The first production run threw this away: YEMA came back with
+      // "diving, motorsports, military, aviation" — four accurate tags, which
+      // is exactly what a writer opens the draft for — and the whole list
+      // counted as one fact, so it was recorded as having nothing useful.
+      anthropic.facts = {
+        movement_supplier: null,
+        in_house_movement: null,
+        known_for: [
+          'diving watches',
+          'motorsports watches',
+          'military watches',
+          'aviation watches',
+        ],
+        signature_watch: null,
+        assembled_in: null,
+      };
+      const brand = await arrangeBrand();
+
+      await drafts.draft({ limit: 5, confirm: true });
+
+      const draft = await draftFor(brand.id);
+      expect(draft?.status).toBe(DraftStatus.usable);
+    });
+
     it('keeps at most four tags, however many arrive', async () => {
       anthropic.facts = {
         ...DEFAULT_FACTS,
@@ -433,6 +458,37 @@ describe('AnnotationDraftService', () => {
       anthropic.prompts = [];
 
       await drafts.draft({ limit: 20, confirm: true });
+
+      expect(promptAbout(brand.name)).toBeUndefined();
+    });
+
+    it('asks again about an empty Brand when told the asking has changed', async () => {
+      // Not a way to hope for a better answer to the same question: the escape
+      // hatch for when the threshold or the evidence has changed underneath it.
+      anthropic.facts = {
+        movement_supplier: null,
+        in_house_movement: null,
+        known_for: [],
+        signature_watch: null,
+        assembled_in: null,
+      };
+      const brand = await arrangeBrand();
+      await drafts.draft({ limit: 5, confirm: true, brandSlugs: [brand.slug] });
+      anthropic.facts = { ...DEFAULT_FACTS };
+      anthropic.prompts = [];
+
+      await drafts.draft({ limit: 20, confirm: true, retryEmpty: true });
+
+      expect(promptAbout(brand.name)).toBeDefined();
+      expect((await draftFor(brand.id))?.status).toBe(DraftStatus.usable);
+    });
+
+    it('still leaves a good draft alone when retrying the empty ones', async () => {
+      const brand = await arrangeBrand();
+      await drafts.draft({ limit: 5, confirm: true, brandSlugs: [brand.slug] });
+      anthropic.prompts = [];
+
+      await drafts.draft({ limit: 20, confirm: true, retryEmpty: true });
 
       expect(promptAbout(brand.name)).toBeUndefined();
     });
