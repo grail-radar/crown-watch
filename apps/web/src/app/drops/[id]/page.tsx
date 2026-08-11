@@ -1,11 +1,11 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
 import { notFound, permanentRedirect } from 'next/navigation';
-import { DropCard, TypeBadge } from '@/components/cards';
-import { DropImage } from '@/components/drop-image';
+import { DropCard } from '@/components/cards';
+import { Plate } from '@/components/plate';
 import { PurchaseButton } from '@/components/purchase-button';
 import { getBrand, getDrop, getDropWatch } from '@/lib/api';
-import { dropTypeLabel, formatPrice, monogram, relTime } from '@/lib/format';
+import { dropTypeLabel, formatPrice, relTime } from '@/lib/format';
 import { SITE_URL } from '@/lib/site';
 
 export const dynamic = 'force-dynamic';
@@ -114,61 +114,52 @@ export default async function DropPage({ params }: Props) {
         dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
       />
 
-      <div className="pt-10">
-        <Link href="/#drops" className="text-sm text-faint transition hover:text-ink">
+      <div className="pt-8">
+        <Link href="/#drops" className="text-sm text-muted transition hover:text-ink">
           ← All drops
         </Link>
       </div>
 
-      <section className="mt-6 grid grid-cols-1 gap-10 lg:grid-cols-2">
-        <div className="overflow-hidden rounded-3xl border border-line/80 bg-panel">
-          <div className="relative aspect-[16/10]">
-            <DropImage
-              src={drop.imageUrl}
-              alt={`${drop.brand.name} — ${drop.title}`}
-              fallback={monogram(drop.brand.name)}
-            />
-          </div>
+      <section className="mt-10 grid grid-cols-1 gap-12 lg:grid-cols-2 lg:items-start">
+        <div>
+          <Plate
+            src={drop.imageUrl}
+            alt={`${drop.brand.name} — ${drop.title}`}
+            className="aspect-[16/10]"
+            priority
+            sizes="(min-width: 1024px) 50vw, 100vw"
+          />
           {drop.sourceName && (
-            <p className="border-t border-line/70 px-4 py-2.5 text-[11px] text-faint">
+            <p className="mt-3 text-xs text-muted">
               Photo via {drop.sourceName} — all rights belong to the publisher.
             </p>
           )}
         </div>
 
-        <div className="flex flex-col justify-center">
-          <div>
-            <TypeBadge type={drop.type} />
-          </div>
-          <Link
-            href={`/brands/${drop.brand.slug}`}
-            className="mt-4 text-xs font-medium uppercase tracking-[0.2em] text-gold transition hover:text-gold-bright"
-          >
-            {drop.brand.name}
-          </Link>
-          <h1 className="mt-2 font-display text-4xl font-medium leading-tight tracking-tight sm:text-5xl">
+        <div>
+          <p className="text-sm text-muted">
+            <Link
+              href={`/brands/${drop.brand.slug}`}
+              className="text-ink transition hover:underline hover:underline-offset-4"
+            >
+              {drop.brand.name}
+            </Link>
+            {` · ${dropTypeLabel(drop.type)}`}
+            {drop.publishedAt && ` · added ${relTime(drop.publishedAt)}`}
+          </p>
+          <h1 className="display mt-4 text-[clamp(2rem,4.5vw,3.25rem)]">
             {drop.title}
           </h1>
 
-          <div className="mt-6 flex flex-wrap gap-2 text-xs text-faint">
-            {price && (
-              <span className="rounded-full border border-line px-3 py-1.5">
-                {price}
-              </span>
-            )}
-            {eventDate && (
-              <span className="rounded-full border border-line px-3 py-1.5">
-                {eventDate}
-              </span>
-            )}
-            {drop.publishedAt && (
-              <span className="rounded-full border border-line px-3 py-1.5">
-                Added {relTime(drop.publishedAt)}
-              </span>
-            )}
-          </div>
+          {(price || eventDate) && (
+            <p className="mt-6 text-lg tabular-nums">
+              {price}
+              {price && eventDate ? <span className="text-muted"> · </span> : null}
+              {eventDate && <span className="text-muted">{eventDate}</span>}
+            </p>
+          )}
 
-          <div className="mt-8 flex flex-wrap gap-3">
+          <div className="mt-10 flex flex-wrap items-center gap-x-8 gap-y-4 text-sm">
             {/* Where to act comes first — it is what the reader came for. The
                 coverage follows as attribution, stepping down to a quieter
                 style once it is no longer the only thing on offer. */}
@@ -180,8 +171,8 @@ export default async function DropPage({ params }: Props) {
                 rel="noopener noreferrer"
                 className={
                   drop.purchase
-                    ? 'rounded-xl border border-line px-5 py-2.5 text-sm text-faint transition hover:border-gold/50 hover:text-ink'
-                    : 'rounded-xl bg-gold px-5 py-2.5 text-sm font-medium text-on-gold transition hover:bg-gold-bright'
+                    ? 'underline decoration-rule underline-offset-4 transition hover:decoration-ink'
+                    : 'bg-ink px-5 py-2.5 text-inverse transition hover:opacity-80'
                 }
               >
                 Read the original coverage ↗
@@ -189,7 +180,7 @@ export default async function DropPage({ params }: Props) {
             )}
             <Link
               href={`/brands/${drop.brand.slug}`}
-              className="rounded-xl border border-line px-5 py-2.5 text-sm text-faint transition hover:border-gold/50 hover:text-ink"
+              className="text-muted underline decoration-rule underline-offset-4 transition hover:text-ink"
             >
               More from {drop.brand.name}
             </Link>
@@ -198,20 +189,19 @@ export default async function DropPage({ params }: Props) {
       </section>
 
       {more.length > 0 && (
-        <section className="mt-20 border-t border-line/70 pt-10">
-          <h2 className="mb-6 font-display text-2xl tracking-tight">
-            More from {drop.brand.name}
-          </h2>
-          <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3">
+        <section className="mt-20 border-t border-rule pt-10">
+          <h2 className="display text-2xl">More from {drop.brand.name}</h2>
+          <ul className="mt-8 grid grid-cols-1 gap-x-6 gap-y-12 sm:grid-cols-2 lg:grid-cols-3">
             {more.map((d) => (
-              <DropCard
-                key={d.id}
-                drop={d}
-                brand={{ name: drop.brand.name, slug: drop.brand.slug }}
-                showBrand={false}
-              />
+              <li key={d.id}>
+                <DropCard
+                  drop={d}
+                  brand={{ name: drop.brand.name, slug: drop.brand.slug }}
+                  showBrand={false}
+                />
+              </li>
             ))}
-          </div>
+          </ul>
         </section>
       )}
     </main>

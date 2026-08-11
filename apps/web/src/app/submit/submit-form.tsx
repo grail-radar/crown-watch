@@ -10,8 +10,10 @@ const TYPES = [
   'restock',
 ] as const;
 
+// One field treatment for every control on the site: a rule under the input,
+// nothing around it. A box would be the only box on the page.
 const FIELD =
-  'w-full rounded-xl border border-line bg-night px-4 py-2.5 text-sm outline-none transition placeholder:text-faint/60 focus:border-gold/60';
+  'w-full border-b border-rule bg-transparent py-2 text-sm outline-none transition placeholder:text-muted focus:border-ink';
 
 export function SubmitForm() {
   const [status, setStatus] = useState<'idle' | 'busy' | 'ok' | 'error'>('idle');
@@ -55,16 +57,14 @@ export function SubmitForm() {
 
   if (status === 'ok') {
     return (
-      <div className="rounded-2xl border border-emerald-400/30 bg-emerald-400/10 p-6">
-        <h2 className="font-display text-xl text-emerald-300">
-          Thanks — it&apos;s in the queue
-        </h2>
-        <p className="mt-2 text-sm text-faint">
+      <div className="border-t border-ink pt-6">
+        <h2 className="display text-2xl">Thanks — it&apos;s in the queue</h2>
+        <p className="mt-3 max-w-[30rem] text-sm leading-relaxed text-muted">
           Every submission is checked by a human before it appears on the radar,
           so give it a little time. Spotted another one?{' '}
           <button
             onClick={() => setStatus('idle')}
-            className="text-gold underline underline-offset-4 transition hover:text-gold-bright"
+            className="text-ink underline underline-offset-4 transition hover:opacity-70"
           >
             Submit another drop
           </button>
@@ -77,8 +77,8 @@ export function SubmitForm() {
     <form onSubmit={onSubmit} className="space-y-5">
       <div className="grid grid-cols-1 gap-5 sm:grid-cols-2">
         <label className="block">
-          <span className="mb-1.5 block text-sm text-faint">
-            Brand <span className="text-gold">*</span>
+          <span className="mb-1.5 block text-sm text-muted">
+            Brand <span className="text-ink">*</span>
           </span>
           <input
             name="brand_name"
@@ -90,8 +90,8 @@ export function SubmitForm() {
         </label>
 
         <label className="block">
-          <span className="mb-1.5 block text-sm text-faint">
-            Watch / drop name <span className="text-gold">*</span>
+          <span className="mb-1.5 block text-sm text-muted">
+            Watch / drop name <span className="text-ink">*</span>
           </span>
           <input
             name="title"
@@ -104,7 +104,7 @@ export function SubmitForm() {
       </div>
 
       <label className="block">
-        <span className="mb-1.5 block text-sm text-faint">
+        <span className="mb-1.5 block text-sm text-muted">
           Link to the announcement or product page
         </span>
         <input
@@ -117,10 +117,10 @@ export function SubmitForm() {
 
       <div className="grid grid-cols-1 gap-5 sm:grid-cols-3">
         <label className="block">
-          <span className="mb-1.5 block text-sm text-faint">Type</span>
+          <span className="mb-1.5 block text-sm text-muted">Type</span>
           <select name="type" defaultValue="pre_order" className={FIELD}>
             {TYPES.map((t) => (
-              <option key={t} value={t} className="bg-night">
+              <option key={t} value={t} className="bg-paper">
                 {dropTypeLabel(t)}
               </option>
             ))}
@@ -128,12 +128,12 @@ export function SubmitForm() {
         </label>
 
         <label className="block">
-          <span className="mb-1.5 block text-sm text-faint">Price</span>
+          <span className="mb-1.5 block text-sm text-muted">Price</span>
           <input name="price" inputMode="decimal" placeholder="499" className={FIELD} />
         </label>
 
         <label className="block">
-          <span className="mb-1.5 block text-sm text-faint">Currency</span>
+          <span className="mb-1.5 block text-sm text-muted">Currency</span>
           <input
             name="currency"
             maxLength={3}
@@ -144,7 +144,7 @@ export function SubmitForm() {
       </div>
 
       <label className="block">
-        <span className="mb-1.5 block text-sm text-faint">
+        <span className="mb-1.5 block text-sm text-muted">
           Anything else we should know?
         </span>
         <textarea
@@ -156,17 +156,17 @@ export function SubmitForm() {
         />
       </label>
 
-      {error && <p className="text-sm text-red-400">{error}</p>}
+      {error && <p className="text-sm text-danger">{error}</p>}
 
-      <div className="flex flex-wrap items-center gap-4">
+      <div className="flex flex-wrap items-center gap-4 pt-2">
         <button
           type="submit"
           disabled={status === 'busy'}
-          className="rounded-xl bg-gold px-6 py-2.5 text-sm font-medium text-on-gold transition hover:bg-gold-bright disabled:opacity-50"
+          className="bg-ink px-6 py-2.5 text-sm text-inverse transition hover:opacity-80 disabled:opacity-50"
         >
           {status === 'busy' ? 'Submitting…' : 'Submit drop'}
         </button>
-        <span className="text-xs text-faint">
+        <span className="text-xs text-muted">
           Reviewed by a human before publishing. No account needed.
         </span>
       </div>
